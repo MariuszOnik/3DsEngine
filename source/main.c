@@ -325,13 +325,14 @@ static void buildWater(Cell* c)
 			v->p[0] = x * 128 - 4096; v->p[1] = y * 128 - 4096; v->p[2] = 0; v->p[3] = 0;
 			v->t[0] = v->t[1] = 0;
 			float sh = d <= 0 ? 0 : d < 40 ? d / 40.0f : 1;   // no hard edge where the water meets the shore
-			v->c[0] = (u8)((8 + (14 - 8) * e) * sh); v->c[1] = (u8)((34 + (70 - 34) * e) * sh);
-			v->c[2] = (u8)((40 + (105 - 40) * e) * sh);
+			// (crystal, not blue: the user) a faint, nearly neutral shimmer
+			v->c[0] = (u8)((14 + (18 - 14) * e) * sh); v->c[1] = (u8)((18 + (25 - 18) * e) * sh);
+			v->c[2] = (u8)((20 + (29 - 20) * e) * sh);
 			v->c[3] = 255;
 			if (c->tv) {
 				Vtx* tv = &c->tv[k];
 				*tv = *v;
-				tv->c[0] = (u8)(235 + (25 - 235) * e); tv->c[1] = (u8)(255 + (85 - 255) * e); tv->c[2] = (u8)(255 + (125 - 255) * e);
+				tv->c[0] = (u8)(252 + (105 - 252) * e); tv->c[1] = (u8)(255 + (130 - 255) * e); tv->c[2] = (u8)(255 + (140 - 255) * e);
 				tv->c[3] = 255;
 			}
 			// the caustics: on the bottom, strongest in the shallows (~40-150), gone by ~900

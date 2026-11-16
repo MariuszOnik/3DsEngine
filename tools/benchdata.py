@@ -36,8 +36,9 @@ def parse(path):
             out["static"][cur_radius].append({"dir": int(d[0]), "fps": float(d[1]) if d[1] else None, "cpu": float(d[2]),
                                               "gpu": float(d[4]), "draws": float(d[5]), "tris": float(d[6])})
             continue
-        if line.startswith("walk") or line.startswith("sprint"):
-            walk = {"name": "marsz" if "walk Seyda" in line else "sprint" if line.startswith("sprint") else "przejazd",
+        if line.startswith("walk") or line.startswith("sprint") or line.startswith("rts"):
+            walk = {"name": "marsz" if "walk Seyda" in line else "sprint" if line.startswith("sprint") else
+                    "kamera RTS" if line.startswith("rts") else "przejazd",
                     "seconds": [], "summary": None}
             out["walks"].append(walk); cur_radius = None; continue
         m = re.match(r"\s+(?:walk )?t=\s*" + num + r"s cell (-?\d+),(-?\d+): fps " + num + r", frame " + num +

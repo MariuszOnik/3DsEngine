@@ -758,10 +758,14 @@ static void saveShot(const char* path)
 //               Seyda Neen -> Pelagiad at 400 units/s, looking left and right; halfway it
 //               turns back for 4 s (across a cell border) and goes on
 //   phase 3:    the same profile sprinting the route back at 1000 units/s
-enum { B_OFF, B_STATIC, B_WALK, B_DONE };
+//   phase 4:    the RTS camera: standing 12 s while the camera goes once round the character,
+//               then the character running the route at 420 units/s, the camera swaying round it
+// bench.txt saying "rts": only phase 4.
+enum { B_OFF, B_STATIC, B_WALK, B_RTS, B_DONE };
 static int bPhase = B_OFF, bAngle = -1, bFrame;
 static float bCpu, bCpuMax, bGpu, bDraws, bTris, bFrameMs;
 static float startEye[3], startYaw;
+static bool benchOnlyRts;
 
 // walk state
 static float wDist, wSpeed, wT, wTurnT;
@@ -786,6 +790,37 @@ static void routeAt(float d, float out[3], float* heading)
 	float f = s - i;
 	for (int k = 0; k < 3; k++) out[k] = route[i][k] * (1 - f) + route[i + 1][k] * f;
 	*heading = atan2f(route[i + 1][0] - route[i][0], route[i + 1][1] - route[i][1]);
+}
+
+static void benchResetStats(void)
+{
+	wT = 0; wTurnT = 0; wTurn = 0;
+	wFrames = wHitch = wOver34 = wLoads = 0;
+	wSkip = 3;   // the frames after the log was written to the SD (logFlush) are not the streaming's
+	wWorst = wFrameSum = wSetupMax = 0;
+	sT = sFrameMs = sFrameMax = sCpu = sGpu = sTris = sDraws = sFar = 0;
+	sFrames = sMissingMax = 0;
+}
+
+static int rtsShot;          // the next RTS screenshot (0: standing, 1-4: along the route)
+static bool rtsWaiting;      // waiting for the cells round the start
+
+static void benchStartRts(void)
+{
+	bPhase = B_RTS;
+	wStage = 4;
+	benchResetStats();
+	wDist = 0;
+	rtsShot = 0;
+	rtsWaiting = true;
+	radius = 1; setCap(true);
+	yaw = startYaw;
+	chrPlaced = false;
+	memcpy(eye, startEye, 12);
+	setRts(true);
+	chr[0] = startEye[0]; chr[1] = startEye[1]; chr[2] = startEye[2] - 200.0f;
+	logw("rts camera (pitch %.0f deg, distance %.0f, far %.0f), radius 1, 30 fps cap: 12 s standing (the camera once round), then running the route at %.0f units/s:\n",
+	     RTS_PITCH * 180.0f / (float)M_PI, RTS_DIST, RTS_FAR, RUN_SPEED);
 }
 
 static void benchStartWalk(int stage)
@@ -826,6 +861,32 @@ static void benchCamera(float dt, float fwd[3])
 		if (dir < 0) heading += (float)M_PI;
 		yaw = heading + 0.9f * sinf(wT * 0.6f);   // looking round while walking
 		pitch = -0.06f;
+	} else if (bPhase == B_RTS) {
+		float g;
+		if (rtsWaiting) {   // the cells round the start first, then the clock
+			if (!chrPlaced && groundAt(chr[0], chr[1], &g)) { chr[2] = g > -10000.0f ? g : 0; chrPlaced = true; }
+			if (chrPlaced && job.state == JOB_IDLE && !cellsMissing) { rtsWaiting = false; benchResetStats(); }
+			rtsYaw = startYaw;
+		} else {
+			wT += dt;
+			if (wT < 12.0f) {
+				rtsYaw = startYaw + wT * 2.0f * (float)M_PI / 12.0f;
+				chrSwing = 0;
+			} else {
+				float before[2] = { chr[0], chr[1] }, p[3], heading;
+				wDist += RUN_SPEED * dt;
+				routeAt(wDist, p, &heading);
+				chr[0] = p[0]; chr[1] = p[1];
+				if (groundAt(chr[0], chr[1], &g) && g > -10000.0f) chr[2] = g;
+				chrYaw = heading;
+				float moved = sqrtf((chr[0] - before[0]) * (chr[0] - before[0]) + (chr[1] - before[1]) * (chr[1] - before[1]));
+				chrPhase += moved * (float)M_PI / 110.0f;
+				chrSwing = 1;
+				rtsYaw = heading + 0.8f * sinf((wT - 12.0f) * 0.5f);
+			}
+		}
+		rtsCamera(fwd);
+		return;
 	}
 	fwd[0] = cosf(pitch) * sinf(yaw); fwd[1] = cosf(pitch) * cosf(yaw); fwd[2] = sinf(pitch);
 }
@@ -869,7 +930,25 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 		}
 		return;
 	}
-	if (bPhase != B_WALK) return;
+	if (bPhase != B_WALK && bPhase != B_RTS) return;
+	if (bPhase == B_RTS) {
+		if (rtsWaiting) return;
+		// screenshots: standing (6 s), then at each quarter of the route
+		bool shot = false;
+		if (rtsShot == 0 && wT >= 6.0f) shot = true;
+		else if (rtsShot >= 1 && rtsShot <= 4 && wDist >= routeLen() * (rtsShot - 0.5f) / 4.0f) shot = true;
+		if (shot) {
+			char p[64];
+			snprintf(p, sizeof p, "sdmc:/3ds/mwcell3d/rts_%d.bmp", rtsShot);
+			saveShot(p);
+			rtsShot++;
+			wSkip = 3;
+		}
+		if (wT >= 12.0f && wT - rawMs / 1000.0f < 12.0f) {
+			// the standing part's last second may be partial: log it as it is
+			logw("  -- running\n");
+		}
+	}
 	// the walk: per second and per walk
 	if (wSkip > 0) { wSkip--; return; }
 	wFrames++; wFrameSum += rawMs;
@@ -891,12 +970,13 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 		sT = sFrameMs = sFrameMax = sCpu = sGpu = sTris = sDraws = sFar = 0;
 		sFrames = sMissingMax = 0;
 	}
-	bool end = wStage == 2 ? wDist >= routeLen() : wDist <= 0;
+	bool end = wStage == 2 || wStage == 4 ? wDist >= routeLen() : wDist <= 0;
 	if (end) {
 		logw("  => %d frames, avg fps %.1f, missed frames (>34.5 ms) %d, stops (>50 ms) %d, worst %.1f ms, loads %d (setup max %.1f ms), load failures %d\n",
 		     wFrames, 1000.0f * wFrames / wFrameSum, wOver34, wHitch, wWorst, wLoads, wSetupMax, loadFailed);
 		logFlush();
 		if (wStage == 2) benchStartWalk(3);
+		else if (wStage == 3) benchStartRts();
 		else { bPhase = B_DONE; *quit = true; }
 	}
 }
@@ -952,7 +1032,10 @@ int main(void)
 	{
 		FILE* bf = fopen("sdmc:/3ds/mwcell3d/bench.txt", "rb");
 		if (bf) {
+			char what[16] = { 0 };
+			fread(what, 1, sizeof what - 1, bf);
 			fclose(bf);
+			benchOnlyRts = strstr(what, "rts") != NULL;
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
 			bPhase = B_STATIC;
 			rtsMode = false;
@@ -966,10 +1049,11 @@ int main(void)
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
 		     navail, nroute, loaderThread ? "" : ", NO LOADER THREAD");
 		logFlush();
-		if (bPhase != B_OFF) printf("\x1b[33mBENCHMARK running (about 3 min),\nthis screen stays still meanwhile\x1b[0m\n");
+		if (bPhase != B_OFF) printf("\x1b[33mBENCHMARK running (a few min),\nthis screen stays still meanwhile\x1b[0m\n");
 	}
 	startEye[0] = eye[0]; startEye[1] = eye[1]; startEye[2] = eye[2];
 	startYaw = yaw;
+	if (benchOnlyRts) benchStartRts();
 
 	u64 last = ticks(), fpsT = last;
 	int frames = 0, playTick = 0;

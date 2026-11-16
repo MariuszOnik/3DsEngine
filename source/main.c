@@ -328,13 +328,13 @@ static void buildWater(Cell* c)
 			// (crystal, not blue: the user) a faint, nearly neutral shimmer
 			// (natural mountain water, the user's reference: a faint olive-grey, darker green-grey deep)
 			// the shore fade in the alpha: it scales the whole added layer, the sky's reflection too
-			v->c[0] = (u8)(12 + (14 - 12) * e); v->c[1] = (u8)(16 + (22 - 16) * e); v->c[2] = (u8)(14 + (18 - 14) * e);
+			v->c[0] = (u8)(5 + (6 - 5) * e); v->c[1] = (u8)(8 + (11 - 8) * e); v->c[2] = (u8)(6 + (8 - 6) * e);
 			v->c[3] = (u8)(255 * sh);
 			if (c->tv) {
 				Vtx* tv = &c->tv[k];
 				*tv = *v;
 				tv->c[3] = 255;
-				tv->c[0] = (u8)(250 + (72 - 250) * e); tv->c[1] = (u8)(255 + (98 - 255) * e); tv->c[2] = (u8)(246 + (86 - 246) * e);
+				tv->c[0] = (u8)(240 + (40 - 240) * e); tv->c[1] = (u8)(255 + (66 - 255) * e); tv->c[2] = (u8)(238 + (50 - 238) * e);
 				tv->c[3] = 255;
 			}
 			// the caustics: on the bottom, strongest in the shallows (~40-150), gone by ~900
@@ -1043,7 +1043,9 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	// 2: the light scattered back and the sky mirrored (fresnel), x the ripples, + the glints:
 	// added (x the fog alpha)
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFres, 0, 0, 0, 0);
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, wRefl, SKY_R / 255.0f * 0.38f, SKY_G / 255.0f * 0.38f, SKY_B / 255.0f * 0.38f, 0);
+	// what it mirrors: the shores' dark greens, not the sky (= the fog's colour: the water looked
+	// like haze, the user)
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wRefl, 34 / 255.0f, 50 / 255.0f, 40 / 255.0f, 0);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_ZERO, GPU_ONE);
 	float t = fxTime;
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 14.0f / 8192.0f, 0);

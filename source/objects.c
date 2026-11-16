@@ -1,4 +1,5 @@
 // Dynamic objects: loading objects.bin, their state, the one in reach, door swings. Drawn by main.c (drawObjects).
+#include "data.h"
 #include "objects.h"
 #include <math.h>
 #include <stdio.h>
@@ -21,7 +22,7 @@ typedef struct { char magic[4]; u32 nbase, nmodel, npart, nobj, baseofs, modelof
 
 bool objLoad(void)
 {
-	FILE* f = fopen("romfs:/objects.bin", "rb");
+	FILE* f = fopen(dataPath("objects.bin"), "rb");
 	if (!f) return false;
 	fseek(f, 0, SEEK_END);
 	long n = ftell(f);

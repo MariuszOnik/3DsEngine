@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "data.h"
 #include "world_shbin.h"
 #include "water_shbin.h"
 #include "skin_shbin.h"
@@ -296,7 +297,7 @@ static bool texFrom(C3D_Tex* t, int w, int h, int fmt, const u8* src, u32 bytes,
 static bool loadTextures(void)
 {
 	u32 size;
-	u8* buf = readFile("romfs:/textures.bin", &size);
+	u8* buf = readFile(dataPath("textures.bin"), &size);
 	if (!buf || memcmp(buf, "MWT1", 4)) return false;
 	memcpy(&ntex, buf + 4, 4);
 	texs = calloc(ntex, sizeof(C3D_Tex));
@@ -316,7 +317,7 @@ static bool loadTextures(void)
 static bool loadIndex(void)
 {
 	u32 size;
-	u8* buf = readFile("romfs:/index.bin", &size);
+	u8* buf = readFile(dataPath("index.bin"), &size);
 	if (!buf || memcmp(buf, "MWI2", 4)) { free(buf); return false; }
 	u8* p = buf + 4;
 	memcpy(&navail, p, 4); p += 4;
@@ -573,7 +574,7 @@ static void loaderMain(void* arg)
 		if (job.state != JOB_READING) continue;
 		u64 t0 = ticks();
 		char path[64];
-		snprintf(path, sizeof path, "romfs:/cells/%d_%d.bin", job.gx, job.gy);
+		snprintf(path, sizeof path, "%scells/%d_%d.bin", dataDir, job.gx, job.gy);
 		FILE* f = fopen(path, "rb");
 		bool ok = f != NULL;
 		// in 64 KB pieces: between them the main thread runs (this thread is above it, on its core)
@@ -867,7 +868,7 @@ static bool teleported;            // (the loader's velocity must not see the ju
 static void loadInteriors(void)
 {
 	u32 size;
-	u8* b = readFile("romfs:/interiors.bin", &size);
+	u8* b = readFile(dataPath("interiors.bin"), &size);
 	if (!b || size < 8 || memcmp(b, "MWN1", 4)) { free(b); return; }
 	memcpy(&ninterior, b + 4, 4);
 	if (8 + ninterior * sizeof(Interior) > size) ninterior = 0;
@@ -1232,7 +1233,7 @@ static float chAnimMs, chDrawMs;   // last frame: the poses, the drawing (CPU)
 static bool loadCharacter(void)
 {
 	u32 size;
-	chData = readFile("romfs:/char.bin", &size);
+	chData = readFile(dataPath("char.bin"), &size);
 	if (!chData || memcmp(chData, "MWCK", 4)) { free(chData); chData = NULL; return false; }
 	const u8* p = chData + 4;
 	u32 h[7];
@@ -3027,6 +3028,7 @@ int main(void)
 	}
 	if (useConsole) consoleInit(GFX_BOTTOM, NULL);
 	romfsInit();
+	dataInit();   // the baked data: from the SD card when it is there (the app without romfs), else romfs
 	bool sound = audioInit();
 	C3D_Init(0x180000);   // 1.5 MB: each skinned mesh sends its bone palette (~14 KB per character)
 	if (!useConsole) { uiInit(); uiOn = true; }
@@ -3145,7 +3147,7 @@ int main(void)
 		logw("--- %s 3DS, heap %lu KB, linear %lu KB, textures %d (%lu KB) in %.0f ms, %d cells baked, route %d points%s\n",
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
 		     navail, nroute, loaderThread ? "" : ", NO LOADER THREAD");
-		logw("    sound: %s\n", sound ? "on" : "OFF (no sdmc:/3ds/dspfirm.cdc: run DSP1.3dsx once)");
+		logw("    sound: %s, data from %s\n", sound ? "on" : "OFF (no sdmc:/3ds/dspfirm.cdc: run DSP1.3dsx once)", dataDir);
 		logw("    objects: %s, %d (%d models, %d parts, %lu KB), interiors %d\n", objsOk ? "ok" : "NONE", nobj, objNModels, objNParts, objBytes / 1024, ninterior);
 		scriptsOk = scriptInit();
 		if (!scriptsOk) { logw("    scripts: %s\n", scriptError()); if (scriptError()[0]) gameMessage(scriptError()); }

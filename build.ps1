@@ -5,7 +5,9 @@
 #   .\build.ps1 -nobake               only make (romfs as it is)
 #   -bake "--radius 0 --tex 64"       arguments for mwbake.py
 #   -tag t1                           copy as builds\mwcell3d-<tag>.3dsx
-param([string]$what = "", [string]$bake = "", [string]$tag = "test", [switch]$nobake)
+#   -small                            the app without romfs (~0.5 MB): the data is read from
+#                                     sdmc:/3ds/mwcell3d/data/ (tools/upload.sh data, once per bake)
+param([string]$what = "", [string]$bake = "", [string]$tag = "test", [switch]$nobake, [switch]$small)
 $ErrorActionPreference = "Continue"   # gcc warnings on stderr are not errors
 $here = $PSScriptRoot
 $bash = "C:\devkitPro\msys2\usr\bin\bash.exe"
@@ -28,7 +30,8 @@ Copy-Item (Join-Path $here "scripts\*.cs") (Join-Path $here "romfs\scripts")
 # make does not see changes inside romfs/: drop the .3dsx so it is always packed anew
 Remove-Item -ErrorAction SilentlyContinue (Join-Path $here "mwcell3d.3dsx"), (Join-Path $here "mwcell3d.smdh")
 $title = "MW cell $tag " + (Get-Date -Format "MM-dd HH:mm")
-& $bash -lc "$env_ && make APP_TITLE='$title' APP_DESCRIPTION='$title'"
+$romfsArg = ""; if ($small) { $romfsArg = "ROMFS=" }
+& $bash -lc "$env_ && make $romfsArg APP_TITLE='$title' APP_DESCRIPTION='$title'"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 New-Item -ItemType Directory -Force (Join-Path $here "builds") | Out-Null
 $copy = Join-Path $here "builds\mwcell3d-$tag.3dsx"

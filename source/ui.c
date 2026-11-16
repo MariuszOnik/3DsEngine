@@ -7,6 +7,7 @@
 #include <citro2d.h>
 #include <stdio.h>
 #include <string.h>
+#include "data.h"
 #include "ui.h"
 
 #define MAXP 64
@@ -29,8 +30,8 @@ static int piece(const char* n)
 
 bool uiInit(void)
 {
-	sheet = C2D_SpriteSheetLoad("romfs:/ui.t3x");
-	FILE* f = fopen("romfs:/ui.txt", "r");
+	sheet = C2D_SpriteSheetLoad(dataPath("ui.t3x"));
+	FILE* f = fopen(dataPath("ui.txt"), "r");
 	if (f) {
 		while (npieces < MAXP && fgets(names[npieces], sizeof names[0], f)) {
 			names[npieces][strcspn(names[npieces], "\r\n")] = 0;

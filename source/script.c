@@ -11,6 +11,7 @@
 #include <string.h>
 #include <math.h>
 #include <dirent.h>
+#include "data.h"
 #include "ms.h"
 #include "lib.h"
 #include "objects.h"
@@ -289,8 +290,10 @@ bool scriptInit(void)
 	// the SD card first (edit, upload by FTP, L+X in the game: no build), else the ones built in
 	const char* dir = SD_SCRIPTS;
 	char* src = readScripts(dir);
-	if (!src || !nfiles) { free(src); dir = "romfs:/scripts"; src = readScripts(dir); }
-	if (!src) { snprintf(err, sizeof err, "no %s/*.cs nor romfs:/scripts/*.cs", SD_SCRIPTS); return false; }
+	static char bdir[64];
+	snprintf(bdir, sizeof bdir, "%sscripts", dataDir);
+	if (!src || !nfiles) { free(src); dir = bdir; src = readScripts(dir); }
+	if (!src) { snprintf(err, sizeof err, "no %s/*.cs nor %s/*.cs", SD_SCRIPTS, bdir); return false; }
 	u64 t0 = svcGetSystemTick();
 	prog = ms_compile(src, err, sizeof err);
 	free(src);

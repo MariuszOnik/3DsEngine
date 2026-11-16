@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "data.h"
 #include "audio.h"
 
 #define RATE 22050
@@ -42,7 +43,7 @@ bool audioOk(void) { return ok; }
 static s16* loadRaw(const char* name, u32* samples)
 {
 	char p[64];
-	snprintf(p, sizeof p, "romfs:/snd/%s.raw", name);
+	snprintf(p, sizeof p, "%ssnd/%s.raw", dataDir, name);
 	FILE* f = fopen(p, "rb");
 	if (!f) return NULL;
 	fseek(f, 0, SEEK_END);
@@ -96,7 +97,7 @@ bool audioInit(void)
 		ndspChnSetFormat(c, c == 0 ? NDSP_FORMAT_STEREO_PCM16 : NDSP_FORMAT_MONO_PCM16);
 	}
 	for (int i = 0; i < SND_COUNT; i++) sfx[i] = loadRaw(NAMES[i], &sfxLen[i]);
-	musF = fopen("romfs:/snd/music.raw", "rb");
+	musF = fopen(dataPath("snd/music.raw"), "rb");
 	musMem = musF ? (s16*)linearAlloc(MUS_FRAMES * 4 * MUS_BUFS) : NULL;
 	if (musF && musMem) {
 		memset(musBuf, 0, sizeof musBuf);

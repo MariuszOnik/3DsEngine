@@ -225,20 +225,26 @@ class Reader:
         return [self.i32() for _ in range(n)]
 
 
-def nif_keys(r, kind, force=False):
-    """kind: number of floats per value; 'q' = quaternion"""
+def read_keys(r, kind, force=False):
+    """Keys: kind = floats per value, 'q' = quaternion. Returns (type, times, values) - the
+    values only (tangents and TBC dropped: the character baker interpolates linearly)."""
     count = r.u32()
     if count == 0 and not force:
-        return 0
+        return 0, None, None
     t = r.u32()
     vals = 4 if kind == "q" else kind
-    if t == 1: r.skip(count * 4 * (1 + vals))
-    elif t == 2: r.skip(count * 4 * (1 + (vals if kind == "q" else vals * 3)))
-    elif t == 3: r.skip(count * 4 * (1 + vals + 3))
-    elif t == 4: pass
-    elif t == 0 and count == 0: pass
+    if t == 1: per = 1 + vals
+    elif t == 2: per = 1 + (vals if kind == "q" else vals * 3)
+    elif t == 3: per = 1 + vals + 3
+    elif t == 4 or (t == 0 and count == 0): return t, None, None
     else: raise NifError("key type %d" % t)
-    return t
+    a = r.fs(count * per).reshape(count, per) if count else np.zeros((0, per))
+    return t, a[:, 0], a[:, 1:1 + vals]
+
+
+def nif_keys(r, kind, force=False):
+    """kind: number of floats per value; 'q' = quaternion"""
+    return read_keys(r, kind, force)[0]
 
 
 def parse_nif(data):
@@ -272,7 +278,7 @@ def parse_nif(data):
         named(b); b["pflags"] = r.u16()
 
     def controller(b):
-        r.i32(); r.u16(); r.skip(16); r.i32()
+        b["next"] = r.i32(); r.u16(); r.skip(16); b["target"] = r.i32()
 
     def controlled(b):
         r.i32(); r.i32()
@@ -332,7 +338,7 @@ def parse_nif(data):
             prop(b); r.u8(); r.skip(24); b["draw"] = r.i32()
         elif typ in ("NiVisController", "NiKeyframeController", "NiAlphaController", "NiRollController",
                      "NiMaterialColorController", "NiLookAtController"):
-            controller(b); r.i32()
+            controller(b); b["data"] = r.i32()
         elif typ == "NiGeomMorpherController":
             controller(b); r.i32(); r.u8()
         elif typ == "NiUVController":
@@ -355,8 +361,8 @@ def parse_nif(data):
         elif typ == "NiVertWeightsExtraData":
             r.i32(); r.i32(); k = r.u16(); r.skip(4 * k)
         elif typ == "NiTextKeyExtraData":
-            r.i32(); r.i32(); k = r.i32()
-            for _ in range(k): r.f(); r.string()
+            b["next"] = r.i32(); r.i32(); k = r.i32()
+            b["keys"] = [(r.f(), r.string()) for _ in range(k)]
         elif typ == "NiStringExtraData":
             b["next"] = r.i32(); r.i32(); b["str"] = r.string()
         elif typ == "NiGravity":
@@ -382,9 +388,11 @@ def parse_nif(data):
         elif typ == "NiVisData":
             k = r.i32(); r.skip(5 * k)
         elif typ == "NiKeyframeData":
-            if nif_keys(r, "q") == 4:
-                r.f(); nif_keys(r, 1, True); nif_keys(r, 1, True); nif_keys(r, 1, True)
-            nif_keys(r, 3); nif_keys(r, 1)
+            rt, b["rt"], b["rv"] = read_keys(r, "q")
+            if rt == 4:
+                r.f(); b["rxyz"] = [read_keys(r, 1, True)[1:] for _ in range(3)]
+            _, b["tt"], b["tv"] = read_keys(r, 3)
+            _, b["st"], b["sv"] = read_keys(r, 1)
         elif typ == "NiMorphData":
             mc = r.i32(); vc = r.i32(); r.u8()
             for _ in range(mc):
@@ -405,10 +413,14 @@ def parse_nif(data):
             if typ == "NiRotatingParticlesData" and r.i32(): r.skip(16 * nv)
         elif typ == "NiSkinData":
             r.skip(52); k = r.i32(); r.i32()
+            b["bones"] = []
             for _ in range(k):
-                r.skip(4 * 17); w = r.u16(); r.skip(6 * w)
+                rot = r.fs(9).reshape(3, 3); tr = r.fs(3); sc = r.f(); r.skip(16)
+                w = r.u16()
+                raw = np.frombuffer(r.d, np.dtype([("i", "<u2"), ("w", "<f4")]), w, r.p); r.skip(6 * w)
+                b["bones"].append((rot, tr, sc, raw["i"].astype(np.int64), raw["w"].astype(np.float64)))
         elif typ == "NiSkinInstance":
-            r.i32(); r.i32(); r.reflist()
+            b["data"] = r.i32(); b["root"] = r.i32(); b["bones"] = r.reflist()
         elif typ == "NiSourceTexture":
             named(b)
             if r.u8():
@@ -843,6 +855,7 @@ def bake_cell(esm, models, tex, gx, gy, stats):
     # objects, merged per sub-chunk (2 x 2) and material
     groups = {}
     nrefs = 0
+    boxes = []
     for ref in esm.cells.get((gx, gy), []):
         mpath = esm.models.get(ref["id"])
         if not mpath:
@@ -864,6 +877,10 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         rad = float(np.linalg.norm(allv, axis=1).max()) * ref["scale"]
         top = pz + float((allv @ R.T)[:, 2].max())
         cls = (8 if rad < SMALL_RADIUS else 0) | (16 if top < 0 else 0)
+        if not (cls & 16) and not any(w in ref["id"] for w in WALKABLE):
+            box = collision_box(shapes, R, lx, ly, pz, ground(esm, px, py))
+            if box is not None:
+                boxes.append(box)
         stats["small_tris" if cls & 8 else "under_tris" if cls & 16 else "big_tris"] += sum(len(s["tri"]) for s in shapes)
         for s0 in shapes:
             # big things with a lighter LOD copy: the full part near (flag 32), the copy farther (flag 64)
@@ -898,7 +915,8 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         bt.add(p, np.zeros((4, 2)), col, np.array([[0, 1, 2], [0, 2, 3]]))
         batches.append(bt)
     stats["refs"] += nrefs
-    return batches, terrain_tex
+    stats["boxes"] = stats.get("boxes", 0) + len(boxes)
+    return batches, terrain_tex, boxes
 
 
 def ground(esm, x, y):
@@ -919,9 +937,45 @@ def align(f, n=16):
     if pad: f.write(b"\0" * pad)
 
 
-def write_cell(path, gx, gy, batches, terrain_tex, tsize):
+# Collision (docs/POMYSLY.md): per thing, its footprint where a body walks: the triangles that
+# reach into 30..140 units over the ground (a trunk, not the crown; walls, not the eaves), as a
+# box turned like the thing. Floors to walk on (docks, bridges, planks) have none.
+WALKABLE = ("dock", "bridge", "pier", "plank", "walkway", "_plat", "stair", "ramp", "rug", "_floor", "boardwalk")
+BAND = (30.0, 140.0)
+
+
+def collision_box(shapes, R, lx, ly, pz, gz):
+    pts = []
+    zlo = zhi = None
+    for s in shapes:
+        v = s["v"] @ R.T + np.array([lx, ly, pz])
+        tz = v[s["tri"]][:, :, 2]
+        hit = (tz.max(axis=1) > gz + BAND[0]) & (tz.min(axis=1) < gz + BAND[1])
+        if not hit.any():
+            continue
+        tv = v[s["tri"][hit]].reshape(-1, 3)
+        pts.append(tv)
+        a, b = float(tv[:, 2].min()), float(tv[:, 2].max())
+        zlo = a if zlo is None else min(zlo, a); zhi = b if zhi is None else max(zhi, b)
+    if not pts:
+        return None
+    pts = np.concatenate(pts)
+    ax = R[:2, 0]
+    n = float(np.hypot(*ax))
+    ca, sa = (ax[0] / n, ax[1] / n) if n > 1e-6 else (1.0, 0.0)
+    u = pts[:, 0] * ca + pts[:, 1] * sa
+    w = -pts[:, 0] * sa + pts[:, 1] * ca
+    hu, hw = (u.max() - u.min()) / 2, (w.max() - w.min()) / 2
+    if hu < 6 and hw < 6:
+        return None
+    cu, cw = (u.max() + u.min()) / 2, (w.max() + w.min()) / 2
+    cx, cy = cu * ca - cw * sa, cu * sa + cw * ca
+    return (cx, cy, ca, sa, hu, hw, zlo, zhi)
+
+
+def write_cell(path, gx, gy, batches, terrain_tex, tsize, boxes=()):
     with open(path, "wb") as f:
-        hdr = struct.Struct("<4siiHHIII")
+        hdr = struct.Struct("<4siiHHIIIII")
         f.write(b"\0" * hdr.size)
         align(f)
         ttofs = 0
@@ -953,11 +1007,14 @@ def write_cell(path, gx, gy, batches, terrain_tex, tsize):
             c = (lo + hi) / 2; rad = float(np.linalg.norm(hi - lo) / 2)
             recs.append(bstruct.pack(b.tex, b.flags, b.opacity, vofs, len(pos), iofs, len(tris.ravel()),
                                      c[0], c[1], c[2], rad))
+        colofs = f.tell()
+        for bx in boxes:
+            f.write(struct.pack("<8f", *bx))
         end = f.tell()
         f.seek(bofs); f.write(b"".join(recs))
         # tsize: the terrain texture's side, its format in the top 4 bits
         tword = tsize | (terrain_tex[2] << 12 if terrain_tex is not None else 0)
-        f.seek(0); f.write(hdr.pack(b"MWC1", gx, gy, len(batches), tword, ttofs, bofs, end))
+        f.seek(0); f.write(hdr.pack(b"MWC2", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, len(boxes)))
 
 
 def main():
@@ -965,8 +1022,8 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument("--data", default=r"D:\Programowanie\OpenMorrowind\data\Data Files")
     ap.add_argument("--center", type=int, nargs=2, default=[-2, -9], help="start cell (Seyda Neen: -2 -9)")
-    ap.add_argument("--rect", type=int, nargs=4, default=[-4, -11, 2, -5],
-                    help="cells to bake: x0 y0 x1 y1 (default: Seyda Neen to past Pelagiad)")
+    ap.add_argument("--rect", type=int, nargs=4, default=[-5, -11, 2, -1],
+                    help="cells to bake: x0 y0 x1 y1 (default: Seyda Neen to Pelagiad and Balmora)")
     ap.add_argument("--radius", type=int, default=None, help="instead of --rect: a square round --center")
     ap.add_argument("--route-to", type=int, nargs=2, default=[0, -7],
                     help="the benchmark walks from --center's cell to this one (Pelagiad: 0 -7)")
@@ -974,6 +1031,7 @@ def main():
     ap.add_argument("--saturation", type=float, default=1.0, help="texture colour boost (1 = none)")
     ap.add_argument("--contrast", type=float, default=1.0, help="texture contrast boost (1 = none)")
     ap.add_argument("--terrain-tex", type=int, default=1024, help="composite terrain texture per cell")
+    ap.add_argument("--no-char", action="store_true", help="no romfs/char.bin")
     ap.add_argument("--no-lod", action="store_true", help="no LOD copies (docs/POMYSLY.md)")
     ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
     ap.add_argument("--out", default=os.path.join(here, "..", "romfs"))
@@ -1009,14 +1067,20 @@ def main():
             if (gx, gy) not in esm.lands and (gx, gy) not in esm.cells:
                 continue
             before = dict(stats)
-            batches, ttex = bake_cell(esm, models, tex, gx, gy, stats)
+            batches, ttex, boxes = bake_cell(esm, models, tex, gx, gy, stats)
             p = os.path.join(a.out, "cells", "%d_%d.bin" % (gx, gy))
-            write_cell(p, gx, gy, batches, ttex, a.terrain_tex)
+            write_cell(p, gx, gy, batches, ttex, a.terrain_tex, boxes)
             sz = os.path.getsize(p); total_bytes += sz; sizes[(gx, gy)] = sz
             done.append((gx, gy))
             print("cell %3d,%3d: %4d refs, %6d object tris, %5d terrain tris, %3d batches, %6.0f KB" % (
                 gx, gy, stats["refs"] - before["refs"], stats["object_tris"] - before["object_tris"],
                 stats["terrain_tris"] - before["terrain_tris"], len(batches), sz / 1024))
+    if not a.no_char:
+        import chrbake
+        ch = chrbake.Character(vfs, os.path.join(a.data, "Morrowind.esm"), tex)
+        ch.write(os.path.join(a.out, "char.bin"))
+        print("char.bin: %.0f KB" % (os.path.getsize(os.path.join(a.out, "char.bin")) / 1024))
+    print("collision boxes: %d" % stats.get("boxes", 0))
     tex.write(os.path.join(a.out, "textures.bin"))
     # start: the centre cell, above the ground
     land = esm.lands.get((cx, cy))

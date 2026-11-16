@@ -50,6 +50,7 @@ typedef struct {
 	s32 gx, gy;
 	u16 nbatch, tsize;
 	u32 ttofs, bofs, end;
+	u32 colofs, ncol;   // MWC2: collision boxes (8 floats each: centre x y, axis cos sin, half sizes, z from, to)
 } __attribute__((packed)) CellHdr;
 
 typedef struct {
@@ -73,6 +74,8 @@ typedef struct {
 	bool hasT;
 	u32 tris;
 	float* hgt;   // 65 x 65 terrain heights (from the terrain batches), NULL without land
+	const float* col;   // the collision boxes (cell-relative), ncol of them
+	int ncol;
 	Vtx* wv;      // the water grid (65 x 65, coloured by the depth), NULL without water
 	Vtx* cv;      // the same grid laid on the bottom: the caustics' strength in the colour
 	C3D_BufInfo cbuf;
@@ -480,9 +483,14 @@ static float finishJob(void)
 	Cell* c = NULL;
 	for (int i = 0; i < MAX_CELLS; i++) if (!cells[i].used) { c = &cells[i]; break; }
 	CellHdr* h = (CellHdr*)job.data;
-	if (!c || memcmp(h->magic, "MWC1", 4)) { linearFree(job.data); return -1; }
+	if (!c || (memcmp(h->magic, "MWC1", 4) && memcmp(h->magic, "MWC2", 4))) { linearFree(job.data); return -1; }
 	c->used = true; c->gx = job.gx; c->gy = job.gy; c->data = job.data; c->size = job.size; c->hdr = h;
 	c->b = (BatchRec*)(job.data + h->bofs);
+	c->col = NULL; c->ncol = 0;
+	if (!memcmp(h->magic, "MWC2", 4) && h->ncol && h->colofs + h->ncol * 32 <= job.size) {
+		c->col = (const float*)(job.data + h->colofs);
+		c->ncol = h->ncol;
+	}
 	c->bufs = calloc(h->nbatch, sizeof(C3D_BufInfo));
 	c->tris = 0;
 	for (int i = 0; i < h->nbatch; i++) {
@@ -786,7 +794,7 @@ static void chrBuild(void)
 	GSPGPU_FlushDataCache(chrI, chrNI * sizeof(u16));
 }
 
-static void drawCharacter(void)
+static void drawBoxes(void)
 {
 	if (!chrV || !chrI || !chrPlaced) return;
 	chrBuild();
@@ -804,6 +812,262 @@ static void drawCharacter(void)
 	C3D_DrawElements(GPU_TRIANGLES, chrNI, C3D_UNSIGNED_SHORT, chrI);
 	statDraws++;
 	statTris += chrNI / 3;
+}
+
+
+// ------------------------------------------------------------------ character (Morrowind's, romfs:/char.bin)
+
+// tools/chrbake.py: the skeleton's animations as the bones' matrices per frame, the body and the
+// clothes / armour as meshes whose vertices hang on up to 4 bones (each influence: the bone, the
+// weight, the position and normal in that bone's space). Here: the pose of the frame (two frames
+// blended, and the last animation faded out over 0.2 s), every shown mesh skinned on the CPU into
+// one buffer (character space turned by the facing, lit by the sun) and drawn with the world shader.
+typedef struct { u8 bone, pad[3]; float w, p[3], n[3]; } CInfl;
+typedef struct { s16 u, v; u8 n, pad[3]; } CVert;
+typedef struct {
+	u16 tex; u8 alpha, pad;
+	u32 nv, ninf, nidx;
+	float col[3];
+	CVert* v; CInfl* inf; u16* idx;
+	u32 out;              // its first vertex in chOut
+	C3D_BufInfo buf;
+} CMesh;
+typedef struct { char name[16]; u32 frames; float fps, speed; const float* m; } CAnim;
+typedef struct { char name[24]; u8 helmet, n; const u8* parts; } CItem;   // parts: n x { u8 slot, u8 pad, s16 group }
+typedef struct { char name[16]; u8 n; const u8* items; } COutfit;
+
+static u8* chData;
+static bool chOk;
+static int chBones, chNAnim, chNMesh, chNGroup, chNItem, chNOutfit;
+static CAnim chAnim[8];
+static CMesh* chMesh;
+static const u16** chGroup;     // per group: u16 n, then n mesh ids
+static s16 chBody[27];
+static CItem* chItem;
+static COutfit* chOutfit;
+static Vtx* chOut;
+static u32 chOutN;
+static int chOutfitSel = 1, chHelmet = 1;
+static int chShown[160], chNShown;
+static float chPose[64][12], chPrevPose[64][12];
+static int chCur = 0, chPrev = -1;
+static float chTime, chPrevTime, chFade;
+static float chSpeedNow;        // units/s the character moves at (for the animation)
+static bool chRun;
+static u32 chSkinFrame = 0xFFFFFFFF, chFrameNo;
+static float chSkinMs;
+static int chShownVerts;
+
+static bool loadCharacter(void)
+{
+	u32 size;
+	chData = readFile("romfs:/char.bin", &size);
+	if (!chData || memcmp(chData, "MWCH", 4)) { free(chData); chData = NULL; return false; }
+	const u8* p = chData + 4;
+	u32 h[6];
+	memcpy(h, p, 24); p += 24;
+	chBones = h[0]; chNAnim = h[1]; chNMesh = h[2]; chNGroup = h[3]; chNItem = h[4]; chNOutfit = h[5];
+	if (chBones > 64 || chNAnim > 8) return false;
+	for (int i = 0; i < chNAnim; i++) {
+		memcpy(chAnim[i].name, p, 16); p += 16;
+		memcpy(&chAnim[i].frames, p, 4); memcpy(&chAnim[i].fps, p + 4, 4); memcpy(&chAnim[i].speed, p + 8, 4); p += 12;
+		chAnim[i].m = (const float*)p;
+		p += chAnim[i].frames * chBones * 12 * 4;
+	}
+	chMesh = calloc(chNMesh, sizeof(CMesh));
+	u32 total = 0;
+	for (int i = 0; i < chNMesh; i++) {
+		CMesh* m = &chMesh[i];
+		memcpy(&m->tex, p, 2); m->alpha = p[2];
+		memcpy(&m->nv, p + 4, 4); memcpy(&m->ninf, p + 8, 4); memcpy(&m->nidx, p + 12, 4); memcpy(m->col, p + 16, 12);
+		p += 28;
+		m->v = (CVert*)p; p += m->nv * 8;
+		m->inf = (CInfl*)p; p += m->ninf * 32;
+		m->idx = (u16*)linearAlloc(m->nidx * 2 + 4);
+		if (!m->idx) return false;
+		memcpy(m->idx, p, m->nidx * 2);
+		GSPGPU_FlushDataCache(m->idx, m->nidx * 2);
+		p += (m->nidx * 2 + 3) & ~3u;
+		m->out = total; total += m->nv;
+	}
+	chGroup = calloc(chNGroup, sizeof(u16*));
+	for (int i = 0; i < chNGroup; i++) {
+		chGroup[i] = (const u16*)p;
+		u16 n = chGroup[i][0];
+		p += (1 + n) * 2;
+		if ((n + 1) % 2) p += 2;
+	}
+	memcpy(chBody, p, 54); p += 56;
+	chItem = calloc(chNItem, sizeof(CItem));
+	for (int i = 0; i < chNItem; i++) {
+		memcpy(chItem[i].name, p, 24); chItem[i].name[23] = 0;
+		chItem[i].helmet = p[24]; chItem[i].n = p[25]; p += 26;
+		chItem[i].parts = p; p += chItem[i].n * 4 + 2;
+	}
+	chOutfit = calloc(chNOutfit, sizeof(COutfit));
+	for (int i = 0; i < chNOutfit; i++) {
+		memcpy(chOutfit[i].name, p, 16); chOutfit[i].name[15] = 0;
+		chOutfit[i].n = p[16]; chOutfit[i].items = p + 17;
+		p += (17 + chOutfit[i].n + 3) & ~3u;
+	}
+	chOut = (Vtx*)linearAlloc(total * sizeof(Vtx));
+	if (!chOut) return false;
+	chOutN = total;
+	for (int i = 0; i < chNMesh; i++) {
+		BufInfo_Init(&chMesh[i].buf);
+		BufInfo_Add(&chMesh[i].buf, chOut + chMesh[i].out, sizeof(Vtx), 3, 0x210);
+	}
+	if (chOutfitSel >= chNOutfit) chOutfitSel = 0;
+	chOk = true;
+	return true;
+}
+
+// What the slots show: the body, unless the outfit's items cover them (a helmet off: its slots
+// left as they are); any helmet hides the hair.
+static void chCompose(void)
+{
+	s16 slot[27];
+	memcpy(slot, chBody, sizeof slot);
+	bool hideHair = false;
+	const COutfit* o = &chOutfit[chOutfitSel];
+	for (int k = 0; k < o->n; k++) {
+		const CItem* it = &chItem[o->items[k]];
+		if (it->helmet && !chHelmet) continue;
+		if (it->helmet) hideHair = true;
+		for (int j = 0; j < it->n; j++) {
+			u8 sl = it->parts[j * 4];
+			s16 g; memcpy(&g, it->parts + j * 4 + 2, 2);
+			if (sl < 27) slot[sl] = g;
+		}
+	}
+	if (hideHair) slot[1] = -1;
+	chNShown = 0;
+	chShownVerts = 0;
+	for (int sl = 0; sl < 27; sl++) {
+		int g = slot[sl];
+		if (g < 0 || g >= chNGroup) continue;
+		bool dup = false;
+		for (int k = 0; k < sl; k++) if (slot[k] == g) { dup = true; break; }
+		if (dup) continue;
+		const u16* gr = chGroup[g];
+		for (int k = 0; k < gr[0] && chNShown < 160; k++) {
+			chShown[chNShown++] = gr[1 + k];
+			chShownVerts += chMesh[gr[1 + k]].nv;
+		}
+	}
+}
+
+static void chSample(int a, float t, float out[][12])
+{
+	const CAnim* an = &chAnim[a];
+	float f = t * an->fps;
+	int n = an->frames;
+	f = fmodf(f, (float)n);
+	if (f < 0) f += n;
+	int i = (int)f, j = (i + 1) % n;
+	float k = f - i;
+	const float* A = an->m + (size_t)i * chBones * 12;
+	const float* B = an->m + (size_t)j * chBones * 12;
+	for (int b = 0; b < chBones * 12; b++) out[0][b] = A[b] + (B[b] - A[b]) * k;
+}
+
+// The animation by the speed: still -> idle, else walk or run played at the speed it was made for.
+static void chAnimate(float dt)
+{
+	int want = 0;
+	if (chSpeedNow > 20.0f) want = (chRun && chNAnim > 2) ? 2 : (chNAnim > 1 ? 1 : 0);
+	if (want != chCur) {
+		chPrev = chCur; chPrevTime = chTime; chFade = 1.0f;
+		chCur = want; chTime = 0;
+	}
+	float rate = 1.0f;
+	if (chAnim[chCur].speed > 1.0f) {
+		rate = chSpeedNow / chAnim[chCur].speed;
+		if (rate < 0.3f) rate = 0.3f;
+		if (rate > 2.5f) rate = 2.5f;
+	}
+	chTime += dt * rate;
+	chSample(chCur, chTime, chPose);
+	if (chFade > 0 && chPrev >= 0) {
+		chPrevTime += dt;
+		chSample(chPrev, chPrevTime, chPrevPose);
+		for (int b = 0; b < chBones * 12; b++) chPose[0][b] += (chPrevPose[0][b] - chPose[0][b]) * chFade;
+		chFade -= dt * 5.0f;
+	}
+}
+
+// The shown meshes into chOut: turned by the facing, lit (ambient + sun, as the baker lights).
+static void chSkin(void)
+{
+	u64 t0 = ticks();
+	const float SUNX = -0.35f, SUNY = 0.45f, SUNZ = 0.82f;
+	const float sl = 1.0f / sqrtf(SUNX * SUNX + SUNY * SUNY + SUNZ * SUNZ);
+	float cy = cosf(chrYaw), sy = sinf(chrYaw);
+	// the sun in the character's space (instead of turning every normal)
+	float lx = (SUNX * cy - SUNY * sy) * sl, ly = (SUNX * sy + SUNY * cy) * sl, lz = SUNZ * sl;
+	for (int s = 0; s < chNShown; s++) {
+		CMesh* m = &chMesh[chShown[s]];
+		Vtx* o = chOut + m->out;
+		const CInfl* in = m->inf;
+		for (u32 v = 0; v < m->nv; v++) {
+			float px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0;
+			for (int k = 0; k < m->v[v].n; k++, in++) {
+				const float* B = chPose[in->bone];
+				float w = in->w;
+				px += w * (B[0] * in->p[0] + B[1] * in->p[1] + B[2] * in->p[2] + B[3]);
+				py += w * (B[4] * in->p[0] + B[5] * in->p[1] + B[6] * in->p[2] + B[7]);
+				pz += w * (B[8] * in->p[0] + B[9] * in->p[1] + B[10] * in->p[2] + B[11]);
+				nx += w * (B[0] * in->n[0] + B[1] * in->n[1] + B[2] * in->n[2]);
+				ny += w * (B[4] * in->n[0] + B[5] * in->n[1] + B[6] * in->n[2]);
+				nz += w * (B[8] * in->n[0] + B[9] * in->n[1] + B[10] * in->n[2]);
+			}
+			// facing: yaw 0 = +y (like the camera): x' = x cos + y sin, y' = -x sin + y cos
+			o->p[0] = (s16)(px * cy + py * sy); o->p[1] = (s16)(-px * sy + py * cy); o->p[2] = (s16)pz; o->p[3] = 0;
+			o->t[0] = m->v[v].u; o->t[1] = m->v[v].v;
+			float nl = nx * nx + ny * ny + nz * nz;
+			float d = nl > 1e-6f ? (nx * lx + ny * ly + nz * lz) / sqrtf(nl) : 0.5f;
+			if (d < 0) d = 0;
+			float r = m->col[0] * (0.52f + 0.62f * d), g = m->col[1] * (0.54f + 0.58f * d), b = m->col[2] * (0.60f + 0.50f * d);
+			o->c[0] = r >= 1 ? 255 : (u8)(r * 255); o->c[1] = g >= 1 ? 255 : (u8)(g * 255);
+			o->c[2] = b >= 1 ? 255 : (u8)(b * 255); o->c[3] = 255;
+			o++;
+		}
+		GSPGPU_FlushDataCache(chOut + m->out, m->nv * sizeof(Vtx));
+	}
+	chSkinMs = msSince(t0);
+}
+
+static void drawCharacter(void)
+{
+	if (!chrPlaced) return;
+	if (!chOk) { drawBoxes(); return; }
+	if (chSkinFrame != chFrameNo) {   // once a frame (the second eye draws the same)
+		chCompose();
+		chSkin();
+		chSkinFrame = chFrameNo;
+	}
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, chr[0] - eye[0], chr[1] - eye[1], chr[2] - eye[2], 1.0f / 1024.0f);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+	C3D_CullFace(GPU_CULL_NONE);
+	setupTexEnv(255, false);
+	int lastTex = -1, lastAlpha = -1;
+	for (int s = 0; s < chNShown; s++) {
+		CMesh* m = &chMesh[chShown[s]];
+		if (m->tex != lastTex) {
+			if (m->tex < ntex) C3D_TexBind(0, &texs[m->tex]);
+			lastTex = m->tex;
+		}
+		if (m->alpha != lastAlpha) {
+			C3D_AlphaTest(m->alpha != 0, GPU_GREATER, 127);
+			lastAlpha = m->alpha;
+		}
+		C3D_SetBufInfo(&m->buf);
+		C3D_DrawElements(GPU_TRIANGLES, m->nidx, C3D_UNSIGNED_SHORT, m->idx);
+		statDraws++;
+		statTris += m->nidx / 3;
+	}
+	C3D_AlphaTest(false, GPU_ALWAYS, 0);
 }
 
 // ------------------------------------------------------------------ water, shadow
@@ -1135,6 +1399,46 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	}
 }
 
+// ------------------------------------------------------------------ collision
+
+// The baker's boxes (tools/mwbake.py collision_box): a footprint turned like the thing, between
+// two heights. The character: a circle of CHR_R round its feet, its body from 25 (it steps over
+// lower things) to 120 over the ground.
+#define CHR_R 22.0f
+static bool collideOn = true;
+
+static bool inBox(const float* b, float x, float y, float z)
+{
+	if (b[7] < z + 25.0f || b[6] > z + 120.0f) return false;
+	float dx = x - b[0], dy = y - b[1];
+	float u = dx * b[2] + dy * b[3], w = -dx * b[3] + dy * b[2];
+	float cu = u < -b[4] ? -b[4] : u > b[4] ? b[4] : u;
+	float cw = w < -b[5] ? -b[5] : w > b[5] ? b[5] : w;
+	return (u - cu) * (u - cu) + (w - cw) * (w - cw) < CHR_R * CHR_R;
+}
+
+// Would the character at (x, y, z) stand in a thing? The boxes it stands in already at (px, py)
+// do not hold it (so it can always walk out of where it started).
+static bool collides(float x, float y, float z, float px, float py)
+{
+	if (!collideOn) return false;
+	for (int i = 0; i < MAX_CELLS; i++) {
+		Cell* c = &cells[i];
+		if (!c->used || !c->col) continue;
+		float ox = c->gx * CELL + HALF, oy = c->gy * CELL + HALF;
+		float lx = x - ox, ly = y - oy;
+		if (fabsf(lx) > HALF + 800.0f || fabsf(ly) > HALF + 800.0f) continue;
+		float qx = px - ox, qy = py - oy;
+		for (int k = 0; k < c->ncol; k++) {
+			const float* b = c->col + k * 8;
+			float r = (b[4] > b[5] ? b[4] : b[5]) + CHR_R;
+			if (fabsf(lx - b[0]) > r * 1.5f || fabsf(ly - b[1]) > r * 1.5f) continue;
+			if (inBox(b, lx, ly, z) && !inBox(b, qx, qy, z)) return true;
+		}
+	}
+	return false;
+}
+
 // Walking: the circle pad relative to the camera, the figure turns to where it goes. The sea
 // (ground below -64) stops it, unless it is already that deep (the start can be on a pier).
 static void chrUpdate(float dt, float mx, float my, bool run)
@@ -1152,9 +1456,16 @@ static void chrUpdate(float dt, float mx, float my, bool run)
 	if (len > 0.05f) {
 		float sp = (run ? RUN_SPEED : WALK_SPEED) * len;
 		float nx = chr[0] + dx / len * sp * dt, ny = chr[1] + dy / len * sp * dt;
-		if (groundAt(nx, ny, &g) && (g > -64.0f || g >= chr[2])) {
-			moved = sqrtf((nx - chr[0]) * (nx - chr[0]) + (ny - chr[1]) * (ny - chr[1]));
-			chr[0] = nx; chr[1] = ny;
+		// blocked: slide along (only x, or only y)
+		const float tries[3][2] = { { nx, ny }, { nx, chr[1] }, { chr[0], ny } };
+		for (int t = 0; t < 3; t++) {
+			float tx = tries[t][0], ty = tries[t][1];
+			if (t > 0 && tx == chr[0] && ty == chr[1]) continue;
+			if (!groundAt(tx, ty, &g) || !(g > -64.0f || g >= chr[2])) continue;
+			if (collides(tx, ty, g, chr[0], chr[1])) continue;
+			moved = sqrtf((tx - chr[0]) * (tx - chr[0]) + (ty - chr[1]) * (ty - chr[1]));
+			chr[0] = tx; chr[1] = ty;
+			break;
 		}
 		// turn towards the way it goes (the shorter way round)
 		float want = atan2f(dx, dy), d = want - chrYaw;
@@ -1164,6 +1475,8 @@ static void chrUpdate(float dt, float mx, float my, bool run)
 		chrYaw += d * k;
 	}
 	if (groundAt(chr[0], chr[1], &g) && g > -10000.0f) chr[2] = g;
+	chSpeedNow = dt > 0 ? moved / dt : 0;
+	chRun = run;
 	// the walk cycle follows the distance: a step per ~70 units walking, longer running
 	chrPhase += moved * (float)M_PI / (run ? 110.0f : 70.0f);
 	float want = moved > 0 ? 1.0f : 0.0f, k = dt * 6.0f; if (k > 1) k = 1;
@@ -1382,6 +1695,8 @@ static void benchCamera(float dt, float fwd[3])
 			if (wT < 12.0f) {
 				rtsYaw = startYaw + wT * 2.0f * (float)M_PI / 12.0f;
 				chrSwing = 0;
+				chSpeedNow = 0;
+				if (chOk) chOutfitSel = chNOutfit - 1;   // the standing screenshot: the last outfit
 			} else {
 				float before[2] = { chr[0], chr[1] }, p[3], heading;
 				wDist += RUN_SPEED * dt;
@@ -1392,6 +1707,9 @@ static void benchCamera(float dt, float fwd[3])
 				float moved = sqrtf((chr[0] - before[0]) * (chr[0] - before[0]) + (chr[1] - before[1]) * (chr[1] - before[1]));
 				chrPhase += moved * (float)M_PI / 110.0f;
 				chrSwing = 1;
+				chSpeedNow = dt > 0 ? moved / dt : 0;
+				chRun = true;
+				if (chOk) chOutfitSel = (1 + (int)(wDist / (routeLen() / 4))) % chNOutfit;   // each quarter another
 				rtsYaw = heading + 0.8f * sinf((wT - 12.0f) * 0.5f);
 			}
 		}
@@ -1556,6 +1874,11 @@ int main(void)
 		goto done;
 	}
 	float texMs = msSince(t0);
+	{
+		u64 c0 = ticks();
+		bool ok = loadCharacter();
+		printf("character: %s (%d meshes, %d outfits) %.0f ms\n", ok ? "ok" : "none", chNMesh, chNOutfit, msSince(c0));
+	}
 	printf("%d textures %lu KB in %.0f ms\n", ntex, texBytes / 1024, texMs);
 
 	// the loader thread: above the main thread on its core (it mostly waits on the SD)
@@ -1647,7 +1970,9 @@ int main(void)
 		float lookX = 0, lookY = 0;
 		if (rtsMode && !bench) {   // circle pad walks, B runs, L/R (or Y/A) turn the camera round the character
 			float pmx = abs(cp.dx) > 15 ? cp.dx / 156.0f : 0, pmy = abs(cp.dy) > 15 ? cp.dy / 156.0f : 0;
-			float turn = ((held & (KEY_R | KEY_A)) ? 1.0f : 0) - ((held & (KEY_L | KEY_Y)) ? 1.0f : 0);
+			float turn = ((held & KEY_R) ? 1.0f : 0) - ((held & KEY_L) ? 1.0f : 0);
+			if (chOk && (down & KEY_X)) chOutfitSel = (chOutfitSel + 1) % chNOutfit;
+			if (down & KEY_Y) chHelmet = !chHelmet;
 			rtsYaw += turn * 1.8f * dt;
 			chrUpdate(dt, pmx, pmy, (held & KEY_B) != 0);
 			held &= ~(KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R);
@@ -1669,6 +1994,8 @@ int main(void)
 		if (held & KEY_L) eye[2] -= speed * dt;
 		if (bench) benchCamera(dt, fwd);
 		else if (rtsMode) rtsCamera(fwd);
+		if (chOk && rtsMode) chAnimate(dt);
+		chFrameNo++;
 		if (dt > 0) {   // smoothed velocity for the loader's prediction
 			float k = dt * 3.0f; if (k > 1) k = 1;
 			// RTS: the character's, not the camera's (turning round it is not going anywhere: hardware
@@ -1737,10 +2064,11 @@ int main(void)
 			for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) { loaded++; ltris += cells[i].tris; lbytes += cells[i].size; }
 			++playTick;
 			if (!bench && playTick % 4 == 0) {
-				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d\n",
+				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d | char %s %d verts skin %.2f ms\n",
 				     rtsMode ? "rts" : "free", fxMode, osGet3DSliderState() * 100, fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
-				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL));
+				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL),
+				     chOk ? chOutfit[chOutfitSel].name : "-", chShownVerts, chSkinMs);
 				if (playTick % 60 == 0) logFlush();   // every 30 s
 			}
 			// The console's text costs ~7 ms of CPU on the Old 3DS (hardware test 2: a 40 ms frame at each
@@ -1756,6 +2084,8 @@ int main(void)
 			printf("looks: %s  3D %3.0f%%   \n",
 			       fxMode == 0 ? "fx+caustics " : fxMode == 1 ? "fx ripples  " : fxMode == 2 ? "fx calm     " : "plain       ", osGet3DSliderState() * 100);
 			printf("water: %s (Dpad L/R)  \n", TINT_NAMES[waterTint]);
+			if (chOk) printf("outfit: %-9s helm %d skin %4.1fms \n", chOutfit[chOutfitSel].name, chHelmet, chSkinMs);
+			if (chOk) printf("  %d meshes %d verts          \n", chNShown, chShownVerts);
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");
 			printf("cells loaded %2d  missing %d     \n", loaded, cellsMissing);
 			printf("cell data %5lu KB  tris %7lu  \n", lbytes / 1024, ltris);
@@ -1767,7 +2097,7 @@ int main(void)
 			printf("pos %7.0f %7.0f %6.0f \n", eye[0], eye[1], eye[2]);
 			printf("%s\n", bench ? "\x1b[33mBENCHMARK running\x1b[0m        " : "                          ");
 			if (rtsMode)
-				printf("\x1b[2mRTS: pad walk B run L/R turn    \nDpad L/R water colour          \nSELECT free camera  START quit  \ntouch: [looks][radius][30/60]  \n                                \x1b[0m");
+				printf("\x1b[2mRTS: pad walk B run L/R turn    \nX outfit Y helmet Dpad L/R water\nSELECT free camera  START quit  \ntouch: [looks][radius][30/60]  \n                                \x1b[0m");
 			else
 				printf("\x1b[2mpad move  ABXY look  L/R down/up\nDpad U/D speed  L/R budget|far\nSELECT RTS camera  START quit  \ntouch: [auto][radius][30/60]   \x1b[0m");
 		}

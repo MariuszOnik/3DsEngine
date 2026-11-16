@@ -149,12 +149,16 @@ static float fogStart = 0.45f;     // the fog starts at this share of the draw d
 #define FX_CALM 2    // the clear water without ripples, glints or caustics
 #define FX_PLAIN 3
 static int fxMode = 0;
-// The water's tint (bench.txt "blue": the delicate blue one, else colourless): the bottom's
-// filter deep, the mirrored colour, the scattered light (all 0..255)
+// The water's tint (D-pad left/right in RTS mode; bench.txt "blue"): the bottom's filter deep,
+// the mirrored colour, the scattered light (all 0..255)
+#define NTINT 3
 static int waterTint = 0;
-static const u8 TINTS[2][3][3] = {
+static bool tintChanged;
+static const char* const TINT_NAMES[NTINT] = { "colourless", "blue      ", "olive     " };
+static const u8 TINTS[NTINT][3][3] = {
 	{ { 52, 58, 62 }, { 36, 40, 44 }, { 5, 6, 7 } },     // colourless (a hint of cool)
 	{ { 38, 60, 80 }, { 28, 40, 56 }, { 4, 7, 10 } },    // delicate blue
+	{ { 40, 66, 50 }, { 34, 50, 40 }, { 5, 8, 6 } },     // olive (the mountain-lake look)
 };
 static float fxTime;               // seconds, for the ripples
 static C3D_Tex rippleTex, detailTex;
@@ -380,6 +384,21 @@ static void buildWater(Cell* c)
 		GSPGPU_FlushDataCache(c->cv, 65 * 65 * sizeof(Vtx));
 	}
 	GSPGPU_FlushDataCache(c->wi, n * sizeof(u16));
+}
+
+// The tint changed: every loaded cell's water built again (its colours are in the vertices).
+// After C3D_FrameBegin only: the GPU is done with the old buffers then.
+static void rebuildWater(void)
+{
+	for (int i = 0; i < MAX_CELLS; i++) {
+		Cell* c = &cells[i];
+		if (!c->used || !c->wv) continue;
+		linearFree(c->wv); linearFree(c->wi);
+		if (c->cv) linearFree(c->cv);
+		if (c->tv) linearFree(c->tv);
+		c->wv = c->cv = c->tv = NULL; c->wi = NULL; c->wni = 0;
+		buildWater(c);
+	}
 }
 
 // The terrain height at a world position (bilinear, like the baker's ground()). False while
@@ -1600,8 +1619,9 @@ int main(void)
 		}
 		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
 		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
-		if (rtsMode) {
-			// the distance is locked in RTS mode
+		if (rtsMode) {   // the distance is locked in RTS mode; D-pad left/right: the water's tint
+			if (down & KEY_DRIGHT) { waterTint = (waterTint + 1) % NTINT; tintChanged = true; }
+			if (down & KEY_DLEFT) { waterTint = (waterTint + NTINT - 1) % NTINT; tintChanged = true; }
 		} else if (autoFar) {
 			if (held & KEY_DRIGHT) gpuBudget += 6.0f * dt;
 			if (held & KEY_DLEFT) gpuBudget -= 6.0f * dt;
@@ -1655,6 +1675,7 @@ int main(void)
 		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		u64 c0 = ticks();
 		float setupMs = streamCells();   // after FrameBegin: the GPU is done with the last frame's buffers
+		if (tintChanged) { rebuildWater(); tintChanged = false; }
 
 		fxTime += dt;
 		float slider = bench ? 0 : osGet3DSliderState();
@@ -1727,6 +1748,7 @@ int main(void)
 			printf("\n");
 			printf("looks: %s  3D %3.0f%%   \n",
 			       fxMode == 0 ? "fx+caustics " : fxMode == 1 ? "fx ripples  " : fxMode == 2 ? "fx calm     " : "plain       ", osGet3DSliderState() * 100);
+			printf("water: %s (Dpad L/R)  \n", TINT_NAMES[waterTint]);
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");
 			printf("cells loaded %2d  missing %d     \n", loaded, cellsMissing);
 			printf("cell data %5lu KB  tris %7lu  \n", lbytes / 1024, ltris);
@@ -1738,7 +1760,7 @@ int main(void)
 			printf("pos %7.0f %7.0f %6.0f \n", eye[0], eye[1], eye[2]);
 			printf("%s\n", bench ? "\x1b[33mBENCHMARK running\x1b[0m        " : "                          ");
 			if (rtsMode)
-				printf("\x1b[2mRTS: pad walk  B run  L/R turn   \nSELECT free camera  START quit  \ntouch: [looks][radius][30/60]  \n                                \x1b[0m");
+				printf("\x1b[2mRTS: pad walk B run L/R turn    \nDpad L/R water colour          \nSELECT free camera  START quit  \ntouch: [looks][radius][30/60]  \n                                \x1b[0m");
 			else
 				printf("\x1b[2mpad move  ABXY look  L/R down/up\nDpad U/D speed  L/R budget|far\nSELECT RTS camera  START quit  \ntouch: [auto][radius][30/60]   \x1b[0m");
 		}

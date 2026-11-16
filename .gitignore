@@ -1,0 +1,15 @@
+# Morrowind game data baked by tools/mwbake.py: the user's own copy, never in the repository
+romfs/
+# builds contain romfs (game data) too
+*.3dsx
+*.elf
+*.smdh
+*.map
+build/
+builds/
+# screenshots show game content
+shots/
+*.bmp
+# the reference port is its own git repository
+referencja/
+__pycache__/

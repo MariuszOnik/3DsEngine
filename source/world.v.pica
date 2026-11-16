@@ -1,0 +1,44 @@
+; World vertex shader (PICA200). One shader for terrain, objects and water.
+; Vertex: v0 = position (int16 x, y, z relative to the cell centre, w unused),
+;         v1 = texcoord (int16, * 1/1024), v2 = colour (u8 rgba, light baked on the PC).
+; The position is made camera-relative on the GPU: origin = cell centre - eye, so the
+; floats stay small even far from the world's origin (Morrowind's coordinates reach 10^5).
+
+.fvec mvp[4]        ; projection x view (rotation only, the eye is at 0)
+.fvec origin        ; xyz = cell centre - eye, w = uv scale (1/1024)
+.fvec fogRow        ; fog factor = dp4(fogRow, position): 1 near, 0 at the fog's end
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias zero  consts.xxxx
+.alias one   consts.yyyy
+
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+.alias inpos v0
+.alias intc  v1
+.alias inclr v2
+
+.proc main
+	add r0.xyz, origin.xyz, inpos.xyz
+	mov r0.w,   one
+
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	; fog factor, clamped, into the colour's alpha
+	dp4 r1.x, fogRow, r0
+	max r1.x, zero, r1.x
+	min r1.x, one, r1.x
+
+	mul r2.xyz, consts.zzz, inclr.xyz
+	mov r2.w, r1.x
+	mov outclr, r2
+
+	mul r3, origin.wwww, intc
+	mov outtc0, r3
+	end
+.end

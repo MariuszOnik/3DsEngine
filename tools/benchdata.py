@@ -15,6 +15,7 @@ TESTS = [
     ("hw3-small1-old3ds.log", "T3", "Małe obiekty tylko blisko (37 % trójkątów), bez tekstu na dolnym ekranie w trakcie testu"),
     ("hw4-etc1-old3ds.log", "T4", "Tekstury ETC1 (3,6× mniej pamięci), teren 512² zamiast 256²"),
     ("hw5-lod1-old3ds.log", "T5", "LOD: od 3500 jednostek lżejsze kopie dużych obiektów (skały uproszczone, liście przerzedzone)"),
+    ("hw6-rts-old3ds.log", "T6", "kamera RTS: -55°, 700 jednostek, zasięg 2600, postać biegnie trasą"),
 ]
 
 num = r"([-\d.]+)"

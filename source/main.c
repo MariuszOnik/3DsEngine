@@ -673,6 +673,9 @@ static void rtsCamera(float fwd[3])
 	eye[0] = chr[0] - fwd[0] * RTS_DIST;
 	eye[1] = chr[1] - fwd[1] * RTS_DIST;
 	eye[2] = chr[2] + RTS_TARGET_Z - fwd[2] * RTS_DIST;
+	// never inside a hill behind the character (hardware test 6, shot 2): up over the ground
+	float g;
+	if (groundAt(eye[0], eye[1], &g) && eye[2] < g + 80.0f) eye[2] = g + 80.0f;
 	yaw = rtsYaw; pitch = RTS_PITCH;
 }
 
@@ -1127,10 +1130,13 @@ int main(void)
 		else if (rtsMode) rtsCamera(fwd);
 		if (dt > 0) {   // smoothed velocity for the loader's prediction
 			float k = dt * 3.0f; if (k > 1) k = 1;
-			vel[0] += ((eye[0] - prevEye[0]) / dt - vel[0]) * k;
-			vel[1] += ((eye[1] - prevEye[1]) / dt - vel[1]) * k;
+			// RTS: the character's, not the camera's (turning round it is not going anywhere: hardware
+			// test 6 loaded the whole 5 x 5 while standing)
+			const float* at = rtsMode ? chr : eye;
+			vel[0] += ((at[0] - prevEye[0]) / dt - vel[0]) * k;
+			vel[1] += ((at[1] - prevEye[1]) / dt - vel[1]) * k;
 		}
-		prevEye[0] = eye[0]; prevEye[1] = eye[1];
+		prevEye[0] = rtsMode ? chr[0] : eye[0]; prevEye[1] = rtsMode ? chr[1] : eye[1];
 
 		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		u64 c0 = ticks();

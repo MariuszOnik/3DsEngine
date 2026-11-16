@@ -110,3 +110,21 @@ odczucia z walki, most po wygładzeniu podłóg.
   Y na NPC = podejdź i walcz (z tym NPC). B albo ręczny ruch zatrzymuje marsz. L+SELECT = wolna kamera (dawniej SELECT).
 - Dialogi: tematy i kwestie z warunkami z OpenMW-CS (baker → dialog/*.bin, wybór kwestii w C), skrypty MiniSharp2
   tylko jako wynik kwestii (onDialogue, dziennik, przedmioty). Rozmowa dziś: tylko powitanie-zaślepka.
+
+## Stan na koniec sesji 2026-11-16 (wieczór) — wszystko wgrane na konsolę
+
+- **Ścieżki (commit 320af40)**: jak w Morrowindzie — pathgridy PGRD z ESM (`tools/pathbake.py` → `pathgrid.bin`,
+  1010 punktów: Seyda Neen, Balmora, Pelagiad, 2 wnętrza; siatki sąsiednich komórek łączone < 260 j.). Kolejność:
+  prosto, gdy cel widać (`pLine` po mapie kolizji) → A* po punktach siatki → A* po kratkach 16 j. tylko bez
+  siatki, po 3 ms na klatkę (wcześniej całość w jednej klatce: kilkusekundowe zawieszenia na pomostach).
+  W `play.log`: `path: straight / (grid) / (squares) ... ms`. **Do sprawdzenia przez użytkownika.**
+- **Kursor**: promień dokładny (trójkąty obiektów, walce NPC, ściany z mapy kolizji); log `cursor A/Y`.
+- **MiniSharp2** (E:\MiniSharp2, commit 6a072eb, wypchnięty): parametr natywny `T_OBJECT` („object”) — obiekt
+  skryptu trafia do hosta jako referencja (T_ANY robił z niego tekst). Test `test_object`. Actions nie sprawdzone
+  (brak `gh`).
+- **Hooki skryptów** (dziś: OnActivate/OnTake/OnOpen/OnClose + Update/korutyny) — braki i kolejność uzgodnione:
+  1. NPC z danych + hooki NPC (OnTalk/OnHit/OnDeath/OnCombat…, Say/StartCombat/AI) ← **następny krok**
+     (zaczęte rozpoznanie: rekordy NPC_, NPCO, chrbake OUTFITS/WEAPONS, spawnNpcs),
+  2. dialogi z OpenMW-CS + OnDialogue/OnChoice/Journal,
+  3. zapis różnic + skrypty na trwałym ID (plugin, FRMR) zamiast indeksu + pola skryptów w zapisie + OnLoad,
+  4. strefy, timery, zegar świata; przedmioty i spawn, gdy będą potrzebne.

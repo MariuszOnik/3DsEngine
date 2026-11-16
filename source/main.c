@@ -2479,6 +2479,10 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 			prev = t;
 		}
 	}
+	if (tg > 1e8f && d[2] < -0.05f && camMode != CAM_FPP) {   // not found (a cell not in): the plane of the feet
+		float t = (chr[2] - eye[2]) / d[2];
+		if (t > 0 && t < MAXT) tg = t;
+	}
 	int kind = tg < 1e8f ? CK_GROUND : CK_NONE, idx = -1;
 	float best = tg;
 	// the NPCs: a sphere round the middle of the body (lying dead: low)
@@ -2498,10 +2502,11 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 			if (dx * dx + dy * dy > MAXT * MAXT) continue;
 			const ObjModel* mo = objModel(i);
 			float rad = mo ? mo->radius * o->scale : 20.0f;
-			float hit = fmaxf(16.0f, fminf(rad * 0.6f, 90.0f));
+			// (the console: spheres up to 90 caught the cursor everywhere in a town, the ground was never hit)
+			float hit = fmaxf(12.0f, fminf(rad * 0.35f, 45.0f));
 			float c[3] = { o->pos[0], o->pos[1], o->pos[2] + fminf(rad * 0.4f, 60.0f) };
 			float t, m = rayClosest(eye, d, c, &t);
-			if (t > 8.0f && m < hit && t - hit < best + 10.0f) { best = t - hit; kind = CK_OBJ; idx = i; }
+			if (t > 8.0f && m < hit && t - hit < best) { best = t - hit; kind = CK_OBJ; idx = i; }
 		}
 	curKind = kind; curIdx = idx;
 	if (kind == CK_GROUND) for (int i = 0; i < 3; i++) curP[i] = eye[i] + d[i] * tg;
@@ -2518,7 +2523,7 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 		if (ty == OT_DOOR && objDest(idx)) snprintf(curLabel, sizeof curLabel, "%s", objDest(idx)[0] ? objDest(idx) : "Na zewnątrz");
 		else snprintf(curLabel, sizeof curLabel, "%s", n);
 	} else if (kind == CK_NPC) snprintf(curLabel, sizeof curLabel, actors[idx].dead ? "Zwłoki" : "Mieszkaniec  (A: rozmowa, Y: walka)");
-	else if (kind == CK_GROUND && camMode != CAM_FPP) snprintf(curLabel, sizeof curLabel, "%.0f m", metres);
+	else if (kind == CK_GROUND && camMode != CAM_FPP) snprintf(curLabel, sizeof curLabel, "A: idź tutaj (%.0f m)", metres);
 	if (camMode == CAM_FPP && kind != CK_GROUND && curDist > 260.0f) curLabel[0] = 0;
 }
 
@@ -2567,7 +2572,7 @@ static bool walkStep(float dt, float* mx, float* my, bool* run)
 	}
 	// stuck (a wall in the way): given up after a second without getting nearer
 	if (d < walkTo.best - 2.0f) { walkTo.best = d; walkTo.stuckT = 0; }
-	else if ((walkTo.stuckT += dt) > 1.0f) { walkTo.on = false; gameMessage("Nie da się tam przejść"); return false; }
+	else if ((walkTo.stuckT += dt) > 1.0f) { walkTo.on = false; gameMessage("Nie da się tam przejść"); logw("    walk: stuck %.0f away\n", d); return false; }
 	float ux = dx / d, uy = dy / d;
 	float fx = sinf(rtsYaw), fy = cosf(rtsYaw);
 	*my = ux * fx + uy * fy;
@@ -3445,6 +3450,7 @@ int main(void)
 				pmx = pmy = 0;
 				if (!combo && (down & (KEY_A | KEY_Y)) && curKind != CK_NONE) {
 					bool y = (down & KEY_Y) != 0;
+					logw("    cursor %c: kind %d #%d at %.0f %.0f %.0f, %.0f away\n", y ? 'Y' : 'A', curKind, curIdx, curP[0], curP[1], curP[2], curDist);
 					if (curKind == CK_NPC && actors[curIdx].dead) { if (!y) gameMessage("Zwłoki"); }
 					else if (curKind == CK_GROUND && y) { }
 					else { walkStart(curKind, curIdx, curP, y); audioPlay(SND_CLICK, 0.4f, 0); }

@@ -49,8 +49,16 @@ ANIMS = [("idle", "Idle", False, None, True), ("walk", "WalkForward", True, None
          ("jump", "Jump", False, ("start", "stop"), False),
          ("idle1h", "Idle1h", False, None, True), ("walk1h", "WalkForward1h", True, None, True),
          ("run1h", "RunForward1h", True, None, True),
-         ("attack1h", "WeaponOneHand", False, ("chop start", "chop small follow stop"), False),
-         ("attackhh", "HandToHand", False, ("chop start", "chop small follow stop"), False)]
+         # Morrowind's three attacks: the swing up to its hit, then ONE follow-through (it has a small,
+         # medium and large one after each other in the file; all three played looked like 3 attacks)
+         ("slash1h", "WeaponOneHand", False, [("slash start", "slash hit"), ("slash large follow start", "slash large follow stop")], False),
+         ("thrust1h", "WeaponOneHand", False, [("thrust start", "thrust hit"), ("thrust large follow start", "thrust large follow stop")], False),
+         ("chop1h", "WeaponOneHand", False, [("chop start", "chop hit"), ("chop large follow start", "chop large follow stop")], False),
+         ("slashhh", "HandToHand", False, [("slash start", "slash hit"), ("slash large follow start", "slash large follow stop")], False),
+         ("thrusthh", "HandToHand", False, [("thrust start", "thrust hit"), ("thrust large follow start", "thrust large follow stop")], False),
+         ("chophh", "HandToHand", False, [("chop start", "chop hit"), ("chop large follow start", "chop large follow stop")], False),
+         ("hit", "Hit1", False, ("start", "stop"), False),
+         ("death", "Death1", False, ("start", "stop"), False)]
 # weapons for the right hand (WEAP ids; missing ones skipped), hung on the "Weapon Bone"
 WEAPONS = ["iron longsword", "iron saber", "steel longsword", "iron war axe", "steel axe", "iron club",
            "steel mace", "chitin club", "glass longsword", "ebony longsword", "daedric longsword"]
@@ -505,20 +513,32 @@ class Character:
         # the animations
         self.anims = []
         for short, group, moves, keys, loop in ANIMS:
-            a, b = self.sk.keys(group, *keys) if keys else self.sk.group(group)
-            if a is None or b is None:
-                warn("no animation " + group); continue
-            n = max(2, int(round((b - a) * FPS)))
+            # the pieces of the group to play one after the other
+            segs = keys if isinstance(keys, list) else [keys] if keys else [None]
             frames = []
-            for k in range(n + (0 if loop else 1)):   # a one-off ends on its last key
-                P = self.sk.pose(a + (b - a) * k / n, strip_root=True)
-                frames.append(np.stack([P[ni][:3, :4] for ni in used]))
+            ok = True
+            hit_t = 0.0
+            for si, sg in enumerate(segs):
+                a, b = self.sk.keys(group, *sg) if sg else self.sk.group(group)
+                if a is None or b is None:
+                    ok = False; break
+                n = max(2, int(round((b - a) * FPS)))
+                last = 0 if loop else 1
+                for k in range(n + last):   # a one-off ends on its last key
+                    P = self.sk.pose(a + (b - a) * k / n, strip_root=True)
+                    frames.append(np.stack([P[ni][:3, :4] for ni in used]))
+                if si == 0 and len(segs) > 1: hit_t = len(frames) / FPS   # the hit: the end of the swing
+            if not ok:
+                warn("no animation " + group + " " + str(keys)); continue
+            a, b = self.sk.keys(group, *segs[0]) if segs[0] else self.sk.group(group)
             speed = 0.0
             if moves:   # how fast the animation walks: the root's travel over the loop
                 bip = self.sk.by_name.get("bip01")
                 p0 = self.sk.pose(a, strip_root=False)[bip][:3, 3]
                 p1 = self.sk.pose(b, strip_root=False)[bip][:3, 3]
                 speed = float(np.linalg.norm((p1 - p0)[:2]) / max(b - a, 1e-6))
+            if not moves and hit_t > 0:
+                speed = hit_t   # (one-off attacks: the field holds the time of the hit, seconds)
             self.anims.append((short, np.stack(frames), speed, loop))
             log("  animation %s: %.2f s, %d frames, %.0f units/s%s" % (short, b - a, len(frames), speed, "" if loop else ", once"))
         # the torch held up: the left arm's bones from the "Torch" pose, laid on whatever plays (at run

@@ -26,6 +26,8 @@ SOUNDS = {
     "click": "Fx/menu click.wav",
     "torch": "Fx/envrn/fire_trch.wav", "torchout": "Fx/envrn/trch_out.wav",
     "underwater": "Fx/envrn/undrwatr.wav",
+    "hitbody": "Fx/body hit.wav", "hitarmour": "Fx/Light Armor Hit.wav", "miss": "Fx/miss.wav",
+    "punch": "Fx/punch 1.wav", "fall": "Fx/bodyfallMED.wav",
 }
 MUSIC = "Music/Explore/mx_explore_1.mp3"
 

@@ -962,7 +962,7 @@ typedef struct { char name[24]; s16 group; } CWeapon;
 static u8* chData;
 static bool chOk;
 static int chBones, chNAnim, chNMesh, chNGroup, chNItem, chNOutfit, chNWeapon;
-static CAnim chAnim[16];
+static CAnim chAnim[24];
 static CMesh* chMesh;
 static const u16** chGroup;     // per group: u16 n, then n mesh ids
 static s16 chBody[27];
@@ -979,7 +979,7 @@ static DVLB_s* sDvlb;
 static int sMvp, sOrigin, sFog, sSun, sMcol, sTorch, sTorchCol, sBones;
 // the animations by name (tools/chrbake.py ANIMS), -1 missing
 enum { A_IDLE, A_WALK, A_RUN, A_SWIMIDLE, A_SWIMWALK, A_SWIMRUN, A_JUMP, A_IDLE1H, A_WALK1H, A_RUN1H,
-       A_ATTACK1H, A_ATTACKHH, NA };
+       A_SLASH1H, A_THRUST1H, A_CHOP1H, A_SLASHHH, A_THRUSTHH, A_CHOPHH, A_HIT, A_DEATH, NA };
 static int chA[NA];
 
 // One character on the screen: the player (actors[0]) or an NPC.
@@ -994,7 +994,10 @@ typedef struct {
 	int cur, prev;                 // animations
 	float t, prevT, fade;
 	float speed;                   // units/s it moves (the walk's pace)
-	bool run, swim, air, attack;
+	bool run, swim, air;
+	int act;                       // a one-off playing (A_SLASH1H.. A_HIT, A_DEATH), -1 none
+	bool dead;                     // (the death held on its last frame)
+	int hp, maxHp;
 	float pose[64][12];
 	int shown[96], nshown, verts;
 	bool dirty;                    // what it wears changed
@@ -1013,7 +1016,7 @@ static bool loadCharacter(void)
 	u32 h[7];
 	memcpy(h, p, 28); p += 28;
 	chBones = h[0]; chNAnim = h[1]; chNMesh = h[2]; chNGroup = h[3]; chNItem = h[4]; chNOutfit = h[5]; chNWeapon = h[6];
-	if (chBones > 64 || chNAnim > 16 || chNWeapon > 8) return false;
+	if (chBones > 64 || chNAnim > 24 || chNWeapon > 8) return false;
 	for (int i = 0; i < chNAnim; i++) {
 		memcpy(chAnim[i].name, p, 16); p += 16;
 		memcpy(&chAnim[i].frames, p, 4); memcpy(&chAnim[i].fps, p + 4, 4); memcpy(&chAnim[i].speed, p + 8, 4);
@@ -1073,7 +1076,8 @@ static bool loadCharacter(void)
 		if (chTorchBone >= chBones || chNeck >= chBones) chTorchGroup = -1;
 	}
 	static const char* const names[NA] = { "idle", "walk", "run", "swimidle", "swimwalk", "swimrun", "jump",
-	                                       "idle1h", "walk1h", "run1h", "attack1h", "attackhh" };
+	                                       "idle1h", "walk1h", "run1h",
+	                                       "slash1h", "thrust1h", "chop1h", "slashhh", "thrusthh", "chophh", "hit", "death" };
 	for (int k = 0; k < NA; k++) {
 		chA[k] = -1;
 		for (int i = 0; i < chNAnim; i++) if (!strcmp(chAnim[i].name, names[k])) chA[k] = i;
@@ -1102,6 +1106,7 @@ static bool loadCharacter(void)
 	PL->custom = true;   // starts in the commoner's clothes, piece by piece
 	for (int k = 0; k < chOutfit[PL->outfit].n; k++) if (chOutfit[PL->outfit].items[k] < 64) PL->worn[chOutfit[PL->outfit].items[k]] = 1;
 	PL->prev = -1; PL->dirty = true;
+	PL->act = -1; PL->hp = PL->maxHp = 100;
 	chOk = true;
 	return true;
 }
@@ -1205,7 +1210,8 @@ static void chAnimate(Actor* a, float dt)
 	bool moving = a->speed > 20.0f;
 	bool armed = a->weapon >= 0 && chA[A_IDLE1H] >= 0;
 	int k;
-	if (a->attack) k = armed && chA[A_ATTACK1H] >= 0 ? A_ATTACK1H : A_ATTACKHH;
+	if (a->dead) k = A_DEATH;
+	else if (a->act >= 0) k = a->act;
 	else if (a->air && !a->swim) k = A_JUMP;
 	else if (a->swim) k = moving ? (a->run ? A_SWIMRUN : A_SWIMWALK) : A_SWIMIDLE;
 	else if (armed) k = moving ? (a->run ? A_RUN1H : A_WALK1H) : A_IDLE1H;
@@ -1222,9 +1228,9 @@ static void chAnimate(Actor* a, float dt)
 		if (rate < 0.3f) rate = 0.3f;
 		if (rate > 2.5f) rate = 2.5f;
 	}
-	if (a->attack) rate = 1.4f;   // (the chop is slow as baked)
+	if (a->act >= 0 || a->dead) rate = 1.0f;
 	a->t += dt * rate;
-	if (a->attack && a->t >= animLength(a->cur) / 1.0f) a->attack = false;   // done: back to the rest
+	if (a->act >= 0 && !a->dead && a->t >= animLength(a->cur)) a->act = -1;   // done: back to the rest
 	chSample(a->cur, a->t, a->pose);
 	if (a->fade > 0 && a->prev >= 0) {
 		static float prevPose[64][12];
@@ -1377,7 +1383,9 @@ static void spawnNpcs(int n)
 		float ang = (nNpc * 2.39996f), d = 140.0f + 45.0f * sqrtf((float)nNpc + 1);
 		a->pos[0] = chr[0] + sinf(ang) * d; a->pos[1] = chr[1] + cosf(ang) * d;
 		float g;
-		if (!standAt(a->pos[0], a->pos[1], chr[2] + 200.0f, 0, &g) || g < -9000.0f) g = chr[2];
+		// where it stands: the ground, or a floor at most a step over the player's feet (not the shacks'
+		// planks 400 up: the user saw an NPC standing in the air)
+		if (!standAt(a->pos[0], a->pos[1], chr[2], 45.0f, &g) || g < -9000.0f) g = chr[2];
 		if (g < -SWIM_DEPTH) g = chr[2];
 		a->pos[2] = g;
 		a->yaw = atan2f(chr[0] - a->pos[0], chr[1] - a->pos[1]);
@@ -1386,6 +1394,7 @@ static void spawnNpcs(int n)
 		a->helmet = (r >> 4) & 1;
 		a->weapon = chNWeapon && ((r >> 12) % 3 == 0) ? (int)((r >> 16) % chNWeapon) : -1;
 		a->cur = -1; a->prev = -1; a->t = (r % 100) / 37.0f;
+		a->act = -1; a->hp = a->maxHp = 50;
 		a->used = true; a->dirty = true;
 		nNpc++;
 	}
@@ -1395,6 +1404,170 @@ static void clearNpcs(void)
 {
 	for (int i = 1; i < MAX_ACTORS; i++) actors[i].used = false;
 	nNpc = 0;
+}
+
+static void setCamLimits(void);
+
+// ------------------------------------------------------------------ turn-based fight (1:1)
+
+// "Walka": the nearest NPC (or a new one in front) faces the player and they take turns. The
+// player picks one of Morrowind's three attacks (slash: sure, medium; thrust: surest, weakest; chop:
+// the strongest, misses most), the swing plays, at its hit key the roll: a hit takes the damage
+// (the weapon's, less the armour's share) and the other one flinches or dies. Then the NPC's turn.
+enum { F_CHOOSE, F_PLAYER, F_WAIT, F_ENEMY, F_OVER };
+static struct {
+	bool on;
+	int enemy, phase, kind;
+	float t;
+	bool resolved, won;
+	char msg[64];
+} fight;
+static const char* const ATK_NAMES[3] = { "Ciecie", "Pchniecie", "Rabanie" };
+static const float ATK_HIT[3] = { 0.75f, 0.85f, 0.60f }, ATK_DMG[3] = { 1.0f, 0.8f, 1.35f };
+
+static float armourOf(const Actor* a)
+{
+	if (a->custom) {   // 4 % per piece of armour worn (not clothes), at most 40 %
+		int n = 0;
+		for (int k = 0; k < 64 && k < chNItem; k++)
+			if (a->worn[k] && !strstr(chItem[k].name, "common")) n++;
+		return n * 0.04f > 0.4f ? 0.4f : n * 0.04f;
+	}
+	static const float BY[6] = { 0, 0, 0.15f, 0.3f, 0.3f, 0.4f };   // bare, commoner, netch, iron, bonemold, glass
+	return a->outfit < 6 ? BY[a->outfit] : 0.2f;
+}
+
+static int atkAnim(const Actor* a, int kind)
+{
+	return (a->weapon >= 0 ? A_SLASH1H : A_SLASHHH) + kind;
+}
+
+static float hitTime(int animK)
+{
+	int an = chA[animK];
+	return an >= 0 && chAnim[an].speed > 0 && chAnim[an].speed < 3 ? chAnim[an].speed : 0.35f;
+}
+
+static void faceEach(void)
+{
+	Actor* e = &actors[fight.enemy];
+	chrYaw = atan2f(e->pos[0] - chr[0], e->pos[1] - chr[1]);
+	e->yaw = atan2f(chr[0] - e->pos[0], chr[1] - e->pos[1]);
+}
+
+static void fightStart(void)
+{
+	if (!chOk || swimming) return;
+	int best = -1; float bd = 600.0f * 600.0f;
+	for (int i = 1; i < MAX_ACTORS; i++) {
+		Actor* a = &actors[i];
+		if (!a->used || a->dead) continue;
+		float dx = a->pos[0] - chr[0], dy = a->pos[1] - chr[1];
+		if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = i; }
+	}
+	if (best < 0) {   // nobody near: one comes, armed
+		spawnNpcs(1);
+		for (int i = MAX_ACTORS - 1; i > 0; i--) if (actors[i].used && !actors[i].dead) { best = i; break; }
+		if (best < 0) return;
+		if (actors[best].weapon < 0 && chNWeapon) { actors[best].weapon = 0; actors[best].dirty = true; }
+	}
+	Actor* e = &actors[best];
+	// 110 units in front of the player
+	float fy = sinf(chrYaw), fx2 = cosf(chrYaw);
+	float dx = e->pos[0] - chr[0], dy = e->pos[1] - chr[1], d = sqrtf(dx * dx + dy * dy);
+	if (d < 1) { dx = fy; dy = fx2; d = 1; }
+	e->pos[0] = chr[0] + dx / d * 110.0f; e->pos[1] = chr[1] + dy / d * 110.0f;
+	float g;
+	if (standAt(e->pos[0], e->pos[1], chr[2], 45.0f, &g) && g > -SWIM_DEPTH) e->pos[2] = g; else e->pos[2] = chr[2];
+	e->hp = e->maxHp; e->act = -1;
+	memset(&fight, 0, sizeof fight);
+	fight.on = true; fight.enemy = best; fight.phase = F_CHOOSE;
+	snprintf(fight.msg, sizeof fight.msg, "Twoj ruch: wybierz cios");
+	faceEach();
+	logw("    fight: player %.0f %.0f %.0f, enemy #%d %.0f %.0f %.0f\n", chr[0], chr[1], chr[2], best, e->pos[0], e->pos[1], e->pos[2]);
+	if (camMode == CAM_FPP) camMode = CAM_TPP;
+	setCamLimits();
+}
+
+static void fightEnd(void)
+{
+	if (fight.on && fight.enemy > 0 && !actors[fight.enemy].dead) actors[fight.enemy].act = -1;
+	fight.on = false;
+}
+
+// The roll of an attack of `by` on `on`.
+static void fightResolve(Actor* by, Actor* on, bool playerHits)
+{
+	int k = fight.kind;
+	float r = (rand() % 1000) / 1000.0f;
+	if (r > ATK_HIT[k]) {
+		audioPlay(SND_MISS, 0.8f, 0);
+		snprintf(fight.msg, sizeof fight.msg, "%s %s: pudlo!", playerHits ? "Twoje" : "Jego", ATK_NAMES[k]);
+		return;
+	}
+	int base = by->weapon >= 0 ? 7 + rand() % 7 : 2 + rand() % 4;
+	float arm = armourOf(on);
+	int dmg = (int)(base * ATK_DMG[k] * (1.0f - arm) + 0.5f);
+	if (dmg < 1) dmg = 1;
+	on->hp -= dmg;
+	audioPlay(by->weapon >= 0 ? (arm > 0.1f ? SND_HITARMOUR : SND_HITBODY) : SND_PUNCH, 0.9f, 0);
+	if (on->hp <= 0) {
+		on->hp = 0; on->dead = true; on->act = A_DEATH; on->t = 0;
+		audioPlay(SND_FALL, 0.8f, 0);
+		snprintf(fight.msg, sizeof fight.msg, "%s: %d obrazen - %s", ATK_NAMES[k], dmg, playerHits ? "przeciwnik pada!" : "padasz...");
+	} else {
+		on->act = A_HIT; on->t = 0;
+		snprintf(fight.msg, sizeof fight.msg, "%s %s: trafienie, %d obrazen", playerHits ? "Twoje" : "Jego", ATK_NAMES[k], dmg);
+	}
+}
+
+// The player's choice (0 slash, 1 thrust, 2 chop) on its turn.
+static void fightAttack(int kind)
+{
+	if (!fight.on || fight.phase != F_CHOOSE) return;
+	fight.kind = kind; fight.phase = F_PLAYER; fight.t = 0; fight.resolved = false;
+	PL->act = atkAnim(PL, kind); PL->t = 0;
+	audioPlay((rand() & 1) ? SND_SWING1 : SND_SWING2, 0.8f, 0);
+	snprintf(fight.msg, sizeof fight.msg, "%s...", ATK_NAMES[kind]);
+}
+
+static bool fightUpdate(float dt)   // true: the window must be drawn again
+{
+	if (!fight.on) return false;
+	Actor* e = &actors[fight.enemy];
+	if (!e->used) { fight.on = false; return true; }
+	faceEach();
+	fight.t += dt;
+	int ph = fight.phase;
+	if (ph == F_PLAYER || ph == F_ENEMY) {
+		Actor* by = ph == F_PLAYER ? PL : e;
+		Actor* on = ph == F_PLAYER ? e : PL;
+		int anim = atkAnim(by, fight.kind);
+		if (!fight.resolved && fight.t >= hitTime(anim)) { fightResolve(by, on, ph == F_PLAYER); fight.resolved = true; return true; }
+		if (fight.t >= animLength(chA[anim] >= 0 ? chA[anim] : 0) + 0.4f) {
+			if (on->dead) { fight.phase = F_OVER; fight.won = ph == F_PLAYER; fight.t = 0; }
+			else if (ph == F_PLAYER) { fight.phase = F_WAIT; fight.t = 0; snprintf(fight.msg, sizeof fight.msg, "Ruch przeciwnika..."); }
+			else { fight.phase = F_CHOOSE; fight.t = 0; snprintf(fight.msg, sizeof fight.msg, "Twoj ruch: wybierz cios"); }
+			return true;
+		}
+	} else if (ph == F_WAIT && fight.t > 0.7f) {   // the NPC picks an attack
+		fight.kind = rand() % 3; fight.phase = F_ENEMY; fight.t = 0; fight.resolved = false;
+		e->act = atkAnim(e, fight.kind); e->t = 0;
+		audioPlay((rand() & 1) ? SND_SWING1 : SND_SWING2, 0.7f, 0.3f);
+		snprintf(fight.msg, sizeof fight.msg, "Przeciwnik: %s...", ATK_NAMES[fight.kind]);
+		return true;
+	} else if (ph == F_OVER && fight.t > 3.0f) {
+		if (!fight.won) {   // the player gets up again
+			PL->dead = false; PL->act = -1; PL->hp = PL->maxHp;
+			e->act = -1; e->hp = e->maxHp;
+		}
+		fight.on = false;
+		return true;
+	} else if (ph == F_OVER && fight.t < dt * 1.5f) {
+		snprintf(fight.msg, sizeof fight.msg, fight.won ? "Zwyciestwo!" : "Porazka... (wstajesz za chwile)");
+		return true;
+	}
+	return false;
 }
 
 // The inventory (X): on the bottom screen, the D-pad's up / down choose, A takes / puts on.
@@ -1435,6 +1608,14 @@ static void uiFill(void)
 	u->selected = uiSel - u->page * UI_MAXITEMS;
 	u->camName = rtsMode ? CAM_NAMES[camMode] : "wolna";
 	u->torch = torchOn;
+	u->combat = fight.on;
+	if (fight.on) {
+		const Actor* e = &actors[fight.enemy];
+		u->hpP = PL->hp; u->maxP = PL->maxHp; u->hpE = e->hp; u->maxE = e->maxHp;
+		snprintf(u->enemy, sizeof u->enemy, "Przeciwnik (%s)", e->weapon >= 0 ? chWeapon[e->weapon].name : "piesci");
+		snprintf(u->msg, sizeof u->msg, "%s", fight.msg);
+		u->myTurn = fight.phase == F_CHOOSE;
+	}
 }
 static int invSel;
 
@@ -2297,7 +2478,7 @@ static void benchStartWalk(int stage)
 // screenshot (view_<n>.bmp) for looking at on the PC. Each step: where to put the character (x == 0:
 // where it is), the camera, the torch, the camera's turn, the circle pad (forward), run, dive, seconds.
 typedef struct { const char* name; float x, y, z; int cam; bool torch; float yaw, pad; bool run, dive; float secs, dist; int act; } View;
-enum { V_NONE, V_NPC10, V_NPC20, V_ATTACK, V_JUMP, V_NPC_CLEAR };
+enum { V_NONE, V_NPC10, V_NPC20, V_ATTACK, V_JUMP, V_NPC_CLEAR, V_FIGHT, V_FIGHT2 };
 static const View VIEWS[] = {
 	{ "start rts",       1, 0, 0, CAM_RTS, false, -1, 0, false, false, 2.0f },
 	{ "start tpp",       0, 0, 0, CAM_TPP, false, -1, 0, false, false, 1.5f },
@@ -2315,11 +2496,13 @@ static const View VIEWS[] = {
 	{ "30 npcs rts",     0, 0, 0, CAM_RTS, false, -1, 0, false, false, 3.0f, 0, V_NPC20 },
 	{ "sword attack",    0, 0, 0, CAM_TPP, false, -1, 0, false, false, 0.7f, 200, V_ATTACK },
 	{ "jump",            0, 0, 0, CAM_TPP, true, -1, 0, false, false, 0.22f, 0, V_JUMP },
+	{ "fight: chop",     0, 0, 0, CAM_TPP, false, -1, 0, false, false, 1.0f, 260, V_FIGHT },
+	{ "fight: its turn", 0, 0, 0, CAM_TPP, false, -1, 0, false, false, 2.6f, 0, V_FIGHT2 },
 };
 #define NVIEWS (int)(sizeof VIEWS / sizeof VIEWS[0])
 static int vStep;
 static float vT;
-static bool vWait, vJump;
+static bool vWait, vJump, vFight;
 static int vSpawn;
 
 static void viewsBegin(int k)
@@ -2334,8 +2517,9 @@ static void viewsBegin(int k)
 	if (v->dist > 0) tppDist = v->dist;
 	if (v->act == V_NPC10) { clearNpcs(); vSpawn = 10; }
 	if (v->act == V_NPC20) vSpawn = 20;
-	if (v->act == V_ATTACK && chOk) { PL->weapon = 0; PL->dirty = true; PL->attack = true; }
+	if (v->act == V_ATTACK && chOk) { PL->weapon = 0; PL->dirty = true; PL->act = A_CHOP1H; }
 	if (v->act == V_JUMP && chOk) { PL->weapon = -1; PL->dirty = true; vJump = true; }
+	if (v->act == V_FIGHT && chOk) { PL->weapon = 0; PL->dirty = true; clearNpcs(); vFight = true; }
 	if (v->yaw >= 0) rtsYaw = v->yaw; else rtsYaw = startYaw;
 	setCamLimits();
 }
@@ -2364,6 +2548,8 @@ static void benchCamera(float dt, float fwd[3])
 			if (chrPlaced && job.state == JOB_IDLE && !cellsMissing) vWait = false;
 		} else {
 			if (vSpawn) { spawnNpcs(vSpawn); vSpawn = 0; }
+			if (vFight && !fight.on) fightStart();   // (once the player stands: the enemy at its height)
+			if (vFight && fight.on && vT > 0.3f) { fightAttack(2); vFight = false; }
 			vT += dt;
 			chrUpdate(dt, 0, v->pad, v->run, v->dive, vJump);
 			vJump = false;
@@ -2742,7 +2928,9 @@ int main(void)
 				audioPlay(SND_CLICK, 0.6f, 0);
 			} else if (hit == UI_TORCH) { torchOn = !torchOn; audioPlay(torchOn ? SND_CLICK : SND_TORCHOUT, 0.6f, 0); }
 			else if (hit == UI_NPC_ADD) { spawnNpcs(5); audioPlay(SND_CLICK, 0.6f, 0); }
-			else if (hit == UI_NPC_CLEAR) { clearNpcs(); audioPlay(SND_CLICK, 0.6f, 0); }
+			else if (hit == UI_NPC_CLEAR) { fightStart(); audioPlay(SND_CLICK, 0.6f, 0); }
+			else if (hit >= UI_ATK && hit < UI_ATK + 3) fightAttack(hit - UI_ATK);
+			else if (hit == UI_FLEE) fightEnd();
 			uiDirty = true;
 			down &= ~KEY_TOUCH;
 		}
@@ -2798,11 +2986,19 @@ int main(void)
 			if (chOk && useConsole && (down & KEY_X)) { invOpen = !invOpen; invDirty = true; consoleClear(); }
 			bool combo = (held & KEY_L) != 0;
 			if (combo && (down & KEY_A)) { spawnNpcs(5); invDirty = true; uiDirty = true; }
-			else if (combo && (down & KEY_Y)) { clearNpcs(); invDirty = true; uiDirty = true; }
+			else if (combo && (down & KEY_Y)) { fightEnd(); clearNpcs(); invDirty = true; uiDirty = true; }
 			else if (invOpen && (down & KEY_A)) invApply(invSel);
-			else if (!invOpen && !swimming && (down & KEY_A) && chOk && !PL->attack) {
-				PL->attack = true;
+			else if (!invOpen && !swimming && !fight.on && (down & KEY_A) && chOk && PL->act < 0) {
+				PL->act = PL->weapon >= 0 ? A_SLASH1H : A_SLASHHH;
 				audioPlay((rand() & 1) ? SND_SWING1 : SND_SWING2, 0.8f, 0);
+			}
+			if (fight.on) {
+				if (down & KEY_A) fightAttack(0);
+				else if (down & KEY_X) fightAttack(1);
+				else if (down & KEY_Y) fightAttack(2);
+				else if (down & KEY_B) fightEnd();
+				pmx = pmy = 0; down &= ~(KEY_A | KEY_Y); held &= ~KEY_B;
+				uiDirty = true;
 			}
 			bool dive = !combo && !invOpen && swimming && (held & KEY_A);
 			bool jump = !combo && (down & KEY_Y);
@@ -2829,6 +3025,13 @@ int main(void)
 		else if (rtsMode) rtsCamera(fwd);
 		if (invOpen && invDirty && !bench) invDraw();
 		if (rtsMode && !bench) soundUpdate();
+		if (fightUpdate(dt)) uiDirty = true;
+		if (fight.on && rtsMode) {   // the camera over the player's shoulder, at the enemy
+			float want = chrYaw + 0.5f, d = want - rtsYaw;
+			while (d > (float)M_PI) d -= 2 * (float)M_PI;
+			while (d < -(float)M_PI) d += 2 * (float)M_PI;
+			rtsYaw += d * fminf(1.0f, dt * 3.0f);
+		}
 		if (chOk && rtsMode) {   // the player's state into its actor, then every actor's pose
 			u64 a0 = ticks();
 			PL->pos[0] = chr[0]; PL->pos[1] = chr[1]; PL->pos[2] = chr[2];
@@ -2841,6 +3044,10 @@ int main(void)
 				if (i > 0) {
 					float dx = a->pos[0] - eye[0], dy = a->pos[1] - eye[1];
 					if (dx * dx + dy * dy > (farDist + 200.0f) * (farDist + 200.0f)) { a->t += dt; continue; }
+				}
+				if (i > 0 && !a->dead) {   // NPCs stand on the ground (or a floor a step up), not where they were put
+					float g;
+					if (standAt(a->pos[0], a->pos[1], a->pos[2], 45.0f, &g) && g > -SWIM_DEPTH) a->pos[2] = g;
 				}
 				chAnimate(a, dt);
 			}
@@ -2912,6 +3119,7 @@ int main(void)
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
 		if (uiOn && uiDirty) {
+			for (int i = 1; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));   // (the 3D's fog stage off: it tinted the window)
 			uiFill();
 			uiDraw(&uiState);
 			uiDirty = false;

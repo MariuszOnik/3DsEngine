@@ -21,6 +21,7 @@ static const char* const NAMES[SND_COUNT] = {
 	"walkl_lt", "walkr_lt", "runl_lt", "runr_lt", "walkl_md", "walkr_md", "runl_md", "runr_md",
 	"walkl_hv", "walkr_hv", "runl_hv", "runr_hv", "land", "swiml", "swimr", "splash",
 	"swing1", "swing2", "bladeout", "clothes", "armour", "click", "torch", "torchout", "underwater",
+	"hitbody", "hitarmour", "miss", "punch", "fall",
 };
 
 static bool ok;

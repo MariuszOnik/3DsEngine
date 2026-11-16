@@ -1116,6 +1116,8 @@ def main():
     ap.add_argument("--rect", type=int, nargs=4, default=[-5, -11, 2, -1],
                     help="cells to bake: x0 y0 x1 y1 (default: Seyda Neen to Pelagiad and Balmora)")
     ap.add_argument("--radius", type=int, default=None, help="instead of --rect: a square round --center")
+    ap.add_argument("--start", type=float, nargs=2, default=[-11008.0, -71040.0],
+                    help="where the game starts (an open square in Seyda Neen, the user: not at a house corner)")
     ap.add_argument("--route-to", type=int, nargs=2, default=[0, -7],
                     help="the benchmark walks from --center's cell to this one (Pelagiad: 0 -7)")
     ap.add_argument("--tex", type=int, default=128, help="max object texture size")
@@ -1181,16 +1183,16 @@ def main():
     print("collision: %d floor triangles, %d blocked squares" % (stats.get("floors", 0), stats.get("blocked", 0)))
     tex.write(os.path.join(a.out, "textures.bin"))
     # start: the centre cell, above the ground
-    land = esm.lands.get((cx, cy))
-    gz = float(land["h"][32, 32]) if land is not None and "h" in land else 0.0
-    sx, sy = cx * CELL + HALF, cy * CELL + HALF
+    sx, sy = a.start
+    gz = ground(esm, sx, sy)
     # the benchmark's route: a straight line from the start cell's centre to --route-to's centre, a point every
     # 256 units at eye height over the ground (or the water)
     tx, ty = a.route_to[0] * CELL + HALF, a.route_to[1] * CELL + HALF
-    steps = max(2, int(math.hypot(tx - sx, ty - sy) / 256))
+    rx0, ry0 = cx * CELL + HALF, cy * CELL + HALF   # (the route as before: from the centre cell's middle)
+    steps = max(2, int(math.hypot(tx - rx0, ty - ry0) / 256))
     route = []
     for i in range(steps + 1):
-        x = sx + (tx - sx) * i / steps; y = sy + (ty - sy) * i / steps
+        x = rx0 + (tx - rx0) * i / steps; y = ry0 + (ty - ry0) * i / steps
         route.append((x, y, max(ground(esm, x, y), 0.0) + 160.0))
     with open(os.path.join(a.out, "index.bin"), "wb") as f:
         f.write(b"MWI2" + struct.pack("<I", len(done)))

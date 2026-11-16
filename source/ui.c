@@ -94,6 +94,43 @@ static void text(const char* s, float x, float y, float size, u32 col, bool cent
 #define BW 76
 #define BH 34
 
+static void bar(float x, float y, float w, int v, int max, u32 col)
+{
+	C2D_DrawRectSolid(x - 1, y - 1, 0.45f, w + 2, 12, C2D_Color32(0x5A, 0x48, 0x2A, 0xFF));
+	C2D_DrawRectSolid(x, y, 0.46f, w, 10, C2D_Color32(0x10, 0x0C, 0x08, 0xFF));
+	float f = max > 0 ? (float)v / max : 0;
+	if (f < 0) f = 0;
+	int p = piece("menu_bar_red");   // Morrowind's own health bar
+	if (p >= 0 && f > 0) img(p, x, y, w * f, 10);
+	else C2D_DrawRectSolid(x, y, 0.47f, w * f, 10, col);
+}
+
+static void drawFight(const UiState* s)
+{
+	C2D_DrawRectSolid(4, 4, 0.4f, 312, 190, C2D_Color32(0x0C, 0x0A, 0x08, 0xFF));
+	frame("thick", 2, 2, 316, 194);
+	text("Walka", 160, 7, 0.55f, GOLD, true);
+	char b[48];
+	text("Ty", 16, 36, 0.5f, PALE, false);
+	bar(16, 54, 288, s->hpP, s->maxP, C2D_Color32(0xC8, 0x1E, 0x1E, 0xFF));
+	snprintf(b, sizeof b, "%d / %d", s->hpP, s->maxP);
+	text(b, 284, 36, 0.45f, DIM, true);
+	text(s->enemy, 16, 82, 0.5f, PALE, false);
+	bar(16, 100, 288, s->hpE, s->maxE, C2D_Color32(0xC8, 0x1E, 0x1E, 0xFF));
+	snprintf(b, sizeof b, "%d / %d", s->hpE, s->maxE);
+	text(b, 284, 82, 0.45f, DIM, true);
+	text(s->msg, 160, 134, 0.5f, GOLD, true);
+	text(s->myTurn ? "A ciecie   X pchniecie   Y rabanie   B ucieczka" : "", 160, 166, 0.4f, DIM, true);
+	static const char* const lab[4] = { "Ciecie", "Pchniecie", "Rabanie", "Ucieczka" };
+	for (int k = 0; k < 4; k++) {
+		float x = 4 + k * (BW + 3), y = BY;
+		bool on = k == 3 || s->myTurn;
+		C2D_DrawRectSolid(x + 2, y + 2, 0.4f, BW - 4, BH - 4, C2D_Color32(0x14, 0x11, 0x0C, 0xFF));
+		frame("button", x, y, BW, BH);
+		text(lab[k], x + BW / 2, y + 10, 0.45f, on ? GOLD : DIM, true);
+	}
+}
+
 void uiDraw(const UiState* s)
 {
 	if (!ready) return;
@@ -101,6 +138,7 @@ void uiDraw(const UiState* s)
 	C2D_Prepare();
 	C2D_TargetClear(bot, C2D_Color32(0, 0, 0, 0xFF));
 	C2D_SceneBegin(bot);
+	if (s->combat) { drawFight(s); return; }
 	// the window
 	C2D_DrawRectSolid(4, 4, 0.4f, 312, 190, C2D_Color32(0x0C, 0x0A, 0x08, 0xFF));
 	frame("thick", 2, 2, 316, 194);
@@ -132,7 +170,7 @@ void uiDraw(const UiState* s)
 	}
 	text(s->status, 14, 176, 0.42f, DIM, false);
 	// the buttons
-	static const char* const blabel[4] = { NULL, "Pochodnia", "+5 NPC", "Bez NPC" };
+	static const char* const blabel[4] = { NULL, "Pochodnia", "+5 NPC", "Walka" };
 	for (int k = 0; k < 4; k++) {
 		float x = 4 + k * (BW + 3), y = BY;
 		bool lit = (k == 1 && s->torch);
@@ -149,6 +187,14 @@ int uiTouch(const UiState* s, int px, int py)
 	if (py < 26 && s->npages > 1) {
 		if (px < 50) return UI_PREV;
 		if (px > 270) return UI_NEXT;
+	}
+	if (s->combat) {
+		if (py >= BY && py < BY + BH) {
+			int k = (px - 4) / (BW + 3);
+			if (k >= 0 && k < 3) return UI_ATK + k;
+			if (k == 3) return UI_FLEE;
+		}
+		return UI_NONE;
 	}
 	if (py >= BY && py < BY + BH) {
 		int k = (px - 4) / (BW + 3);

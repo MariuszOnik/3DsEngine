@@ -314,7 +314,7 @@ static void buildWater(Cell* c)
 			// clear like an aquarium: barely tinted at the shore, a deeper blue-green and still
 			// see-through far out (hardware test 8: the old water was murky)
 			float t = d / 1000.0f; if (t < 0) t = 0; if (t > 1) t = 1;
-			float r = 90 + (20 - 90) * t, g = 200 + (110 - 200) * t, b = 190 + (140 - 190) * t;
+			float r = 55 + (10 - 55) * t, g = 210 + (105 - 210) * t, b = 200 + (150 - 200) * t;   // (stronger for the 3DS screen)
 			float a = 45 + (170 - 45) * powf(t, 0.6f);
 			// foam: a thin band round the shore line, both sides (the grid's triangles cross it)
 			float f = d >= 0 ? 1 - d / 14.0f : 1 + d / 30.0f;

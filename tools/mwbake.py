@@ -21,7 +21,11 @@ import argparse, math, os, struct, sys, time, io, subprocess, tempfile
 from concurrent.futures import ThreadPoolExecutor
 from simplify import lod_shape
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance
+
+# The 3DS screen is paler than a PC monitor: the textures get more colour and contrast here
+# (free at run time). --saturation / --contrast, 1 = as they are.
+SATURATION, CONTRAST = 1.3, 1.1
 
 CELL = 8192.0
 HALF = CELL / 2
@@ -634,6 +638,11 @@ class TexStore:
             if d:
                 try:
                     img = Image.open(io.BytesIO(d)); img.load(); img = img.convert("RGBA")
+                    if SATURATION != 1 or CONTRAST != 1:
+                        a = img.getchannel("A")
+                        rgb = ImageEnhance.Color(img.convert("RGB")).enhance(SATURATION)
+                        rgb = ImageEnhance.Contrast(rgb).enhance(CONTRAST)
+                        img = rgb.convert("RGBA"); img.putalpha(a)
                 except Exception as ex:
                     print("  texture %s: %s" % (base + ext, ex)); img = None
                 break
@@ -962,11 +971,15 @@ def main():
     ap.add_argument("--route-to", type=int, nargs=2, default=[0, -7],
                     help="the benchmark walks from --center's cell to this one (Pelagiad: 0 -7)")
     ap.add_argument("--tex", type=int, default=128, help="max object texture size")
+    ap.add_argument("--saturation", type=float, default=1.3, help="texture colour boost (1 = none)")
+    ap.add_argument("--contrast", type=float, default=1.1, help="texture contrast boost (1 = none)")
     ap.add_argument("--terrain-tex", type=int, default=1024, help="composite terrain texture per cell")
     ap.add_argument("--no-lod", action="store_true", help="no LOD copies (docs/POMYSLY.md)")
     ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
     ap.add_argument("--out", default=os.path.join(here, "..", "romfs"))
     a = ap.parse_args()
+    global SATURATION, CONTRAST
+    SATURATION, CONTRAST = a.saturation, a.contrast
     global ETC, LOD
     ETC = not a.rgb
     LOD = not a.no_lod

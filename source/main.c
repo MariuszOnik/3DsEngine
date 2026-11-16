@@ -142,7 +142,10 @@ static bool cap30 = true;
 static float fogStart = 0.45f;     // the fog starts at this share of the draw distance
 
 // Looks (touch, bottom left in RTS mode): 0 effects (clear water by depth, caustics, soft
-// shadow), 1 the same without the caustics, 2 plain (the baker's flat water, as in T1-T6). The stereo 3D follows the 3D slider (each eye drawn: twice the GPU).
+// shadow), 1 the same without the caustics, 2 calm (the water's colour alone, no ripples),
+// 3 plain (the baker's flat water, as in T1-T6). The stereo 3D follows the 3D slider (each eye drawn: twice the GPU).
+#define FX_CALM 2    // the clear water without ripples, glints or caustics
+#define FX_PLAIN 3
 static int fxMode = 0;
 static float fxTime;               // seconds, for the ripples
 static C3D_Tex rippleTex, detailTex;
@@ -634,8 +637,8 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 				// small things (flag 8) only near; things wholly under the water (16) never while the camera is
 				// above it (the water is opaque enough to hide them: Maniek, hardware test 2)
 				if ((b->flags & 8) && d > smallDist) { statSmall++; out = true; }
-				else if ((b->flags & 16) && eye[2] > 0 && (fxMode == 2 || d > 2000.0f)) { statSmall++; out = true; }
-				else if ((b->flags & 4) && fxMode != 2 && c->wv) out = true;   // drawn by drawWater
+				else if ((b->flags & 16) && eye[2] > 0 && (fxMode == FX_PLAIN || d > 2000.0f)) { statSmall++; out = true; }
+				else if ((b->flags & 4) && fxMode != FX_PLAIN && c->wv) out = true;   // drawn by drawWater
 				// LOD: big things whole up to LOD_DIST (flag 32), their lighter copy beyond it (flag 64)
 				else if ((b->flags & 32) && d > LOD_DIST) out = true;
 				else if ((b->flags & 64) && d <= LOD_DIST) out = true;
@@ -1014,6 +1017,20 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_ALPHA, GPU_TEVOP_RGB_SRC_ALPHA, GPU_TEVOP_RGB_SRC_COLOR);
 	C3D_TexEnvOpAlpha(env, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_MULTIPLY_ADD);
+	if (fxMode == FX_CALM) {   // the depth colour alone
+		env = C3D_GetTexEnv(0);
+		C3D_TexEnvInit(env);
+		C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+		env = C3D_GetTexEnv(1);
+		C3D_TexEnvInit(env);
+		C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+		env = C3D_GetTexEnv(2);
+		C3D_TexEnvInit(env);
+		C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	}
 	for (int ci = 0; ci < MAX_CELLS; ci++) {
 		Cell* c = &cells[ci];
 		if (!c->used || !c->wv || !c->wni) continue;
@@ -1465,11 +1482,11 @@ int main(void)
 			fread(what, 1, sizeof what - 1, bf);
 			fclose(bf);
 			benchOnlyRts = strstr(what, "rts") != NULL;
-			benchFx = strstr(what, "nocaus") ? 1 : 0;
+			benchFx = strstr(what, "calm") ? FX_CALM : strstr(what, "nocaus") ? 1 : 0;
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
 			bPhase = B_STATIC;
 			rtsMode = false;
-			fxMode = 2;   // the tests T1-T5 had the plain water
+			fxMode = FX_PLAIN;   // the tests T1-T5 had the plain water
 			radius = 0; farDist = 7000.0f; autoFar = false; setCap(false);
 		} else {
 			logFile = fopen("sdmc:/3ds/mwcell3d/play.log", "a");
@@ -1511,7 +1528,7 @@ int main(void)
 				radius = (radius + 1) % 3;
 				if (!autoFar && !rtsMode) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
 			} else if (!rtsMode) autoFar = !autoFar;
-			else fxMode = (fxMode + 1) % 3;
+			else fxMode = (fxMode + 1) % 4;
 		}
 		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
 		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
@@ -1598,9 +1615,9 @@ int main(void)
 			int d0 = statDraws; u32 t0s = statTris;
 			drawWorld(&mvp, fwd);   // (resets the stats: the second eye's adds to the first's below)
 			if (rtsMode) drawCharacter();
-			if (rtsMode && fxMode != 2) drawShadow(&mvp, fwd);
+			if (rtsMode && fxMode != FX_PLAIN) drawShadow(&mvp, fwd);
 			if (fxMode == 0) drawCaustics(&mvp, fwd);
-			if (fxMode != 2) drawWater(&mvp, fwd);
+			if (fxMode != FX_PLAIN) drawWater(&mvp, fwd);
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
 		cpuMs = msSince(c0);
@@ -1641,7 +1658,7 @@ int main(void)
 			printf("tris drawn %6lu             \n", statTris);
 			printf("\n");
 			printf("looks: %s  3D %3.0f%%   \n",
-			       fxMode == 0 ? "fx+caustics " : fxMode == 1 ? "fx          " : "plain       ", osGet3DSliderState() * 100);
+			       fxMode == 0 ? "fx+caustics " : fxMode == 1 ? "fx ripples  " : fxMode == 2 ? "fx calm     " : "plain       ", osGet3DSliderState() * 100);
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");
 			printf("cells loaded %2d  missing %d     \n", loaded, cellsMissing);
 			printf("cell data %5lu KB  tris %7lu  \n", lbytes / 1024, ltris);

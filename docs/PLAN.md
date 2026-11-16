@@ -88,4 +88,9 @@ odczucia z walki, most po wygładzeniu podłóg.
 2. Punkt 3 planu: zapis różnic (flagi CHANGED + pola skryptów).
 3. Edytor w grze (pomysł z rozmowy): dolny ekran = edytor MiniSharp2 (app/editor.c), L+X przeładowuje;
    stawianie obiektów kursorem (z puli wypieczonych modeli), zapis jako dodatek na karcie SD.
-4. Wnętrza (drzwi ładujące już znają cel).
+4. Wnętrza: **pierwsze dwa zrobione** (2026-11-16, commit 5caa107): Arrille's Tradehouse i dom Voduniusa
+   (`mwbake --interiors`). Każde wnętrze to komórka daleko poza mapą (100+k, 100), więc streaming, kolizja
+   i obiekty działają bez zmian. Drzwi przenoszą postać na znacznik DODT. We wnętrzu jest jego mgła,
+   krótki widok, a dach odcina sprzętowa płaszczyzna obcinania PICA200 nad głową (RTS +160, TPP +230).
+   W Azaharze działa. Do sprawdzenia na konsoli: płaszczyzna obcinania, wyjście, światło lamp.
+   Dalej: wszystkie wnętrza na trasie (tylko te, do których prowadzą drzwi z wypieczonych komórek), NPC.

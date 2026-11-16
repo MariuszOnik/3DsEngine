@@ -856,6 +856,8 @@ def bake_cell(esm, models, tex, gx, gy, stats):
     groups = {}
     nrefs = 0
     boxes = []
+    solids = []    # (triangles (n, 3, 3) cell-relative) of the things that block the way
+    floors = []    # wide upward triangles of the things walked on (bridges, docks, stairs)
     for ref in esm.cells.get((gx, gy), []):
         mpath = esm.models.get(ref["id"])
         if not mpath:
@@ -877,10 +879,19 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         rad = float(np.linalg.norm(allv, axis=1).max()) * ref["scale"]
         top = pz + float((allv @ R.T)[:, 2].max())
         cls = (8 if rad < SMALL_RADIUS else 0) | (16 if top < 0 else 0)
-        if not (cls & 16) and not any(w in ref["id"] for w in WALKABLE):
-            box = collision_box(shapes, R, lx, ly, pz, ground(esm, px, py))
-            if box is not None:
-                boxes.append(box)
+        walk = any(w in ref["id"] for w in WALKABLE)
+        # plants: walked through (the user: they held the character). Grass, ferns, bushes, kelp: every
+        # flora_ thing but trees, stumps, logs and roots; and any small thing with see-through leaves.
+        rid = ref["id"]
+        plant = ((cls & 8) and any(sh["alpha"] for sh in shapes)) or (
+            rid.startswith("flora_") and not any(k in rid for k in ("tree", "stump", "log", "root", "rock", "hollow")))
+        if not (cls & 16) and not plant:
+            tv = np.concatenate([(sh["v"] @ R.T + np.array([lx, ly, pz]))[sh["tri"]] for sh in shapes])
+            if walk:
+                fl = floor_mask(tv)
+                floors.append(tv[fl]); solids.append(tv[~fl])
+            else:
+                solids.append(tv)
         stats["small_tris" if cls & 8 else "under_tris" if cls & 16 else "big_tris"] += sum(len(s["tri"]) for s in shapes)
         for s0 in shapes:
             # big things with a lighter LOD copy: the full part near (flag 32), the copy farther (flag 64)
@@ -915,8 +926,11 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         bt.add(p, np.zeros((4, 2)), col, np.array([[0, 1, 2], [0, 2, 3]]))
         batches.append(bt)
     stats["refs"] += nrefs
-    stats["boxes"] = stats.get("boxes", 0) + len(boxes)
-    return batches, terrain_tex, boxes
+    flo = np.concatenate(floors) if floors else np.zeros((0, 3, 3))
+    occ = occupancy(esm, gx, gy, solids, flo)
+    stats["floors"] = stats.get("floors", 0) + len(flo)
+    stats["blocked"] = stats.get("blocked", 0) + int(occ.sum())
+    return batches, terrain_tex, (flo, occ)
 
 
 def ground(esm, x, y):
@@ -973,9 +987,79 @@ def collision_box(shapes, R, lx, ly, pz, gz):
     return (cx, cy, ca, sa, hu, hw, zlo, zhi)
 
 
-def write_cell(path, gx, gy, batches, terrain_tex, tsize, boxes=()):
+# Collision, version 2 (the boxes held the character in empty places: a whole L of a wall, or grass):
+# a grid of 16-unit squares per cell, a square blocked where a thing reaches into the body's band
+# (30..140 units over where one stands: the ground or a floor). Floors: the upward faces of the
+# things walked on that are wide enough to stand on (not a railing's top), stood on at run time.
+OCC = 512          # squares per cell side (16 units)
+FLOOR_NZ = 0.6     # floors slope less than ~53 degrees
+FLOOR_WIDTH = 12.0 # ... and are wider than this (twice the area / the longest side)
+
+
+def floor_mask(tv):
+    e0 = tv[:, 1] - tv[:, 0]; e1 = tv[:, 2] - tv[:, 0]
+    n = np.cross(e0, e1); ln = np.linalg.norm(n, axis=1)
+    nz = np.where(ln > 1e-9, n[:, 2] / np.maximum(ln, 1e-9), 0)
+    longest = np.maximum(np.maximum(np.linalg.norm(e0, axis=1), np.linalg.norm(e1, axis=1)),
+                         np.linalg.norm(tv[:, 2] - tv[:, 1], axis=1))
+    width = ln / np.maximum(longest, 1e-9)
+    return (nz > FLOOR_NZ) & (width > FLOOR_WIDTH)
+
+
+def sample_tris(tv, spacing=8.0):
+    """points over the triangles, at most `spacing` apart"""
+    if not len(tv):
+        return np.zeros((0, 3))
+    longest = np.maximum(np.maximum(np.linalg.norm(tv[:, 1] - tv[:, 0], axis=1), np.linalg.norm(tv[:, 2] - tv[:, 0], axis=1)),
+                         np.linalg.norm(tv[:, 2] - tv[:, 1], axis=1))
+    k = np.clip(np.ceil(longest / spacing), 1, 96).astype(int)
+    out = []
+    for kk in np.unique(k):
+        sel = tv[k == kk]
+        a, b = np.meshgrid(np.arange(kk + 1), np.arange(kk + 1))
+        m = (a + b) <= kk
+        a = a[m] / kk; b = b[m] / kk
+        p = sel[:, None, 0] + a[None, :, None] * (sel[:, None, 1] - sel[:, None, 0]) + b[None, :, None] * (sel[:, None, 2] - sel[:, None, 0])
+        out.append(p.reshape(-1, 3))
+    return np.concatenate(out)
+
+
+def occupancy(esm, gx, gy, solids, flo):
+    """the blocked squares (OCC x OCC bools, row = y)"""
+    sq = 2 * HALF / OCC
+    land = esm.lands.get((gx, gy))
+    cs = (np.arange(OCC) + 0.5) * sq / 128.0     # square centres in the terrain's 128-unit grid
+    if land is not None and "h" in land:
+        h = land["h"]
+        ix = np.minimum(cs.astype(int), 63); u = cs - ix
+        X, Y = np.meshgrid(ix, ix); U, V = np.meshgrid(u, u)
+        surf = (h[Y, X] * (1 - U) * (1 - V) + h[Y, X + 1] * U * (1 - V) + h[Y + 1, X] * (1 - U) * V + h[Y + 1, X + 1] * U * V)
+    else:
+        surf = np.full((OCC, OCC), -2000.0)
+    surf = surf.astype(np.float64)
+    if len(flo):
+        p = sample_tris(flo)
+        sx = np.floor((p[:, 0] + HALF) / sq).astype(int); sy = np.floor((p[:, 1] + HALF) / sq).astype(int)
+        ok = (sx >= 0) & (sx < OCC) & (sy >= 0) & (sy < OCC) & (p[:, 2] > surf[np.clip(sy, 0, OCC - 1), np.clip(sx, 0, OCC - 1)] - 10)
+        fl = np.full((OCC, OCC), -1e9)
+        np.maximum.at(fl, (sy[ok], sx[ok]), p[ok, 2])
+        surf = np.maximum(surf, fl)
+    occ = np.zeros((OCC, OCC), bool)
+    for tv in solids:
+        if not len(tv): continue
+        p = sample_tris(tv)
+        sx = np.floor((p[:, 0] + HALF) / sq).astype(int); sy = np.floor((p[:, 1] + HALF) / sq).astype(int)
+        ok = (sx >= 0) & (sx < OCC) & (sy >= 0) & (sy < OCC)
+        sx, sy, z = sx[ok], sy[ok], p[ok, 2]
+        dz = z - surf[sy, sx]
+        hit = (dz > BAND[0]) & (dz < BAND[1])
+        occ[sy[hit], sx[hit]] = True
+    return occ
+
+
+def write_cell(path, gx, gy, batches, terrain_tex, tsize, coll=None):
     with open(path, "wb") as f:
-        hdr = struct.Struct("<4siiHHIIIII")
+        hdr = struct.Struct("<4siiHHIIIIIIII")
         f.write(b"\0" * hdr.size)
         align(f)
         ttofs = 0
@@ -1007,14 +1091,21 @@ def write_cell(path, gx, gy, batches, terrain_tex, tsize, boxes=()):
             c = (lo + hi) / 2; rad = float(np.linalg.norm(hi - lo) / 2)
             recs.append(bstruct.pack(b.tex, b.flags, b.opacity, vofs, len(pos), iofs, len(tris.ravel()),
                                      c[0], c[1], c[2], rad))
-        colofs = f.tell()
-        for bx in boxes:
-            f.write(struct.pack("<8f", *bx))
+        colofs = f.tell()   # (MWC2's boxes: none now)
+        flofs, nflo, occofs = 0, 0, 0
+        if coll is not None:
+            flo, occ = coll
+            align(f)
+            flofs = f.tell(); nflo = len(flo)
+            f.write(np.asarray(flo, "<f4").reshape(-1, 9).tobytes())
+            align(f)
+            occofs = f.tell()
+            f.write(np.packbits(occ, axis=1, bitorder="little").tobytes())
         end = f.tell()
         f.seek(bofs); f.write(b"".join(recs))
         # tsize: the terrain texture's side, its format in the top 4 bits
         tword = tsize | (terrain_tex[2] << 12 if terrain_tex is not None else 0)
-        f.seek(0); f.write(hdr.pack(b"MWC2", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, len(boxes)))
+        f.seek(0); f.write(hdr.pack(b"MWC3", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, 0, flofs, nflo, occofs))
 
 
 def main():
@@ -1067,9 +1158,9 @@ def main():
             if (gx, gy) not in esm.lands and (gx, gy) not in esm.cells:
                 continue
             before = dict(stats)
-            batches, ttex, boxes = bake_cell(esm, models, tex, gx, gy, stats)
+            batches, ttex, coll = bake_cell(esm, models, tex, gx, gy, stats)
             p = os.path.join(a.out, "cells", "%d_%d.bin" % (gx, gy))
-            write_cell(p, gx, gy, batches, ttex, a.terrain_tex, boxes)
+            write_cell(p, gx, gy, batches, ttex, a.terrain_tex, coll)
             sz = os.path.getsize(p); total_bytes += sz; sizes[(gx, gy)] = sz
             done.append((gx, gy))
             print("cell %3d,%3d: %4d refs, %6d object tris, %5d terrain tris, %3d batches, %6.0f KB" % (
@@ -1080,7 +1171,7 @@ def main():
         ch = chrbake.Character(vfs, os.path.join(a.data, "Morrowind.esm"), tex)
         ch.write(os.path.join(a.out, "char.bin"))
         print("char.bin: %.0f KB" % (os.path.getsize(os.path.join(a.out, "char.bin")) / 1024))
-    print("collision boxes: %d" % stats.get("boxes", 0))
+    print("collision: %d floor triangles, %d blocked squares" % (stats.get("floors", 0), stats.get("blocked", 0)))
     tex.write(os.path.join(a.out, "textures.bin"))
     # start: the centre cell, above the ground
     land = esm.lands.get((cx, cy))

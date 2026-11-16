@@ -1,4 +1,4 @@
-// 3dsOpenworld: a test of how much of Morrowind's open world the 3DS can carry.
+﻿// 3dsOpenworld: a test of how much of Morrowind's open world the 3DS can carry.
 //
 // The PC baker (tools/mwbake.py) turns each exterior cell into one file: terrain with a
 // composite texture and every static object pre-transformed and merged per material and
@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include "world_shbin.h"
 #include "water_shbin.h"
+#include "skin_shbin.h"
 
 #define CELL 8192.0f
 #define HALF 4096.0f
@@ -51,6 +52,8 @@ typedef struct {
 	u16 nbatch, tsize;
 	u32 ttofs, bofs, end;
 	u32 colofs, ncol;   // MWC2: collision boxes (8 floats each: centre x y, axis cos sin, half sizes, z from, to)
+	u32 flofs, nfloor;  // MWC3: floors to walk on (bridges, docks, stairs): triangles, 9 floats each
+	u32 occofs;         // MWC3: what blocks the way, 512 x 512 bits (16 units each, row by row), 0 none
 } __attribute__((packed)) CellHdr;
 
 typedef struct {
@@ -76,6 +79,10 @@ typedef struct {
 	float* hgt;   // 65 x 65 terrain heights (from the terrain batches), NULL without land
 	const float* col;   // the collision boxes (cell-relative), ncol of them
 	int ncol;
+	const float* flo;   // the floor triangles (cell-relative), nflo of them
+	int nflo;
+	u16* floB[8][8];    // per 1024-unit square: the floor triangles over it (n, then the indices)
+	const u8* occ;      // the blocked 16-unit squares (bits), NULL: the boxes instead
 	Vtx* wv;      // the water grid (65 x 65, coloured by the depth), NULL without water
 	Vtx* cv;      // the same grid laid on the bottom: the caustics' strength in the colour
 	C3D_BufInfo cbuf;
@@ -175,14 +182,38 @@ static int wMvp, wOrigin, wFog, wUvA, wUvB, wFres, wRefl;
 // the distance are locked, because the ground the camera sees (and so the GPU cost) depends
 // only on them; turning round the character keeps that cost, so it stays free.
 #define RTS_PITCH (-55.0f * (float)M_PI / 180.0f)
-#define RTS_DIST 700.0f
+#define RTS_DIST 700.0f     // (the first RTS test's distance; now the zoom's: rtsDist, D-pad up/down)
 #define RTS_FAR 2600.0f     // the farthest corner of the view on flat ground is ~1800 away; the rest for tall things
 #define RTS_TARGET_Z 70.0f  // the camera looks at the character's chest
 #define RTS_LOAD 3500.0f    // RTS: cells nearer the character than this are loaded,
 #define RTS_DROP 6500.0f    // ... farther than this unloaded (instead of the 3 x 3 rings)
 #define WALK_SPEED 170.0f
 #define RUN_SPEED 420.0f
-static bool rtsMode = true;
+static bool rtsMode = true;              // playing the character (whatever the camera); off: the free camera
+// The character's cameras (D-pad left cycles): RTS from above, behind the back (TPP), its eyes (FPP).
+enum { CAM_RTS, CAM_TPP, CAM_FPP, NCAM };
+static int camMode = CAM_RTS;
+static const char* const CAM_NAMES[NCAM] = { "RTS", "TPP", "FPP" };
+static float rtsDist = 420.0f;           // zoom (D-pad up/down), RTS
+static float tppDist = 230.0f;           // ... and behind the back
+static float camPitch;                   // TPP / FPP: looking up / down (FPP: D-pad up/down)
+#define TPP_FAR 4500.0f
+#define EYE_Z 118.0f                     // the eyes over the feet (FPP)
+static bool underwater;                  // the camera is under the water's surface (the look changes)
+static u32 fogColour = 0xFF000000 | SKY_B << 16 | SKY_G << 8 | SKY_R;
+static float loadDist = 3500.0f, dropDist = 6500.0f;   // character modes: cells nearer than loadDist come in
+// swimming: deeper than SWIM_DEPTH the character swims, its feet at SWIM_Z (head out); A dives
+#define SWIM_DEPTH 105.0f
+#define SWIM_Z (-100.0f)
+static bool swimming;
+static float chrVz;                      // falling (off a bridge, a dock), jumping
+static bool chrAir;                      // off the ground (the jump animation)
+static float chrPitch;                   // the body tipped in the water
+// the torch (D-pad right): carried in the left hand, lights what is near (world shader), a flame
+static bool torchOn;
+static float torchPos[3];                // the flame, world space (from the hand bone)
+static float torchFlicker = 1.0f;
+static int uTorch, uTorchCol;
 static float rtsYaw;                     // the camera's turn round the character
 static float chr[3];                     // the character's feet
 static float chrYaw, chrPhase, chrSwing; // facing; walk cycle phase and its strength (0 standing .. 1)
@@ -424,8 +455,76 @@ static bool groundAt(float x, float y, float* z)
 	return true;
 }
 
+// The floors per 1024-unit square of the cell (8 x 8): which triangles lie over it, so a look-up
+// tests a few, not all of them.
+static void buildFloorBuckets(Cell* c)
+{
+	if (!c->nflo) return;
+	u16 cnt[8][8] = { { 0 } };
+	for (int pass = 0; pass < 2; pass++) {
+		for (int t = 0; t < c->nflo && t < 65535; t++) {
+			const float* v = c->flo + t * 9;
+			float x0 = fminf(v[0], fminf(v[3], v[6])), x1 = fmaxf(v[0], fmaxf(v[3], v[6]));
+			float y0 = fminf(v[1], fminf(v[4], v[7])), y1 = fmaxf(v[1], fmaxf(v[4], v[7]));
+			int bx0 = (int)floorf((x0 + HALF) / 1024.0f), bx1 = (int)floorf((x1 + HALF) / 1024.0f);
+			int by0 = (int)floorf((y0 + HALF) / 1024.0f), by1 = (int)floorf((y1 + HALF) / 1024.0f);
+			if (bx0 < 0) bx0 = 0;
+			if (by0 < 0) by0 = 0;
+			if (bx1 > 7) bx1 = 7;
+			if (by1 > 7) by1 = 7;
+			for (int by = by0; by <= by1; by++)
+				for (int bx = bx0; bx <= bx1; bx++) {
+					if (pass == 0) cnt[by][bx]++;
+					else if (c->floB[by][bx]) { u16* l = c->floB[by][bx]; l[1 + l[0]++] = (u16)t; }
+				}
+		}
+		if (pass == 0)
+			for (int by = 0; by < 8; by++)
+				for (int bx = 0; bx < 8; bx++)
+					if (cnt[by][bx]) c->floB[by][bx] = calloc(1 + cnt[by][bx], sizeof(u16));
+	}
+}
+
+// The highest floor under (x, y) not above z + step (a bridge one walks onto, not one overhead),
+// or -1e9 without one.
+static float floorAt(float x, float y, float z, float step)
+{
+	int gx = (int)floorf(x / CELL), gy = (int)floorf(y / CELL);
+	Cell* c = findCell(gx, gy);
+	if (!c || !c->nflo) return -1e9f;
+	float lx = x - gx * CELL - HALF, ly = y - gy * CELL - HALF;
+	int bx = (int)((lx + HALF) / 1024.0f), by = (int)((ly + HALF) / 1024.0f);
+	if (bx < 0 || bx > 7 || by < 0 || by > 7 || !c->floB[by][bx]) return -1e9f;
+	const u16* l = c->floB[by][bx];
+	float best = -1e9f;
+	for (int k = 0; k < l[0]; k++) {
+		const float* v = c->flo + l[1 + k] * 9;
+		float e0x = v[3] - v[0], e0y = v[4] - v[1], e1x = v[6] - v[0], e1y = v[7] - v[1];
+		float d = e0x * e1y - e0y * e1x;
+		if (fabsf(d) < 1e-3f) continue;
+		float px = lx - v[0], py = ly - v[1];
+		float a = (px * e1y - py * e1x) / d, b = (e0x * py - e0y * px) / d;
+		if (a < -0.001f || b < -0.001f || a + b > 1.002f) continue;
+		float h = v[2] + a * (v[5] - v[2]) + b * (v[8] - v[2]);
+		if (h <= z + step && h > best) best = h;
+	}
+	return best;
+}
+
+// Where the feet stand at (x, y) coming from height z: the terrain or a floor (stepping up at most
+// `step`). False while the cell is not in.
+static bool standAt(float x, float y, float z, float step, float* out)
+{
+	float g;
+	if (!groundAt(x, y, &g)) return false;
+	float f = floorAt(x, y, z, step);
+	*out = f > g ? f : g;
+	return true;
+}
+
 static void unloadCell(Cell* c)
 {
+	for (int i = 0; i < 64; i++) free(c->floB[i / 8][i % 8]);
 	if (c->hasT) C3D_TexDelete(&c->ttex);
 	free(c->bufs);
 	free(c->hgt);
@@ -483,13 +582,19 @@ static float finishJob(void)
 	Cell* c = NULL;
 	for (int i = 0; i < MAX_CELLS; i++) if (!cells[i].used) { c = &cells[i]; break; }
 	CellHdr* h = (CellHdr*)job.data;
-	if (!c || (memcmp(h->magic, "MWC1", 4) && memcmp(h->magic, "MWC2", 4))) { linearFree(job.data); return -1; }
+	if (!c || (memcmp(h->magic, "MWC1", 4) && memcmp(h->magic, "MWC2", 4) && memcmp(h->magic, "MWC3", 4))) { linearFree(job.data); return -1; }
 	c->used = true; c->gx = job.gx; c->gy = job.gy; c->data = job.data; c->size = job.size; c->hdr = h;
 	c->b = (BatchRec*)(job.data + h->bofs);
 	c->col = NULL; c->ncol = 0;
 	if (!memcmp(h->magic, "MWC2", 4) && h->ncol && h->colofs + h->ncol * 32 <= job.size) {
 		c->col = (const float*)(job.data + h->colofs);
 		c->ncol = h->ncol;
+	}
+	c->flo = NULL; c->nflo = 0; c->occ = NULL;
+	if (!memcmp(h->magic, "MWC3", 4)) {
+		if (h->nfloor && h->flofs + h->nfloor * 36 <= job.size) { c->flo = (const float*)(job.data + h->flofs); c->nflo = h->nfloor; }
+		if (h->occofs && h->occofs + 512 * 512 / 8 <= job.size) c->occ = job.data + h->occofs;
+		buildFloorBuckets(c);
 	}
 	c->bufs = calloc(h->nbatch, sizeof(C3D_BufInfo));
 	c->tris = 0;
@@ -544,8 +649,8 @@ static void pickJob(void)
 			bool inner;
 			if (rtsMode) {   // the camera sees ~1800 round the character: no need for the whole 3 x 3
 				float rd = rectDist(gx, gy, chr[0], chr[1]);
-				if (rd > RTS_LOAD + 2500.0f) continue;
-				inner = rd < RTS_LOAD;
+				if (rd > loadDist + 2500.0f) continue;
+				inner = rd < loadDist;
 			} else inner = abs(dx) <= radius && abs(dy) <= radius;
 			const Avail* a = findAvail(gx, gy);
 			if (!a || findCell(gx, gy)) continue;
@@ -576,7 +681,7 @@ static float streamCells(void)
 	for (int i = 0; i < MAX_CELLS; i++) {
 		Cell* c = &cells[i];
 		if (!c->used) continue;
-		if (rtsMode ? rectDist(c->gx, c->gy, chr[0], chr[1]) > RTS_DROP
+		if (rtsMode ? rectDist(c->gx, c->gy, chr[0], chr[1]) > dropDist
 		            : (abs(c->gx - cgx) > radius + 1 || abs(c->gy - cgy) > radius + 1)) unloadCell(c);
 	}
 	float setup = 0;
@@ -629,7 +734,7 @@ static void setupTexEnv(u8 opacity, bool terrain)
 	C3D_TexEnvFunc(env, C3D_RGB, GPU_INTERPOLATE);
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
-	C3D_TexEnvColor(env, 0xFF000000 | SKY_B << 16 | SKY_G << 8 | SKY_R);
+	C3D_TexEnvColor(env, fogColour);
 }
 
 static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
@@ -640,6 +745,14 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uDetail, 0, 0, 1.0f / 256.0f, 0);
+	if (torchOn && !swimming && rtsMode) {   // reach ~520, warm; flickering a little
+		float r = 520.0f * (0.94f + 0.06f * torchFlicker), f = torchFlicker;
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uTorch, torchPos[0] - eye[0], torchPos[1] - eye[1], torchPos[2] - eye[2], 1.0f / (r * r));
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uTorchCol, 0.75f * f, 0.48f * f, 0.22f * f, 0);
+	} else {
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uTorch, 0, 0, 0, 0);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uTorchCol, 0, 0, 0, 0);
+	}
 	if (detailOk) C3D_TexBind(1, &detailTex);
 
 	// frustum planes (camera-relative): left, right, bottom, top
@@ -817,78 +930,102 @@ static void drawBoxes(void)
 
 // ------------------------------------------------------------------ character (Morrowind's, romfs:/char.bin)
 
-// tools/chrbake.py: the skeleton's animations as the bones' matrices per frame, the body and the
-// clothes / armour as meshes whose vertices hang on up to 4 bones (each influence: the bone, the
-// weight, the position and normal in that bone's space). Here: the pose of the frame (two frames
-// blended, and the last animation faded out over 0.2 s), every shown mesh skinned on the CPU into
-// one buffer (character space turned by the facing, lit by the sun) and drawn with the world shader.
-typedef struct { u8 bone, pad[3]; float w, p[3], n[3]; } CInfl;
-typedef struct { s16 u, v; u8 n, pad[3]; } CVert;
+// tools/chrbake.py: the skeleton's animations as the bones' matrices per frame, the body, the
+// clothes / armour and the weapons as meshes in the NIF's own space, each with a palette of the
+// bones it hangs on (<= 12) and per vertex up to 4 of them with weights. Skinned on the GPU
+// (skin.v.pica): per draw the palette is set as facing x pose x the mesh-to-bone matrix, so a
+// character costs the CPU a pose (two frames blended) and a few uniforms per mesh, not its
+// vertices: that is what lets many NPCs stand round (L+A spawns them).
+typedef struct { u8 bone, pad[3]; float m[12]; } CPal;
 typedef struct {
-	u16 tex; u8 alpha, pad;
-	u32 nv, ninf, nidx;
+	u16 tex; u8 alpha, npal;
+	u32 nv, nidx;
 	float col[3];
-	CVert* v; CInfl* inf; u16* idx;
-	u32 out;              // its first vertex in chOut
+	const CPal* pal;
+	void* vb; u16* idx;   // linear memory, uploaded once
 	C3D_BufInfo buf;
 } CMesh;
-typedef struct { char name[16]; u32 frames; float fps, speed; const float* m; } CAnim;
+typedef struct { char name[16]; u32 frames; float fps, speed; u32 loop; const float* m; } CAnim;
 typedef struct { char name[24]; u8 helmet, n; const u8* parts; } CItem;   // parts: n x { u8 slot, u8 pad, s16 group }
 typedef struct { char name[16]; u8 n; const u8* items; } COutfit;
+typedef struct { char name[24]; s16 group; } CWeapon;
 
 static u8* chData;
 static bool chOk;
-static int chBones, chNAnim, chNMesh, chNGroup, chNItem, chNOutfit;
-static CAnim chAnim[8];
+static int chBones, chNAnim, chNMesh, chNGroup, chNItem, chNOutfit, chNWeapon;
+static CAnim chAnim[16];
 static CMesh* chMesh;
 static const u16** chGroup;     // per group: u16 n, then n mesh ids
 static s16 chBody[27];
 static CItem* chItem;
 static COutfit* chOutfit;
-static Vtx* chOut;
-static u32 chOutN;
-static int chOutfitSel = 1, chHelmet = 1;
-static int chShown[160], chNShown;
-static float chPose[64][12], chPrevPose[64][12];
-static int chCur = 0, chPrev = -1;
-static float chTime, chPrevTime, chFade;
-static float chSpeedNow;        // units/s the character moves at (for the animation)
-static bool chRun;
-static u32 chSkinFrame = 0xFFFFFFFF, chFrameNo;
-static float chSkinMs;
-static int chShownVerts;
+static CWeapon chWeapon[8];
+static int chTorchGroup = -1, chTorchBone, chNeck;
+static float chFlame[3];        // the flame in the torch bone's space
+static u8 chArm[64];            // the left arm's bones (the torch pose laid on them)
+static const float* chTorchPose;
+static C3D_AttrInfo skinAttr;
+static shaderProgram_s sProg;
+static DVLB_s* sDvlb;
+static int sMvp, sOrigin, sFog, sSun, sMcol, sTorch, sTorchCol, sBones;
+// the animations by name (tools/chrbake.py ANIMS), -1 missing
+enum { A_IDLE, A_WALK, A_RUN, A_SWIMIDLE, A_SWIMWALK, A_SWIMRUN, A_JUMP, A_IDLE1H, A_WALK1H, A_RUN1H,
+       A_ATTACK1H, A_ATTACKHH, NA };
+static int chA[NA];
+
+// One character on the screen: the player (actors[0]) or an NPC.
+#define MAX_ACTORS 64
+typedef struct {
+	bool used;
+	float pos[3], yaw, pitch;      // pitch: the body tipped forward (diving: head down)
+	int outfit, weapon;            // weapon: -1 none
+	bool helmet, torch;
+	int cur, prev;                 // animations
+	float t, prevT, fade;
+	float speed;                   // units/s it moves (the walk's pace)
+	bool run, swim, air, attack;
+	float pose[64][12];
+	int shown[96], nshown, verts;
+	bool dirty;                    // what it wears changed
+} Actor;
+static Actor actors[MAX_ACTORS];
+static int nNpc;
+#define PL (&actors[0])
+static float chAnimMs, chDrawMs;   // last frame: the poses, the drawing (CPU)
 
 static bool loadCharacter(void)
 {
 	u32 size;
 	chData = readFile("romfs:/char.bin", &size);
-	if (!chData || memcmp(chData, "MWCH", 4)) { free(chData); chData = NULL; return false; }
+	if (!chData || memcmp(chData, "MWCK", 4)) { free(chData); chData = NULL; return false; }
 	const u8* p = chData + 4;
-	u32 h[6];
-	memcpy(h, p, 24); p += 24;
-	chBones = h[0]; chNAnim = h[1]; chNMesh = h[2]; chNGroup = h[3]; chNItem = h[4]; chNOutfit = h[5];
-	if (chBones > 64 || chNAnim > 8) return false;
+	u32 h[7];
+	memcpy(h, p, 28); p += 28;
+	chBones = h[0]; chNAnim = h[1]; chNMesh = h[2]; chNGroup = h[3]; chNItem = h[4]; chNOutfit = h[5]; chNWeapon = h[6];
+	if (chBones > 64 || chNAnim > 16 || chNWeapon > 8) return false;
 	for (int i = 0; i < chNAnim; i++) {
 		memcpy(chAnim[i].name, p, 16); p += 16;
-		memcpy(&chAnim[i].frames, p, 4); memcpy(&chAnim[i].fps, p + 4, 4); memcpy(&chAnim[i].speed, p + 8, 4); p += 12;
+		memcpy(&chAnim[i].frames, p, 4); memcpy(&chAnim[i].fps, p + 4, 4); memcpy(&chAnim[i].speed, p + 8, 4);
+		memcpy(&chAnim[i].loop, p + 12, 4); p += 16;
 		chAnim[i].m = (const float*)p;
 		p += chAnim[i].frames * chBones * 12 * 4;
 	}
 	chMesh = calloc(chNMesh, sizeof(CMesh));
-	u32 total = 0;
 	for (int i = 0; i < chNMesh; i++) {
 		CMesh* m = &chMesh[i];
-		memcpy(&m->tex, p, 2); m->alpha = p[2];
-		memcpy(&m->nv, p + 4, 4); memcpy(&m->ninf, p + 8, 4); memcpy(&m->nidx, p + 12, 4); memcpy(m->col, p + 16, 12);
-		p += 28;
-		m->v = (CVert*)p; p += m->nv * 8;
-		m->inf = (CInfl*)p; p += m->ninf * 32;
+		memcpy(&m->tex, p, 2); m->alpha = p[2]; m->npal = p[3];
+		memcpy(&m->nv, p + 4, 4); memcpy(&m->nidx, p + 8, 4); memcpy(m->col, p + 12, 12);
+		p += 24;
+		m->pal = (const CPal*)p; p += m->npal * sizeof(CPal);
+		m->vb = linearAlloc(m->nv * 32);
 		m->idx = (u16*)linearAlloc(m->nidx * 2 + 4);
-		if (!m->idx) return false;
-		memcpy(m->idx, p, m->nidx * 2);
+		if (!m->vb || !m->idx) return false;
+		memcpy(m->vb, p, m->nv * 32); p += m->nv * 32;
+		memcpy(m->idx, p, m->nidx * 2); p += (m->nidx * 2 + 3) & ~3u;
+		GSPGPU_FlushDataCache(m->vb, m->nv * 32);
 		GSPGPU_FlushDataCache(m->idx, m->nidx * 2);
-		p += (m->nidx * 2 + 3) & ~3u;
-		m->out = total; total += m->nv;
+		BufInfo_Init(&m->buf);
+		BufInfo_Add(&m->buf, m->vb, 32, 5, 0x43210);
 	}
 	chGroup = calloc(chNGroup, sizeof(u16*));
 	for (int i = 0; i < chNGroup; i++) {
@@ -910,29 +1047,63 @@ static bool loadCharacter(void)
 		chOutfit[i].n = p[16]; chOutfit[i].items = p + 17;
 		p += (17 + chOutfit[i].n + 3) & ~3u;
 	}
-	chOut = (Vtx*)linearAlloc(total * sizeof(Vtx));
-	if (!chOut) return false;
-	chOutN = total;
-	for (int i = 0; i < chNMesh; i++) {
-		BufInfo_Init(&chMesh[i].buf);
-		BufInfo_Add(&chMesh[i].buf, chOut + chMesh[i].out, sizeof(Vtx), 3, 0x210);
+	for (int i = 0; i < chNWeapon; i++) {
+		memcpy(chWeapon[i].name, p, 24); chWeapon[i].name[23] = 0;
+		memcpy(&chWeapon[i].group, p + 24, 2);
+		p += 28;
 	}
-	if (chOutfitSel >= chNOutfit) chOutfitSel = 0;
+	if (p + 20 <= chData + size && !memcmp(p, "TRCH", 4)) {
+		s16 g; memcpy(&g, p + 4, 2);
+		chTorchGroup = g; chTorchBone = p[6]; chNeck = p[7];
+		memcpy(chFlame, p + 8, 12);
+		p += 20;
+		memcpy(chArm, p, chBones); p += (chBones + 3) & ~3u;
+		chTorchPose = (const float*)p;
+		if (chTorchBone >= chBones || chNeck >= chBones) chTorchGroup = -1;
+	}
+	static const char* const names[NA] = { "idle", "walk", "run", "swimidle", "swimwalk", "swimrun", "jump",
+	                                       "idle1h", "walk1h", "run1h", "attack1h", "attackhh" };
+	for (int k = 0; k < NA; k++) {
+		chA[k] = -1;
+		for (int i = 0; i < chNAnim; i++) if (!strcmp(chAnim[i].name, names[k])) chA[k] = i;
+	}
+	if (chA[A_IDLE] < 0) chA[A_IDLE] = 0;
+	// the skinning shader
+	sDvlb = DVLB_ParseFile((u32*)skin_shbin, skin_shbin_size);
+	shaderProgramInit(&sProg);
+	shaderProgramSetVsh(&sProg, &sDvlb->DVLE[0]);
+	sMvp = shaderInstanceGetUniformLocation(sProg.vertexShader, "mvp");
+	sOrigin = shaderInstanceGetUniformLocation(sProg.vertexShader, "origin");
+	sFog = shaderInstanceGetUniformLocation(sProg.vertexShader, "fogRow");
+	sSun = shaderInstanceGetUniformLocation(sProg.vertexShader, "sun");
+	sMcol = shaderInstanceGetUniformLocation(sProg.vertexShader, "mcol");
+	sTorch = shaderInstanceGetUniformLocation(sProg.vertexShader, "torch");
+	sTorchCol = shaderInstanceGetUniformLocation(sProg.vertexShader, "torchCol");
+	sBones = shaderInstanceGetUniformLocation(sProg.vertexShader, "bones");
+	AttrInfo_Init(&skinAttr);
+	AttrInfo_AddLoader(&skinAttr, 0, GPU_FLOAT, 3);
+	AttrInfo_AddLoader(&skinAttr, 1, GPU_SHORT, 4);
+	AttrInfo_AddLoader(&skinAttr, 2, GPU_SHORT, 2);
+	AttrInfo_AddLoader(&skinAttr, 3, GPU_UNSIGNED_BYTE, 4);
+	AttrInfo_AddLoader(&skinAttr, 4, GPU_UNSIGNED_BYTE, 4);
+	memset(PL, 0, sizeof *PL);
+	PL->used = true; PL->outfit = chNOutfit > 1 ? 1 : 0; PL->helmet = true; PL->weapon = -1;
+	PL->prev = -1; PL->dirty = true;
 	chOk = true;
 	return true;
 }
 
 // What the slots show: the body, unless the outfit's items cover them (a helmet off: its slots
-// left as they are); any helmet hides the hair.
-static void chCompose(void)
+// left as they are); any helmet hides the hair; the weapon and the torch in the hands.
+static void chCompose(Actor* a)
 {
 	s16 slot[27];
 	memcpy(slot, chBody, sizeof slot);
 	bool hideHair = false;
-	const COutfit* o = &chOutfit[chOutfitSel];
+	const COutfit* o = &chOutfit[a->outfit];
 	for (int k = 0; k < o->n; k++) {
 		const CItem* it = &chItem[o->items[k]];
-		if (it->helmet && !chHelmet) continue;
+		if (it->helmet && !a->helmet) continue;
 		if (it->helmet) hideHair = true;
 		for (int j = 0; j < it->n; j++) {
 			u8 sl = it->parts[j * 4];
@@ -941,8 +1112,10 @@ static void chCompose(void)
 		}
 	}
 	if (hideHair) slot[1] = -1;
-	chNShown = 0;
-	chShownVerts = 0;
+	if (a->torch && !a->swim && chTorchGroup >= 0 && chTorchGroup < chNGroup) slot[10] = chTorchGroup;
+	if (a->weapon >= 0 && a->weapon < chNWeapon) slot[25] = chWeapon[a->weapon].group;
+	a->nshown = 0;
+	a->verts = 0;
 	for (int sl = 0; sl < 27; sl++) {
 		int g = slot[sl];
 		if (g < 0 || g >= chNGroup) continue;
@@ -950,110 +1123,189 @@ static void chCompose(void)
 		for (int k = 0; k < sl; k++) if (slot[k] == g) { dup = true; break; }
 		if (dup) continue;
 		const u16* gr = chGroup[g];
-		for (int k = 0; k < gr[0] && chNShown < 160; k++) {
-			chShown[chNShown++] = gr[1 + k];
-			chShownVerts += chMesh[gr[1 + k]].nv;
+		for (int k = 0; k < gr[0] && a->nshown < 96; k++) {
+			a->shown[a->nshown++] = gr[1 + k];
+			a->verts += chMesh[gr[1 + k]].nv;
 		}
 	}
+	a->dirty = false;
 }
 
-static void chSample(int a, float t, float out[][12])
+// A frame of an animation: looped, or (a one-off) held on its last frame.
+static void chSample(int an_, float t, float out[][12])
 {
-	const CAnim* an = &chAnim[a];
+	const CAnim* an = &chAnim[an_];
 	float f = t * an->fps;
-	int n = an->frames;
-	f = fmodf(f, (float)n);
-	if (f < 0) f += n;
-	int i = (int)f, j = (i + 1) % n;
-	float k = f - i;
+	int n = an->frames, i, j;
+	float k;
+	if (an->loop) {
+		f = fmodf(f, (float)n);
+		if (f < 0) f += n;
+		i = (int)f; j = (i + 1) % n; k = f - i;
+	} else {
+		if (f > n - 1) f = n - 1;
+		if (f < 0) f = 0;
+		i = (int)f; j = i + 1 < n ? i + 1 : i; k = f - i;
+	}
 	const float* A = an->m + (size_t)i * chBones * 12;
 	const float* B = an->m + (size_t)j * chBones * 12;
 	for (int b = 0; b < chBones * 12; b++) out[0][b] = A[b] + (B[b] - A[b]) * k;
 }
 
-// The animation by the speed: still -> idle, else walk or run played at the speed it was made for.
-static void chAnimate(float dt)
+static float animLength(int an) { return chAnim[an].frames / chAnim[an].fps; }
+
+// 3x4 affine matrices (rows): out = a x b
+static void aff(float* out, const float* a, const float* b)
 {
-	int want = 0;
-	if (chSpeedNow > 20.0f) want = (chRun && chNAnim > 2) ? 2 : (chNAnim > 1 ? 1 : 0);
-	if (want != chCur) {
-		chPrev = chCur; chPrevTime = chTime; chFade = 1.0f;
-		chCur = want; chTime = 0;
+	for (int r = 0; r < 3; r++) {
+		const float* x = a + r * 4;
+		out[r * 4 + 0] = x[0] * b[0] + x[1] * b[4] + x[2] * b[8];
+		out[r * 4 + 1] = x[0] * b[1] + x[1] * b[5] + x[2] * b[9];
+		out[r * 4 + 2] = x[0] * b[2] + x[1] * b[6] + x[2] * b[10];
+		out[r * 4 + 3] = x[0] * b[3] + x[1] * b[7] + x[2] * b[11] + x[3];
+	}
+}
+
+static void affInverse(float* out, const float* m)
+{
+	float a = m[0], b = m[1], c = m[2], d = m[4], e = m[5], f = m[6], g = m[8], h = m[9], i = m[10];
+	float A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+	float det = a * A + b * B + c * C;
+	if (fabsf(det) < 1e-9f) det = 1e-9f;
+	float id = 1.0f / det;
+	float r[9] = { A * id, -(b * i - c * h) * id, (b * f - c * e) * id,
+	               B * id, (a * i - c * g) * id, -(a * f - c * d) * id,
+	               C * id, -(a * h - b * g) * id, (a * e - b * d) * id };
+	for (int k = 0; k < 3; k++) {
+		out[k * 4 + 0] = r[k * 3]; out[k * 4 + 1] = r[k * 3 + 1]; out[k * 4 + 2] = r[k * 3 + 2];
+		out[k * 4 + 3] = -(r[k * 3] * m[3] + r[k * 3 + 1] * m[7] + r[k * 3 + 2] * m[11]);
+	}
+}
+
+// The animation by what the actor does: attacking, in the air, swimming, else idle / walk / run
+// (the one-handed set with a weapon); a change fades over 0.2 s. With the torch the left arm
+// takes the "Torch" pose, carried along with the neck.
+static void chAnimate(Actor* a, float dt)
+{
+	bool moving = a->speed > 20.0f;
+	bool armed = a->weapon >= 0 && chA[A_IDLE1H] >= 0;
+	int k;
+	if (a->attack) k = armed && chA[A_ATTACK1H] >= 0 ? A_ATTACK1H : A_ATTACKHH;
+	else if (a->air && !a->swim) k = A_JUMP;
+	else if (a->swim) k = moving ? (a->run ? A_SWIMRUN : A_SWIMWALK) : A_SWIMIDLE;
+	else if (armed) k = moving ? (a->run ? A_RUN1H : A_WALK1H) : A_IDLE1H;
+	else k = moving ? (a->run ? A_RUN : A_WALK) : A_IDLE;
+	int want = chA[k];
+	if (want < 0) want = moving && chA[A_WALK] >= 0 ? chA[A_WALK] : chA[A_IDLE];
+	if (want != a->cur) {
+		a->prev = a->cur; a->prevT = a->t; a->fade = 1.0f;
+		a->cur = want; a->t = 0;
 	}
 	float rate = 1.0f;
-	if (chAnim[chCur].speed > 1.0f) {
-		rate = chSpeedNow / chAnim[chCur].speed;
+	if (chAnim[a->cur].speed > 1.0f) {
+		rate = a->speed / chAnim[a->cur].speed;
 		if (rate < 0.3f) rate = 0.3f;
 		if (rate > 2.5f) rate = 2.5f;
 	}
-	chTime += dt * rate;
-	chSample(chCur, chTime, chPose);
-	if (chFade > 0 && chPrev >= 0) {
-		chPrevTime += dt;
-		chSample(chPrev, chPrevTime, chPrevPose);
-		for (int b = 0; b < chBones * 12; b++) chPose[0][b] += (chPrevPose[0][b] - chPose[0][b]) * chFade;
-		chFade -= dt * 5.0f;
+	if (a->attack) rate = 1.4f;   // (the chop is slow as baked)
+	a->t += dt * rate;
+	if (a->attack && a->t >= animLength(a->cur) / 1.0f) a->attack = false;   // done: back to the rest
+	chSample(a->cur, a->t, a->pose);
+	if (a->fade > 0 && a->prev >= 0) {
+		static float prevPose[64][12];
+		a->prevT += dt;
+		chSample(a->prev, a->prevT, prevPose);
+		for (int b = 0; b < chBones * 12; b++) a->pose[0][b] += (prevPose[0][b] - a->pose[0][b]) * a->fade;
+		a->fade -= dt * 5.0f;
+	}
+	if (a->torch && !a->swim && chTorchGroup >= 0 && chTorchPose) {
+		// arm = neck now x neck in the torch pose^-1 x arm in the torch pose
+		float inv[12], rel[12];
+		affInverse(inv, chTorchPose + chNeck * 12);
+		aff(rel, a->pose[chNeck], inv);
+		for (int b = 0; b < chBones; b++)
+			if (chArm[b]) aff(a->pose[b], rel, chTorchPose + b * 12);
 	}
 }
 
-// The shown meshes into chOut: turned by the facing, lit (ambient + sun, as the baker lights).
-static void chSkin(void)
+// The actor's facing (yaw round z; the body tipped by pitch round its hips) as a 3x4 matrix.
+static void chFacing(const Actor* a, float F[12])
 {
-	u64 t0 = ticks();
-	const float SUNX = -0.35f, SUNY = 0.45f, SUNZ = 0.82f;
-	const float sl = 1.0f / sqrtf(SUNX * SUNX + SUNY * SUNY + SUNZ * SUNZ);
-	float cy = cosf(chrYaw), sy = sinf(chrYaw);
-	// the sun in the character's space (instead of turning every normal)
-	float lx = (SUNX * cy - SUNY * sy) * sl, ly = (SUNX * sy + SUNY * cy) * sl, lz = SUNZ * sl;
-	for (int s = 0; s < chNShown; s++) {
-		CMesh* m = &chMesh[chShown[s]];
-		Vtx* o = chOut + m->out;
-		const CInfl* in = m->inf;
-		for (u32 v = 0; v < m->nv; v++) {
-			float px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0;
-			for (int k = 0; k < m->v[v].n; k++, in++) {
-				const float* B = chPose[in->bone];
-				float w = in->w;
-				px += w * (B[0] * in->p[0] + B[1] * in->p[1] + B[2] * in->p[2] + B[3]);
-				py += w * (B[4] * in->p[0] + B[5] * in->p[1] + B[6] * in->p[2] + B[7]);
-				pz += w * (B[8] * in->p[0] + B[9] * in->p[1] + B[10] * in->p[2] + B[11]);
-				nx += w * (B[0] * in->n[0] + B[1] * in->n[1] + B[2] * in->n[2]);
-				ny += w * (B[4] * in->n[0] + B[5] * in->n[1] + B[6] * in->n[2]);
-				nz += w * (B[8] * in->n[0] + B[9] * in->n[1] + B[10] * in->n[2]);
-			}
-			// facing: yaw 0 = +y (like the camera): x' = x cos + y sin, y' = -x sin + y cos
-			o->p[0] = (s16)(px * cy + py * sy); o->p[1] = (s16)(-px * sy + py * cy); o->p[2] = (s16)pz; o->p[3] = 0;
-			o->t[0] = m->v[v].u; o->t[1] = m->v[v].v;
-			float nl = nx * nx + ny * ny + nz * nz;
-			float d = nl > 1e-6f ? (nx * lx + ny * ly + nz * lz) / sqrtf(nl) : 0.5f;
-			if (d < 0) d = 0;
-			float r = m->col[0] * (0.52f + 0.62f * d), g = m->col[1] * (0.54f + 0.58f * d), b = m->col[2] * (0.60f + 0.50f * d);
-			o->c[0] = r >= 1 ? 255 : (u8)(r * 255); o->c[1] = g >= 1 ? 255 : (u8)(g * 255);
-			o->c[2] = b >= 1 ? 255 : (u8)(b * 255); o->c[3] = 255;
-			o++;
-		}
-		GSPGPU_FlushDataCache(chOut + m->out, m->nv * sizeof(Vtx));
-	}
-	chSkinMs = msSince(t0);
+	float cy = cosf(a->yaw), sy = sinf(a->yaw), cp = cosf(a->pitch), sp = sinf(a->pitch);
+	const float PZ = 80.0f;   // the pivot's height
+	// tip: y' = y cp - (z - PZ) sp, z' = y sp + (z - PZ) cp + PZ (pitch < 0: the head forward / down)
+	float T[12] = { 1, 0, 0, 0,
+	                0, cp, -sp, PZ * sp,
+	                0, sp, cp, PZ - PZ * cp };
+	// turn: x' = x cy + y sy, y' = -x sy + y cy (yaw 0 = +y, like the camera)
+	float R[12] = { cy, sy, 0, 0, -sy, cy, 0, 0, 0, 0, 1, 0 };
+	aff(F, R, T);
 }
 
-static void drawCharacter(void)
+// The flame of the actor's torch in the world.
+static void chFlamePos(const Actor* a, float out[3])
 {
-	if (!chrPlaced) return;
-	if (!chOk) { drawBoxes(); return; }
-	if (chSkinFrame != chFrameNo) {   // once a frame (the second eye draws the same)
-		chCompose();
-		chSkin();
-		chSkinFrame = chFrameNo;
+	float F[12], M[12];
+	chFacing(a, F);
+	aff(M, F, a->pose[chTorchBone]);
+	for (int r = 0; r < 3; r++)
+		out[r] = a->pos[r] + M[r * 4] * chFlame[0] + M[r * 4 + 1] * chFlame[1] + M[r * 4 + 2] * chFlame[2] + M[r * 4 + 3];
+}
+
+// The skinning program with the frame's uniforms (once per eye, before the actors).
+static void skinProgram(const C3D_Mtx* mvp, const float fwd[3])
+{
+	C3D_BindProgram(&sProg);
+	C3D_SetAttrInfo(&skinAttr);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, sMvp, mvp);
+	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, sFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
+	const float SX = -0.35f, SY = 0.45f, SZ = 0.82f, sl = 1.0f / sqrtf(SX * SX + SY * SY + SZ * SZ);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, sSun, SX * sl, SY * sl, SZ * sl, 0);
+	if (torchOn && !swimming && rtsMode) {
+		float r = 520.0f, f = torchFlicker * 0.45f;
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, sTorch, torchPos[0] - eye[0], torchPos[1] - eye[1], torchPos[2] - eye[2], 1.0f / (r * r));
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, sTorchCol, 0.75f * f, 0.48f * f, 0.22f * f, 0);
+	} else {
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, sTorch, 0, 0, 0, 0);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, sTorchCol, 0, 0, 0, 0);
 	}
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, chr[0] - eye[0], chr[1] - eye[1], chr[2] - eye[2], 1.0f / 1024.0f);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
 	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
 	C3D_CullFace(GPU_CULL_NONE);
 	setupTexEnv(255, false);
+}
+
+// One actor: culled by its sphere against the frustum planes, then per mesh the palette and a draw.
+static void drawActor(Actor* a, float pl[4][4])
+{
+	float ox = a->pos[0] - eye[0], oy = a->pos[1] - eye[1], oz = a->pos[2] - eye[2];
+	float cx = ox, cy = oy, cz = oz + 70.0f;
+	if (sqrtf(cx * cx + cy * cy + cz * cz) > farDist + 100.0f) return;
+	for (int p = 0; p < 4; p++)
+		if (pl[p][0] * cx + pl[p][1] * cy + pl[p][2] * cz + pl[p][3] < -110.0f) return;
+	if (a->dirty) chCompose(a);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, sOrigin, ox, oy, oz, 0);
+	float F[12], FP[64][12];
+	chFacing(a, F);
+	bool done[64] = { false };
 	int lastTex = -1, lastAlpha = -1;
-	for (int s = 0; s < chNShown; s++) {
-		CMesh* m = &chMesh[chShown[s]];
+	for (int s = 0; s < a->nshown; s++) {
+		CMesh* m = &chMesh[a->shown[s]];
+		int np = m->npal < 12 ? m->npal : 12;
+		C3D_FVec* U = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, sBones, np * 3);   // the palette in one go
+		for (int k = 0; k < np; k++) {
+			int b = m->pal[k].bone;
+			if (b >= chBones) b = 0;
+			if (!done[b]) { aff(FP[b], F, a->pose[b]); done[b] = true; }
+			float W[12];
+			aff(W, FP[b], m->pal[k].m);
+			for (int r = 0; r < 3; r++) {
+				C3D_FVec* u = &U[k * 3 + r];
+				u->x = W[r * 4]; u->y = W[r * 4 + 1]; u->z = W[r * 4 + 2]; u->w = W[r * 4 + 3];
+			}
+		}
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, sMcol, m->col[0], m->col[1], m->col[2], 1);
 		if (m->tex != lastTex) {
 			if (m->tex < ntex) C3D_TexBind(0, &texs[m->tex]);
 			lastTex = m->tex;
@@ -1067,7 +1319,110 @@ static void drawCharacter(void)
 		statDraws++;
 		statTris += m->nidx / 3;
 	}
+}
+
+// All actors (the player but in FPP), then the world's program back.
+static void drawActors(const C3D_Mtx* mvp, const float fwd[3])
+{
+	if (!chrPlaced) return;
+	if (!chOk) { if (camMode != CAM_FPP) drawBoxes(); return; }
+	u64 t0 = ticks();
+	float pl[4][4];
+	for (int i = 0; i < 4; i++) {
+		int row = i >> 1;
+		float sgn = (i & 1) ? -1.0f : 1.0f;
+		pl[i][0] = mvp->r[3].x + sgn * mvp->r[row].x;
+		pl[i][1] = mvp->r[3].y + sgn * mvp->r[row].y;
+		pl[i][2] = mvp->r[3].z + sgn * mvp->r[row].z;
+		pl[i][3] = mvp->r[3].w + sgn * mvp->r[row].w;
+		float l = sqrtf(pl[i][0] * pl[i][0] + pl[i][1] * pl[i][1] + pl[i][2] * pl[i][2]);
+		for (int j = 0; j < 4; j++) pl[i][j] /= l;
+	}
+	skinProgram(mvp, fwd);
+	for (int i = 0; i < MAX_ACTORS; i++) {
+		if (!actors[i].used) continue;
+		if (i == 0 && camMode == CAM_FPP) continue;
+		drawActor(&actors[i], pl);
+	}
 	C3D_AlphaTest(false, GPU_ALWAYS, 0);
+	C3D_BindProgram(&prog);
+	C3D_SetAttrInfo(&attr);
+	chDrawMs += msSince(t0);
+}
+
+// L+A: five more NPCs round the player, in random clothes, some armed, idling (each its own phase).
+static void spawnNpcs(int n)
+{
+	for (int k = 0; k < n; k++) {
+		int slot = -1;
+		for (int i = 1; i < MAX_ACTORS; i++) if (!actors[i].used) { slot = i; break; }
+		if (slot < 0) return;
+		Actor* a = &actors[slot];
+		memset(a, 0, sizeof *a);
+		float ang = (nNpc * 2.39996f), d = 140.0f + 45.0f * sqrtf((float)nNpc + 1);
+		a->pos[0] = chr[0] + sinf(ang) * d; a->pos[1] = chr[1] + cosf(ang) * d;
+		float g;
+		if (!standAt(a->pos[0], a->pos[1], chr[2] + 200.0f, 0, &g) || g < -9000.0f) g = chr[2];
+		if (g < -SWIM_DEPTH) g = chr[2];
+		a->pos[2] = g;
+		a->yaw = atan2f(chr[0] - a->pos[0], chr[1] - a->pos[1]);
+		u32 r = (u32)(nNpc * 2654435761u + 12345u);
+		a->outfit = chNOutfit ? (int)((r >> 8) % chNOutfit) : 0;
+		a->helmet = (r >> 4) & 1;
+		a->weapon = chNWeapon && ((r >> 12) % 3 == 0) ? (int)((r >> 16) % chNWeapon) : -1;
+		a->cur = -1; a->prev = -1; a->t = (r % 100) / 37.0f;
+		a->used = true; a->dirty = true;
+		nNpc++;
+	}
+}
+
+static void clearNpcs(void)
+{
+	for (int i = 1; i < MAX_ACTORS; i++) actors[i].used = false;
+	nNpc = 0;
+}
+
+// The inventory (X): on the bottom screen, the D-pad's up / down choose, A takes / puts on.
+// The entries: the outfits, the helmet, bare hands, the weapons, the torch.
+static bool invOpen, invDirty;
+static int invSel;
+
+static int invCount(void) { return chNOutfit + 2 + chNWeapon + 1; }
+
+static void invLabel(int i, char* out, int n, bool* on)
+{
+	*on = false;
+	if (i < chNOutfit) { snprintf(out, n, "clothes: %s", chOutfit[i].name); *on = PL->outfit == i; return; }
+	i -= chNOutfit;
+	if (i == 0) { snprintf(out, n, "helmet"); *on = PL->helmet; return; }
+	if (i == 1) { snprintf(out, n, "bare hands"); *on = PL->weapon < 0; return; }
+	i -= 2;
+	if (i < chNWeapon) { snprintf(out, n, "%s", chWeapon[i].name); *on = PL->weapon == i; return; }
+	snprintf(out, n, "torch"); *on = torchOn;
+}
+
+static void invApply(int i)
+{
+	if (i < chNOutfit) PL->outfit = i;
+	else if (i == chNOutfit) PL->helmet = !PL->helmet;
+	else if (i == chNOutfit + 1) PL->weapon = -1;
+	else if (i < chNOutfit + 2 + chNWeapon) PL->weapon = i - chNOutfit - 2;
+	else torchOn = !torchOn;
+	PL->dirty = true;
+	invDirty = true;
+}
+
+static void invDraw(void)
+{
+	printf("\x1b[1;0H\x1b[33m  INVENTORY (X close, A use)     \x1b[0m\n\n");
+	for (int i = 0; i < invCount() && i < 22; i++) {
+		char b[40];
+		bool on;
+		invLabel(i, b, sizeof b, &on);
+		printf("%s %c %-26s\x1b[0m\n", i == invSel ? "\x1b[7m>" : " ", on ? '*' : ' ', b);
+	}
+	printf("\n NPCs: %d (L+A more, L+Y none)   \n", nNpc);
+	invDirty = false;
 }
 
 // ------------------------------------------------------------------ water, shadow
@@ -1259,6 +1614,89 @@ static void drawShadow(const C3D_Mtx* mvp, const float fwd[3])
 	statTris += SH_SEG;
 }
 
+// The torch's flame: two fans facing the camera, added (a bright yellow core, an orange halo),
+// their size flickering with the light.
+#define FL_SEG 10
+static Vtx* flV;
+static u16* flI;
+static C3D_BufInfo flBuf;
+
+static void drawFlame(const C3D_Mtx* mvp, const float fwd[3])
+{
+	if (!flV || !chrPlaced) return;
+	waterProgram(mvp, fwd);
+	float cp = cosf(pitch), sp = sinf(pitch), cy = cosf(yaw), sy = sinf(yaw);
+	float rx = cy, ry = -sy, ux = -sy * sp, uy = -cy * sp, uz = cp;   // the camera's right and up
+	for (int f = 0; f < 2; f++) {
+		float r = (f == 0 ? 7.0f : 30.0f) * (0.85f + 0.15f * torchFlicker);
+		float stretch = f == 0 ? 1.8f : 1.2f;   // flames are taller than wide
+		const u8 core[2][4] = { { 255, 235, 150, 230 }, { 255, 140, 40, 110 } };
+		for (int i = 0; i <= FL_SEG; i++) {
+			Vtx* v = &flV[f * (FL_SEG + 1) + i];
+			float a = 0, b = 0;
+			if (i > 0) { float t = (i - 1) * 2.0f * (float)M_PI / FL_SEG; a = cosf(t) * r; b = sinf(t) * r * stretch + (f == 0 ? r * 0.5f : 0); }
+			v->p[0] = (s16)lrintf(rx * a + ux * b); v->p[1] = (s16)lrintf(ry * a + uy * b); v->p[2] = (s16)lrintf(uz * b); v->p[3] = 0;
+			v->t[0] = v->t[1] = 0;
+			v->c[0] = core[f][0]; v->c[1] = core[f][1]; v->c[2] = core[f][2]; v->c[3] = i == 0 ? core[f][3] : 0;
+		}
+	}
+	GSPGPU_FlushDataCache(flV, 2 * (FL_SEG + 1) * sizeof(Vtx));
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wOrigin, torchPos[0] - eye[0], torchPos[1] - eye[1], torchPos[2] - eye[2], 0);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_ZERO, GPU_ONE);
+	for (int i = 0; i < 3; i++) {
+		C3D_TexEnv* env = C3D_GetTexEnv(i);
+		C3D_TexEnvInit(env);
+		C3D_TexEnvSrc(env, C3D_Both, i == 0 ? GPU_PRIMARY_COLOR : GPU_PREVIOUS, 0, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	}
+	C3D_SetBufInfo(&flBuf);
+	C3D_DrawElements(GPU_TRIANGLES, 2 * FL_SEG * 3, C3D_UNSIGNED_SHORT, flI);
+	statDraws++;
+	statTris += 2 * FL_SEG;
+}
+
+// Under the water, the surface seen from below: the grid again, a light blue-green, rippled.
+static void drawWaterBelow(const C3D_Mtx* mvp, const float fwd[3])
+{
+	if (!rippleOk) return;
+	waterProgram(mvp, fwd);
+	float t = fxTime;
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 14.0f / 8192.0f, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 11.0f / 8192.0f, 0);
+	C3D_TexBind(0, &rippleTex);
+	C3D_TexBind(1, &rippleTex);
+	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE0, GPU_TEXTURE1, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_ADD_SIGNED);
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PRIMARY_COLOR, GPU_CONSTANT, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_MODULATE);
+	C3D_TexEnvColor(env, 0xC0000000);
+	env = C3D_GetTexEnv(1);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_CONSTANT, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
+	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_2);
+	C3D_TexEnvColor(env, 0xFF000000 | 0xA0 << 16 | 0x90 << 8 | 0x50);
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	env = C3D_GetTexEnv(2);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	for (int ci = 0; ci < MAX_CELLS; ci++) {
+		Cell* c = &cells[ci];
+		if (!c->used || !c->wv || !c->wni) continue;
+		float ox = c->gx * CELL + HALF - eye[0], oy = c->gy * CELL + HALF - eye[1];
+		if (fabsf(ox) - HALF > farDist || fabsf(oy) - HALF > farDist) continue;
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, wOrigin, ox, oy, -eye[2], 0);
+		C3D_SetBufInfo(&c->wbuf);
+		C3D_DrawElements(GPU_TRIANGLES, c->wni, C3D_UNSIGNED_SHORT, c->wi);
+		statDraws++;
+		statTris += c->wni / 3;
+	}
+}
+
 // The water grids: the depth colour x the two ripple layers (added signed, x2: mid grey leaves
 // the colour as it is), the transparency from the depth, faded out by the fog.
 // Caustics: the grid again, on the bottom (the terrain's own vertices, so the same depth:
@@ -1417,14 +1855,40 @@ static bool inBox(const float* b, float x, float y, float z)
 	return (u - cu) * (u - cu) + (w - cw) * (w - cw) < CHR_R * CHR_R;
 }
 
-// Would the character at (x, y, z) stand in a thing? The boxes it stands in already at (px, py)
-// do not hold it (so it can always walk out of where it started).
+// How much of the character's circle at (x, y) is in blocked squares (MWC3 cells: the baker's
+// 16-unit grid of what stands in the body's height band over the ground): the number of them.
+static int occOverlap(float x, float y)
+{
+	int n = 0;
+	int x0 = (int)floorf((x - CHR_R) / 16.0f), x1 = (int)floorf((x + CHR_R) / 16.0f);
+	int y0 = (int)floorf((y - CHR_R) / 16.0f), y1 = (int)floorf((y + CHR_R) / 16.0f);
+	for (int sy = y0; sy <= y1; sy++)
+		for (int sx = x0; sx <= x1; sx++) {
+			int gx = sx >= 0 ? sx / 512 : -((-sx + 511) / 512), gy = sy >= 0 ? sy / 512 : -((-sy + 511) / 512);
+			Cell* c = findCell(gx, gy);
+			if (!c || !c->occ) continue;
+			int lx = sx - gx * 512, ly = sy - gy * 512;
+			if (!(c->occ[(ly * 512 + lx) >> 3] & (1 << (lx & 7)))) continue;
+			// the circle's distance to that square
+			float qx = fmaxf(sx * 16.0f, fminf(x, sx * 16.0f + 16.0f)), qy = fmaxf(sy * 16.0f, fminf(y, sy * 16.0f + 16.0f));
+			if ((qx - x) * (qx - x) + (qy - y) * (qy - y) < CHR_R * CHR_R) n++;
+		}
+	return n;
+}
+
+// Would the character at (x, y, z) stand in a thing? Where it is caught already (px, py) it may
+// move as long as it gets no deeper in (so it can always walk out).
 static bool collides(float x, float y, float z, float px, float py)
 {
 	if (!collideOn) return false;
+	int nNew = occOverlap(x, y);
+	if (nNew > 0) {
+		int nOld = occOverlap(px, py);
+		if (nOld == 0 || nNew > nOld) return true;
+	}
 	for (int i = 0; i < MAX_CELLS; i++) {
 		Cell* c = &cells[i];
-		if (!c->used || !c->col) continue;
+		if (!c->used || !c->col || c->occ) continue;
 		float ox = c->gx * CELL + HALF, oy = c->gy * CELL + HALF;
 		float lx = x - ox, ly = y - oy;
 		if (fabsf(lx) > HALF + 800.0f || fabsf(ly) > HALF + 800.0f) continue;
@@ -1439,13 +1903,14 @@ static bool collides(float x, float y, float z, float px, float py)
 	return false;
 }
 
-// Walking: the circle pad relative to the camera, the figure turns to where it goes. The sea
-// (ground below -64) stops it, unless it is already that deep (the start can be on a pier).
-static void chrUpdate(float dt, float mx, float my, bool run)
+// Walking: the circle pad relative to the camera (FPP: forward is where it looks), the figure
+// turns to where it goes. Shallow water is waded through, deeper the character swims (A dives).
+// Floors (bridges, docks, stairs) are stood on; off their edge it falls.
+static void chrUpdate(float dt, float mx, float my, bool run, bool dive, bool jump)
 {
 	float g;
 	if (!chrPlaced) {
-		if (groundAt(chr[0], chr[1], &g)) { chr[2] = g > -10000.0f ? g : 0; chrPlaced = true; }
+		if (standAt(chr[0], chr[1], chr[2] + 400.0f, 0, &g)) { chr[2] = g > -10000.0f ? g : SWIM_Z; chrPlaced = true; }
 		return;
 	}
 	float len = sqrtf(mx * mx + my * my);
@@ -1453,30 +1918,72 @@ static void chrUpdate(float dt, float mx, float my, bool run)
 	float fx = sinf(rtsYaw), fy = cosf(rtsYaw);   // the camera's forward on the ground; right = (fy, -fx)
 	float dx = fx * my + fy * mx, dy = fy * my - fx * mx;
 	float moved = 0;
+	const float STEP = 45.0f;
 	if (len > 0.05f) {
-		float sp = (run ? RUN_SPEED : WALK_SPEED) * len;
-		float nx = chr[0] + dx / len * sp * dt, ny = chr[1] + dy / len * sp * dt;
-		// blocked: slide along (only x, or only y)
-		const float tries[3][2] = { { nx, ny }, { nx, chr[1] }, { chr[0], ny } };
-		for (int t = 0; t < 3; t++) {
-			float tx = tries[t][0], ty = tries[t][1];
-			if (t > 0 && tx == chr[0] && ty == chr[1]) continue;
-			if (!groundAt(tx, ty, &g) || !(g > -64.0f || g >= chr[2])) continue;
-			if (collides(tx, ty, g, chr[0], chr[1])) continue;
+		float sp = (swimming ? (run ? 260.0f : 150.0f) : run ? RUN_SPEED : WALK_SPEED) * len;
+		float step = sp * dt;
+		float ux = dx / len, uy = dy / len;
+		// blocked: slide along (turned 35 and 70 degrees either way, or only x, only y)
+		float tries[7][2];
+		int nt = 0;
+		tries[nt][0] = ux; tries[nt++][1] = uy;
+		const float ang[4] = { 0.61f, -0.61f, 1.22f, -1.22f };
+		for (int i = 0; i < 4; i++) {
+			float c = cosf(ang[i]), s = sinf(ang[i]);
+			tries[nt][0] = ux * c - uy * s; tries[nt++][1] = ux * s + uy * c;
+		}
+		for (int t = 0; t < nt; t++) {
+			float k = t == 0 ? 1.0f : t < 3 ? 0.8f : 0.5f;   // sliding is slower
+			float tx = chr[0] + tries[t][0] * step * k, ty = chr[1] + tries[t][1] * step * k;
+			float base = swimming ? fmaxf(chr[2], -10.0f) : chr[2];
+			if (!standAt(tx, ty, base, STEP, &g)) continue;   // that cell is not in yet
+			if (g < -9000.0f) g = -2000.0f;                    // the open sea
+			if (g > base + STEP) continue;                     // a wall of ground (a cliff), too high a floor
+			if (collides(tx, ty, fmaxf(g, chr[2] - 60.0f), chr[0], chr[1])) continue;
 			moved = sqrtf((tx - chr[0]) * (tx - chr[0]) + (ty - chr[1]) * (ty - chr[1]));
 			chr[0] = tx; chr[1] = ty;
 			break;
 		}
-		// turn towards the way it goes (the shorter way round)
-		float want = atan2f(dx, dy), d = want - chrYaw;
-		while (d > (float)M_PI) d -= 2 * (float)M_PI;
-		while (d < -(float)M_PI) d += 2 * (float)M_PI;
-		float k = dt * 10.0f; if (k > 1) k = 1;
-		chrYaw += d * k;
+		if (camMode != CAM_FPP) {   // turn towards the way it goes (the shorter way round)
+			float want = atan2f(dx, dy), d = want - chrYaw;
+			while (d > (float)M_PI) d -= 2 * (float)M_PI;
+			while (d < -(float)M_PI) d += 2 * (float)M_PI;
+			float k = dt * 10.0f; if (k > 1) k = 1;
+			chrYaw += d * k;
+		}
 	}
-	if (groundAt(chr[0], chr[1], &g) && g > -10000.0f) chr[2] = g;
-	chSpeedNow = dt > 0 ? moved / dt : 0;
-	chRun = run;
+	if (camMode == CAM_FPP) chrYaw = rtsYaw;
+	// the height: on the ground / a floor, swimming in the deep, falling off an edge
+	if (standAt(chr[0], chr[1], chr[2], STEP, &g)) {
+		if (g < -9000.0f) g = -2000.0f;   // the open sea
+		if (g < -SWIM_DEPTH && chr[2] < SWIM_Z + 60.0f) {   // the water is deep here: swim
+			swimming = true;
+			chrVz = 0;
+			float want = dive ? g + 30.0f : SWIM_Z;
+			if (want < g + 30.0f) want = g + 30.0f;
+			float sp = (dive ? 160.0f : 110.0f) * dt;
+			if (chr[2] > want) chr[2] = fmaxf(want, chr[2] - sp);
+			else chr[2] = fminf(want, chr[2] + sp);
+		} else {
+			swimming = false;
+			if (jump && chr[2] <= g + 1.0f && !chrAir) { chrVz = 400.0f; chr[2] = g + 2.0f; }   // a jump (~60 high)
+			if (chr[2] > g + 1.0f) {   // in the air: rising or falling
+				chrAir = true;
+				chrVz -= 1300.0f * dt;
+				chr[2] += chrVz * dt;
+				if (chr[2] <= g) { chr[2] = g; chrVz = 0; chrAir = false; }
+				if (g < -SWIM_DEPTH && chr[2] < SWIM_Z) { chr[2] = SWIM_Z; chrVz = 0; chrAir = false; }   // into the water
+			} else { chr[2] = g; chrVz = 0; chrAir = false; }
+		}
+	}
+	if (swimming) chrAir = false;
+	// in the water the body tips (as OpenMW swims): head down diving, up rising, a little forward swimming
+	float wantP = 0;
+	if (swimming) wantP = dive ? -1.25f : chr[2] < SWIM_Z - 8.0f ? 0.45f : len > 0.05f ? -0.25f : 0;
+	float kp = dt * 4.0f; if (kp > 1) kp = 1;
+	chrPitch += (wantP - chrPitch) * kp;
+	PL->speed = dt > 0 ? moved / dt : 0;
+	PL->run = run;
 	// the walk cycle follows the distance: a step per ~70 units walking, longer running
 	chrPhase += moved * (float)M_PI / (run ? 110.0f : 70.0f);
 	float want = moved > 0 ? 1.0f : 0.0f, k = dt * 6.0f; if (k > 1) k = 1;
@@ -1484,29 +1991,64 @@ static void chrUpdate(float dt, float mx, float my, bool run)
 	if (chrSwing < 0.02f && moved == 0) chrPhase = 0;
 }
 
-// The camera behind and above the character, looking down at RTS_PITCH from RTS_DIST.
+// The character's cameras. RTS: above and behind, looking down at RTS_PITCH from rtsDist. TPP:
+// behind the back at head height, a little down. FPP: from the eyes (the figure not drawn).
 static void rtsCamera(float fwd[3])
 {
-	fwd[0] = cosf(RTS_PITCH) * sinf(rtsYaw); fwd[1] = cosf(RTS_PITCH) * cosf(rtsYaw); fwd[2] = sinf(RTS_PITCH);
-	eye[0] = chr[0] - fwd[0] * RTS_DIST;
-	eye[1] = chr[1] - fwd[1] * RTS_DIST;
-	eye[2] = chr[2] + RTS_TARGET_Z - fwd[2] * RTS_DIST;
-	// never inside a hill behind the character (hardware test 6, shot 2): up over the ground
 	float g;
-	if (groundAt(eye[0], eye[1], &g) && eye[2] < g + 80.0f) eye[2] = g + 80.0f;
-	yaw = rtsYaw; pitch = RTS_PITCH;
+	if (camMode == CAM_FPP) {
+		float p = camPitch;
+		fwd[0] = cosf(p) * sinf(rtsYaw); fwd[1] = cosf(p) * cosf(rtsYaw); fwd[2] = sinf(p);
+		eye[0] = chr[0] + sinf(rtsYaw) * 8.0f; eye[1] = chr[1] + cosf(rtsYaw) * 8.0f;
+		eye[2] = chr[2] + EYE_Z;
+		yaw = rtsYaw; pitch = p;
+		return;
+	}
+	float p = camMode == CAM_RTS ? RTS_PITCH : camPitch;
+	float dist = camMode == CAM_RTS ? rtsDist : tppDist;
+	float tz = camMode == CAM_RTS ? RTS_TARGET_Z : 105.0f;
+	fwd[0] = cosf(p) * sinf(rtsYaw); fwd[1] = cosf(p) * cosf(rtsYaw); fwd[2] = sinf(p);
+	eye[0] = chr[0] - fwd[0] * dist;
+	eye[1] = chr[1] - fwd[1] * dist;
+	eye[2] = chr[2] + tz - fwd[2] * dist;
+	// never inside a hill behind the character (hardware test 6, shot 2): up over the ground
+	float clear = camMode == CAM_RTS ? 80.0f : 25.0f;
+	if (groundAt(eye[0], eye[1], &g) && eye[2] < g + clear) {
+		eye[2] = g + clear;
+		if (camMode == CAM_TPP) {   // look at the head from there
+			float vx = chr[0] - eye[0], vy = chr[1] - eye[1], vz = chr[2] + tz - eye[2];
+			float l = sqrtf(vx * vx + vy * vy + vz * vz);
+			if (l > 1) { fwd[0] = vx / l; fwd[1] = vy / l; fwd[2] = vz / l; }
+			p = asinf(fwd[2]);
+		}
+	}
+	yaw = rtsYaw; pitch = p;
+}
+
+// The draw distance and what is loaded follow the camera: RTS sees ~1800 round the character,
+// TPP / FPP to the horizon (the fog hides the end of TPP_FAR); under the water ~1500.
+static void setCamLimits(void)
+{
+	if (!rtsMode) return;
+	if (underwater) { farDist = 1600.0f; fogStart = 0.0f; }
+	else if (camMode == CAM_RTS) { farDist = RTS_FAR; fogStart = 0.7f; }
+	else { farDist = TPP_FAR; fogStart = 0.45f; }
+	loadDist = camMode == CAM_RTS ? RTS_LOAD : TPP_FAR + 500.0f;
+	dropDist = loadDist + 3000.0f;
 }
 
 static void setRts(bool on)
 {
 	rtsMode = on;
 	if (on) {
-		autoFar = false; farDist = RTS_FAR; fogStart = 0.7f;
+		autoFar = false;
+		setCamLimits();
 		rtsYaw = yaw;
 		if (!chrPlaced) { chr[0] = eye[0]; chr[1] = eye[1]; chr[2] = eye[2] - 200.0f; }
 	} else {
 		autoFar = true; fogStart = 0.45f;
 		pitch = -0.3f;
+		underwater = false;
 	}
 }
 
@@ -1582,11 +2124,12 @@ static void saveShot(const char* path)
 //   phase 4:    the RTS camera: standing 12 s while the camera goes once round the character,
 //               then the character running the route at 420 units/s, the camera swaying round it
 // bench.txt saying "rts": only phase 4.
-enum { B_OFF, B_STATIC, B_WALK, B_RTS, B_DONE };
+enum { B_OFF, B_STATIC, B_WALK, B_RTS, B_DONE, B_VIEWS };
 static int bPhase = B_OFF, bAngle = -1, bFrame;
 static float bCpu, bCpuMax, bGpu, bDraws, bTris, bFrameMs;
 static float startEye[3], startYaw;
-static bool benchOnlyRts;
+static bool benchOnlyRts, benchViews;
+static int viewsFrom;   // bench.txt "views 12": from that step
 static int benchFx;   // the looks of the RTS test: bench.txt "rts nocaustics" -> 1
 
 // walk state
@@ -1664,9 +2207,84 @@ static void benchStartWalk(int stage)
 	     gpuBudget, wSpeed);
 }
 
+// bench.txt "views": the character's cameras, the torch, a floor, the sea and a bridge, each a
+// screenshot (view_<n>.bmp) for looking at on the PC. Each step: where to put the character (x == 0:
+// where it is), the camera, the torch, the camera's turn, the circle pad (forward), run, dive, seconds.
+typedef struct { const char* name; float x, y, z; int cam; bool torch; float yaw, pad; bool run, dive; float secs, dist; int act; } View;
+enum { V_NONE, V_NPC10, V_NPC20, V_ATTACK, V_JUMP, V_NPC_CLEAR };
+static const View VIEWS[] = {
+	{ "start rts",       1, 0, 0, CAM_RTS, false, -1, 0, false, false, 2.0f },
+	{ "start tpp",       0, 0, 0, CAM_TPP, false, -1, 0, false, false, 1.5f },
+	{ "start fpp",       0, 0, 0, CAM_FPP, false, -1, 0, false, false, 1.5f },
+	{ "torch tpp close", 0, 0, 0, CAM_TPP, true, -1, 0, false, false, 1.5f, 120 },
+	{ "platform tpp",    -12127, -74545, 900, CAM_TPP, false, 0.0f, 0, false, false, 2.5f, 230 },
+	{ "to the sea",      -14208, -76288, 400, CAM_TPP, false, 4.71f, 1, true, false, 2.5f },
+	{ "swimming",        0, 0, 0, CAM_TPP, false, 4.71f, 1, false, false, 2.5f },
+	{ "diving tpp",      0, 0, 0, CAM_TPP, false, 4.71f, 0.4f, false, true, 3.0f },
+	{ "diving fpp",      0, 0, 0, CAM_FPP, false, 4.71f, 0, false, true, 1.5f },
+	{ "bridge tpp",      -18144, -19840, 900, CAM_TPP, false, 0.0f, 0, false, false, 3.0f },
+	{ "bridge rts torch", 0, 0, 0, CAM_RTS, true, 0.0f, 0, false, false, 2.0f },
+	{ "bridge walk",     0, 0, 0, CAM_TPP, false, 1.57f, 1, false, false, 3.0f },
+	{ "10 npcs tpp",     1, 0, 0, CAM_TPP, false, -1, 0, false, false, 3.0f, 420, V_NPC10 },
+	{ "30 npcs rts",     0, 0, 0, CAM_RTS, false, -1, 0, false, false, 3.0f, 0, V_NPC20 },
+	{ "sword attack",    0, 0, 0, CAM_TPP, false, -1, 0, false, false, 0.7f, 200, V_ATTACK },
+	{ "jump",            0, 0, 0, CAM_TPP, true, -1, 0, false, false, 0.22f, 0, V_JUMP },
+};
+#define NVIEWS (int)(sizeof VIEWS / sizeof VIEWS[0])
+static int vStep;
+static float vT;
+static bool vWait, vJump;
+static int vSpawn;
+
+static void viewsBegin(int k)
+{
+	const View* v = &VIEWS[k];
+	vStep = k; vT = 0; vWait = true;
+	if (v->x == 1) { chr[0] = startEye[0]; chr[1] = startEye[1]; chr[2] = startEye[2]; chrPlaced = false; }
+	else if (v->x != 0) { chr[0] = v->x; chr[1] = v->y; chr[2] = v->z; chrPlaced = false; swimming = false; chrVz = 0; }
+	camMode = v->cam;
+	camPitch = camMode == CAM_TPP ? -0.22f : 0;
+	torchOn = v->torch;
+	if (v->dist > 0) tppDist = v->dist;
+	if (v->act == V_NPC10) { clearNpcs(); vSpawn = 10; }
+	if (v->act == V_NPC20) vSpawn = 20;
+	if (v->act == V_ATTACK && chOk) { PL->weapon = 0; PL->dirty = true; PL->attack = true; }
+	if (v->act == V_JUMP && chOk) { PL->weapon = -1; PL->dirty = true; vJump = true; }
+	if (v->yaw >= 0) rtsYaw = v->yaw; else rtsYaw = startYaw;
+	setCamLimits();
+}
+
+static void benchStartViews(void)
+{
+	bPhase = B_VIEWS;
+	radius = 1; setCap(true);
+	fxMode = 0;
+	yaw = startYaw;
+	setRts(true);
+	logw("views (bench.txt views): the character's cameras, torch, floor, sea, bridge\n");
+	if (viewsFrom > 0 && viewsFrom < NVIEWS) {
+		viewsBegin(viewsFrom);
+		if (VIEWS[viewsFrom].act == V_NPC20) vSpawn = 30;   // (the 10 of the step before too)
+	} else viewsBegin(0);
+}
+
 // Moves the camera along the route (before the frame).
 static void benchCamera(float dt, float fwd[3])
 {
+	if (bPhase == B_VIEWS) {
+		const View* v = &VIEWS[vStep];
+		if (vWait) {   // the cells round the character first
+			chrUpdate(dt, 0, 0, false, false, false);
+			if (chrPlaced && job.state == JOB_IDLE && !cellsMissing) vWait = false;
+		} else {
+			if (vSpawn) { spawnNpcs(vSpawn); vSpawn = 0; }
+			vT += dt;
+			chrUpdate(dt, 0, v->pad, v->run, v->dive, vJump);
+			vJump = false;
+		}
+		rtsCamera(fwd);
+		return;
+	}
 	if (bPhase == B_STATIC) {
 		memcpy(eye, startEye, 12);
 		pitch = -0.12f;
@@ -1695,8 +2313,8 @@ static void benchCamera(float dt, float fwd[3])
 			if (wT < 12.0f) {
 				rtsYaw = startYaw + wT * 2.0f * (float)M_PI / 12.0f;
 				chrSwing = 0;
-				chSpeedNow = 0;
-				if (chOk) chOutfitSel = chNOutfit - 1;   // the standing screenshot: the last outfit
+				PL->speed = 0;
+				if (chOk) { PL->outfit = chNOutfit - 1; PL->dirty = true; }   // the standing screenshot: the last outfit
 			} else {
 				float before[2] = { chr[0], chr[1] }, p[3], heading;
 				wDist += RUN_SPEED * dt;
@@ -1707,9 +2325,9 @@ static void benchCamera(float dt, float fwd[3])
 				float moved = sqrtf((chr[0] - before[0]) * (chr[0] - before[0]) + (chr[1] - before[1]) * (chr[1] - before[1]));
 				chrPhase += moved * (float)M_PI / 110.0f;
 				chrSwing = 1;
-				chSpeedNow = dt > 0 ? moved / dt : 0;
-				chRun = true;
-				if (chOk) chOutfitSel = (1 + (int)(wDist / (routeLen() / 4))) % chNOutfit;   // each quarter another
+				PL->speed = dt > 0 ? moved / dt : 0;
+				PL->run = true;
+				if (chOk) { int o = (1 + (int)(wDist / (routeLen() / 4))) % chNOutfit; if (o != PL->outfit) { PL->outfit = o; PL->dirty = true; } }   // each quarter another
 				rtsYaw = heading + 0.8f * sinf((wT - 12.0f) * 0.5f);
 			}
 		}
@@ -1756,6 +2374,25 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 				else farDist = 12000.0f;
 			}
 		}
+		return;
+	}
+	if (bPhase == B_VIEWS) {
+		if (++bFrame % 30 == 0)
+			logw("    (step %d %s, t %.1f, npcs %d, frame %.1f ms, cpu %.2f gpu %.2f pose %.2f draw %.2f)\n", vStep,
+			     vWait ? "waiting" : "running", vT, nNpc, rawMs, cpuMs, gpuMs, chAnimMs, chDrawMs);
+		if (bFrame % 30 == 0) logFlush();
+		if (vWait || vT < VIEWS[vStep].secs) return;
+		char p[64];
+		snprintf(p, sizeof p, "sdmc:/3ds/mwcell3d/view_%d.bmp", vStep);
+		saveShot(p);
+		float g = 0;
+		groundAt(chr[0], chr[1], &g);
+		logw("  view %d %-16s: anim %s speed %.0f, chr %.0f %.0f %.0f ground %.0f floor %.0f%s%s%s | npcs %d pose %.2f draw %.2f | eye z %.0f | fps-ish frame %.1f ms gpu %.2f cpu %.2f far %.0f\n",
+		     vStep, VIEWS[vStep].name, chOk && PL->cur >= 0 ? chAnim[PL->cur].name : "-", PL->speed, chr[0], chr[1], chr[2], g, floorAt(chr[0], chr[1], chr[2], 45.0f),
+		     swimming ? " swimming" : "", underwater ? " underwater" : "", torchOn ? " torch" : "", nNpc, chAnimMs, chDrawMs, eye[2], rawMs, gpuMs, cpuMs, farDist);
+		logFlush();
+		if (vStep + 1 < NVIEWS) viewsBegin(vStep + 1);
+		else { bPhase = B_DONE; *quit = true; }
 		return;
 	}
 	if (bPhase != B_WALK && bPhase != B_RTS) return;
@@ -1817,7 +2454,7 @@ int main(void)
 	gfxInitDefault();
 	consoleInit(GFX_BOTTOM, NULL);
 	romfsInit();
-	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 2);
+	C3D_Init(0x180000);   // 1.5 MB: each skinned mesh sends its bone palette (~14 KB per character)
 
 	gfxSet3D(true);
 	C3D_RenderTarget* top = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
@@ -1837,6 +2474,8 @@ int main(void)
 	uOrigin = shaderInstanceGetUniformLocation(prog.vertexShader, "origin");
 	uFog = shaderInstanceGetUniformLocation(prog.vertexShader, "fogRow");
 	uDetail = shaderInstanceGetUniformLocation(prog.vertexShader, "detail");
+	uTorch = shaderInstanceGetUniformLocation(prog.vertexShader, "torch");
+	uTorchCol = shaderInstanceGetUniformLocation(prog.vertexShader, "torchCol");
 	AttrInfo_Init(&attr);
 	AttrInfo_AddLoader(&attr, 0, GPU_SHORT, 4);
 	AttrInfo_AddLoader(&attr, 1, GPU_SHORT, 2);
@@ -1860,6 +2499,18 @@ int main(void)
 		GSPGPU_FlushDataCache(shI, SH_SEG * 3 * sizeof(u16));
 		BufInfo_Init(&shBuf);
 		BufInfo_Add(&shBuf, shV, sizeof(Vtx), 3, 0x210);
+	}
+	flV = (Vtx*)linearAlloc(2 * (FL_SEG + 1) * sizeof(Vtx));
+	flI = (u16*)linearAlloc(2 * FL_SEG * 3 * sizeof(u16));
+	if (flV && flI) {
+		for (int f = 0; f < 2; f++)
+			for (int i = 0; i < FL_SEG; i++) {
+				u16 o = f * (FL_SEG + 1);
+				flI[(f * FL_SEG + i) * 3] = o; flI[(f * FL_SEG + i) * 3 + 1] = o + 1 + i; flI[(f * FL_SEG + i) * 3 + 2] = o + 1 + (i + 1) % FL_SEG;
+			}
+		GSPGPU_FlushDataCache(flI, 2 * FL_SEG * 3 * sizeof(u16));
+		BufInfo_Init(&flBuf);
+		BufInfo_Add(&flBuf, flV, sizeof(Vtx), 3, 0x210);
 	}
 	chrV = (Vtx*)linearAlloc(CHR_MAXV * sizeof(Vtx));
 	chrI = (u16*)linearAlloc(CHR_MAXI * sizeof(u16));
@@ -1898,6 +2549,8 @@ int main(void)
 			fread(what, 1, sizeof what - 1, bf);
 			fclose(bf);
 			benchOnlyRts = strstr(what, "rts") != NULL;
+			benchViews = strstr(what, "views") != NULL;
+			if (benchViews) viewsFrom = atoi(strstr(what, "views") + 5);
 			waterTint = strstr(what, "blue") ? 1 : 0;
 			benchFx = strstr(what, "calm") ? FX_CALM : strstr(what, "nocaus") ? 1 : 0;
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
@@ -1918,7 +2571,8 @@ int main(void)
 	}
 	startEye[0] = eye[0]; startEye[1] = eye[1]; startEye[2] = eye[2];
 	startYaw = yaw;
-	if (benchOnlyRts) benchStartRts();
+	if (benchViews) benchStartViews();
+	else if (benchOnlyRts) benchStartRts();
 
 	u64 last = ticks(), fpsT = last;
 	int frames = 0, playTick = 0;
@@ -1941,17 +2595,28 @@ int main(void)
 			touchPosition tp;
 			hidTouchRead(&tp);
 			if (tp.px >= 214) setCap(!cap30);
+			else if (tp.px >= 107 && rtsMode) { waterTint = (waterTint + 1) % NTINT; tintChanged = true; }
 			else if (tp.px >= 107) {
 				radius = (radius + 1) % 3;
-				if (!autoFar && !rtsMode) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
+				if (!autoFar) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
 			} else if (!rtsMode) autoFar = !autoFar;
 			else fxMode = (fxMode + 1) % 4;
 		}
-		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
-		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
-		if (rtsMode) {   // the distance is locked in RTS mode; D-pad left/right: the water's tint
-			if (down & KEY_DRIGHT) { waterTint = (waterTint + 1) % NTINT; tintChanged = true; }
-			if (down & KEY_DLEFT) { waterTint = (waterTint + NTINT - 1) % NTINT; tintChanged = true; }
+		if (!rtsMode && (held & KEY_DUP)) speed *= 1.0f + dt * 1.5f;
+		if (!rtsMode && (held & KEY_DDOWN)) speed /= 1.0f + dt * 1.5f;
+		if (rtsMode) {   // D-pad left: the camera (RTS / TPP / FPP), right: the torch; up/down: zoom (FPP: look)
+			if (down & KEY_DLEFT) { camMode = (camMode + 1) % NCAM; camPitch = camMode == CAM_TPP ? -0.22f : 0; setCamLimits(); }
+			if (down & KEY_DRIGHT) { torchOn = !torchOn; invDirty = true; }
+			if (invOpen) {   // the inventory takes the D-pad's up / down
+				int n = invCount();
+				if (down & KEY_DDOWN) { invSel = (invSel + 1) % n; invDirty = true; }
+				if (down & KEY_DUP) { invSel = (invSel + n - 1) % n; invDirty = true; }
+				held &= ~(KEY_DUP | KEY_DDOWN);
+			}
+			float zin = ((held & KEY_DDOWN) ? 1.0f : 0) - ((held & KEY_DUP) ? 1.0f : 0);
+			if (camMode == CAM_RTS) rtsDist = fminf(1300.0f, fmaxf(160.0f, rtsDist * (1.0f + zin * 1.2f * dt)));
+			else if (camMode == CAM_TPP) tppDist = fminf(700.0f, fmaxf(90.0f, tppDist * (1.0f + zin * 1.2f * dt)));
+			else camPitch = fminf(1.3f, fmaxf(-1.3f, camPitch - zin * 1.2f * dt));
 		} else if (autoFar) {
 			if (held & KEY_DRIGHT) gpuBudget += 6.0f * dt;
 			if (held & KEY_DLEFT) gpuBudget -= 6.0f * dt;
@@ -1971,10 +2636,18 @@ int main(void)
 		if (rtsMode && !bench) {   // circle pad walks, B runs, L/R (or Y/A) turn the camera round the character
 			float pmx = abs(cp.dx) > 15 ? cp.dx / 156.0f : 0, pmy = abs(cp.dy) > 15 ? cp.dy / 156.0f : 0;
 			float turn = ((held & KEY_R) ? 1.0f : 0) - ((held & KEY_L) ? 1.0f : 0);
-			if (chOk && (down & KEY_X)) chOutfitSel = (chOutfitSel + 1) % chNOutfit;
-			if (down & KEY_Y) chHelmet = !chHelmet;
+			// X: the inventory; A there: take / put on; else A attacks (on land) or dives (held, in the
+			// water), Y jumps; L+A: five NPCs more, L+Y: all of them gone
+			if (chOk && (down & KEY_X)) { invOpen = !invOpen; invDirty = true; consoleClear(); }
+			bool combo = (held & KEY_L) != 0;
+			if (combo && (down & KEY_A)) { spawnNpcs(5); invDirty = true; }
+			else if (combo && (down & KEY_Y)) { clearNpcs(); invDirty = true; }
+			else if (invOpen && (down & KEY_A)) invApply(invSel);
+			else if (!invOpen && !swimming && (down & KEY_A) && chOk && !PL->attack) { PL->attack = true; }
+			bool dive = !combo && !invOpen && swimming && (held & KEY_A);
+			bool jump = !combo && (down & KEY_Y);
 			rtsYaw += turn * 1.8f * dt;
-			chrUpdate(dt, pmx, pmy, (held & KEY_B) != 0);
+			chrUpdate(dt, pmx, pmy, (held & KEY_B) != 0, dive, jump);
 			held &= ~(KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R);
 			cp.dx = cp.dy = 0;
 		}
@@ -1994,8 +2667,27 @@ int main(void)
 		if (held & KEY_L) eye[2] -= speed * dt;
 		if (bench) benchCamera(dt, fwd);
 		else if (rtsMode) rtsCamera(fwd);
-		if (chOk && rtsMode) chAnimate(dt);
-		chFrameNo++;
+		if (invOpen && invDirty && !bench) invDraw();
+		if (chOk && rtsMode) {   // the player's state into its actor, then every actor's pose
+			u64 a0 = ticks();
+			PL->pos[0] = chr[0]; PL->pos[1] = chr[1]; PL->pos[2] = chr[2];
+			PL->yaw = chrYaw; PL->pitch = chrPitch;
+			if (PL->swim != swimming || PL->torch != torchOn) PL->dirty = true;
+			PL->swim = swimming; PL->air = chrAir; PL->torch = torchOn;
+			for (int i = 0; i < MAX_ACTORS; i++) if (actors[i].used) chAnimate(&actors[i], dt);
+			if (chTorchGroup >= 0) chFlamePos(PL, torchPos);
+			chAnimMs = msSince(a0);
+		}
+		chDrawMs = 0;
+		// the torch's flicker: two slow waves and a fast one
+		torchFlicker = 0.75f + 0.12f * sinf(fxTime * 7.3f) + 0.08f * sinf(fxTime * 13.1f + 1.3f) + 0.05f * sinf(fxTime * 29.0f);
+		// under the water? (the camera below the surface where there is water over the ground)
+		{
+			float g;
+			bool uw = rtsMode && eye[2] < -2.0f && groundAt(eye[0], eye[1], &g) && g < eye[2];
+			if (uw != underwater) { underwater = uw; setCamLimits(); }
+			fogColour = underwater ? 0xFF000000 | 0x58 << 16 | 0x4C << 8 | 0x1C : 0xFF000000 | SKY_B << 16 | SKY_G << 8 | SKY_R;
+		}
 		if (dt > 0) {   // smoothed velocity for the loader's prediction
 			float k = dt * 3.0f; if (k > 1) k = 1;
 			// RTS: the character's, not the camera's (turning round it is not going anywhere: hardware
@@ -2021,26 +2713,33 @@ int main(void)
 			curLeft = left;
 		}
 		// the focal plane: the character in RTS mode (it stands on the screen, the world round it)
-		float screenD = rtsMode ? RTS_DIST : 600.0f, iod = slider * screenD / 10.0f;
+		float screenD = !rtsMode ? 600.0f : camMode == CAM_RTS ? rtsDist : camMode == CAM_TPP ? tppDist : 300.0f;
+		float iod = slider * screenD / 10.0f;
 		C3D_Mtx view;
-		Mtx_LookAt(&view, FVec3_New(0, 0, 0), FVec3_New(fwd[0], fwd[1], fwd[2]), FVec3_New(0, 0, 1), false);
+		// under the water the view sways a little (the up tilts, the field of view breathes)
+		float sway = underwater ? 0.025f * sinf(fxTime * 1.7f) : 0, fov = underwater ? 62.0f + 1.5f * sinf(fxTime * 2.3f) : 60.0f;
+		Mtx_LookAt(&view, FVec3_New(0, 0, 0), FVec3_New(fwd[0], fwd[1], fwd[2]),
+		           FVec3_New(sway * cosf(yaw), -sway * sinf(yaw), 1), false);
 		for (int e = 0; e < (stereo ? 2 : 1); e++) {
 			C3D_Mtx proj, mvp;
 			if (stereo)
-				Mtx_PerspStereoTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f,
+				Mtx_PerspStereoTilt(&proj, C3D_AngleFromDegrees(fov), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f,
 				                    e == 0 ? -iod : iod, screenD, false);
 			else
-				Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f, false);
+				Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(fov), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f, false);
 			Mtx_Multiply(&mvp, &proj, &view);
 			C3D_RenderTarget* rt = e == 0 ? left : topR;
-			C3D_RenderTargetClear(rt, C3D_CLEAR_ALL, SKY_R << 24 | SKY_G << 16 | SKY_B << 8 | 0xFF, 0);
+			u32 clr = (fogColour & 0xFF) << 24 | (fogColour >> 8 & 0xFF) << 16 | (fogColour >> 16 & 0xFF) << 8 | 0xFF;
+			C3D_RenderTargetClear(rt, C3D_CLEAR_ALL, clr, 0);
 			C3D_FrameDrawOn(rt);
 			int d0 = statDraws; u32 t0s = statTris;
 			drawWorld(&mvp, fwd);   // (resets the stats: the second eye's adds to the first's below)
-			if (rtsMode) drawCharacter();
-			if (rtsMode && fxMode != FX_PLAIN) drawShadow(&mvp, fwd);
+			if (rtsMode) drawActors(&mvp, fwd);
+			if (rtsMode && fxMode != FX_PLAIN && !swimming) drawShadow(&mvp, fwd);
 			if (fxMode == 0) drawCaustics(&mvp, fwd);
-			if (fxMode != FX_PLAIN) drawWater(&mvp, fwd);
+			if (underwater) drawWaterBelow(&mvp, fwd);
+			else if (fxMode != FX_PLAIN) drawWater(&mvp, fwd);
+			if (rtsMode && torchOn && !swimming && camMode != CAM_FPP) drawFlame(&mvp, fwd);
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
 		cpuMs = msSince(c0);
@@ -2064,16 +2763,17 @@ int main(void)
 			for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) { loaded++; ltris += cells[i].tris; lbytes += cells[i].size; }
 			++playTick;
 			if (!bench && playTick % 4 == 0) {
-				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d | char %s %d verts skin %.2f ms\n",
+				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d | char %s %d verts | npcs %d anim %.2f draw %.2f ms | cam %s%s%s\n",
 				     rtsMode ? "rts" : "free", fxMode, osGet3DSliderState() * 100, fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
 				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL),
-				     chOk ? chOutfit[chOutfitSel].name : "-", chShownVerts, chSkinMs);
+				     chOk ? chOutfit[PL->outfit].name : "-", PL->verts, nNpc, chAnimMs, chDrawMs,
+				     CAM_NAMES[camMode], torchOn ? " torch" : "", underwater ? " underwater" : swimming ? " swim" : "");
 				if (playTick % 60 == 0) logFlush();   // every 30 s
 			}
 			// The console's text costs ~7 ms of CPU on the Old 3DS (hardware test 2: a 40 ms frame at each
 			// refresh): not during the benchmark, and once a second otherwise.
-			if (bench || (playTick & 1)) continue;
+			if (bench || (playTick & 1) || invOpen) continue;
 			printf("\x1b[3;0H");
 			printf("FPS        %5.1f  (cap %d)       \n", fps, cap30 ? 30 : 60);
 			printf("CPU frame  %5.2f ms (max %5.2f)  \n", cpuAvg, cpuMaxShown);
@@ -2084,8 +2784,8 @@ int main(void)
 			printf("looks: %s  3D %3.0f%%   \n",
 			       fxMode == 0 ? "fx+caustics " : fxMode == 1 ? "fx ripples  " : fxMode == 2 ? "fx calm     " : "plain       ", osGet3DSliderState() * 100);
 			printf("water: %s (Dpad L/R)  \n", TINT_NAMES[waterTint]);
-			if (chOk) printf("outfit: %-9s helm %d skin %4.1fms \n", chOutfit[chOutfitSel].name, chHelmet, chSkinMs);
-			if (chOk) printf("  %d meshes %d verts          \n", chNShown, chShownVerts);
+			if (chOk) printf("NPCs %2d  pose %4.2f draw %5.2f ms \n", nNpc, chAnimMs, chDrawMs);
+			if (chOk) printf("  player %d meshes %d verts     \n", PL->nshown, PL->verts);
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");
 			printf("cells loaded %2d  missing %d     \n", loaded, cellsMissing);
 			printf("cell data %5lu KB  tris %7lu  \n", lbytes / 1024, ltris);
@@ -2097,7 +2797,9 @@ int main(void)
 			printf("pos %7.0f %7.0f %6.0f \n", eye[0], eye[1], eye[2]);
 			printf("%s\n", bench ? "\x1b[33mBENCHMARK running\x1b[0m        " : "                          ");
 			if (rtsMode)
-				printf("\x1b[2mRTS: pad walk B run L/R turn    \nX outfit Y helmet Dpad L/R water\nSELECT free camera  START quit  \ntouch: [looks][radius][30/60]  \n                                \x1b[0m");
+				printf("\x1b[2m%s: pad walk B run L/R turn  \nA attack/dive Y jump X inventory\nDpad < cam > torch ^v zoom     \nL+A 5 NPCs  L+Y no NPCs        \n%s\x1b[0m",
+				       CAM_NAMES[camMode], swimming ? (underwater ? "swimming, under water         " : "swimming                      ")
+				                                    : torchOn ? "torch                         " : "                              ");
 			else
 				printf("\x1b[2mpad move  ABXY look  L/R down/up\nDpad U/D speed  L/R budget|far\nSELECT RTS camera  START quit  \ntouch: [auto][radius][30/60]   \x1b[0m");
 		}

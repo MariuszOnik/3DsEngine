@@ -41,7 +41,24 @@ PART_SLOTS = {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [6, 7], 6: [8, 9], 7: [
               9: [15, 16], 10: [17, 18], 11: [19, 20], 12: [21, 22], 13: [23, 24], 14: [26]}
 
 FPS = 20.0
-ANIMS = [("idle", "Idle", False), ("walk", "WalkForward", True), ("run", "RunForward", True)]
+# (name, text-key group, walks?, (first key, last key) or None for the whole group / its loop, loops?)
+ANIMS = [("idle", "Idle", False, None, True), ("walk", "WalkForward", True, None, True),
+         ("run", "RunForward", True, None, True),
+         ("swimidle", "IdleSwim", False, None, True), ("swimwalk", "SwimWalkForward", True, None, True),
+         ("swimrun", "SwimRunForward", True, None, True),
+         ("jump", "Jump", False, ("start", "stop"), False),
+         ("idle1h", "Idle1h", False, None, True), ("walk1h", "WalkForward1h", True, None, True),
+         ("run1h", "RunForward1h", True, None, True),
+         ("attack1h", "WeaponOneHand", False, ("chop start", "chop small follow stop"), False),
+         ("attackhh", "HandToHand", False, ("chop start", "chop small follow stop"), False)]
+# weapons for the right hand (WEAP ids; missing ones skipped), hung on the "Weapon Bone"
+WEAPONS = ["iron longsword", "iron saber", "steel longsword", "iron war axe", "steel axe", "iron club",
+           "steel mace", "chitin club", "glass longsword", "ebony longsword", "daedric longsword"]
+MAX_WEAPONS = 6
+WEAPON_SLOT = 25
+MAXB = 20          # bones per draw (the skinning shader's palette)
+TORCH_MODEL = "l/light_com_torch_01.nif"
+TORCH_SLOT = 10      # "Shield Bone": carried lights hang there (OpenMW: the left hand's carried item)
 
 # what the character can wear: outfits of ARMO / CLOT ids (missing ones are skipped)
 OUTFITS = [
@@ -79,6 +96,13 @@ def load_records(path):
                 elif n == b"BYDT": d["part"], d["vamp"], d["flags"], d["type"] = v[0], v[1], v[2], v[3]
             if "id" in d:
                 bodies[d["id"]] = d
+        elif tag == b"WEAP":
+            d = {}
+            for n, v in M.subrecords(body):
+                if n == b"NAME": d["id"] = M.cstr(v).lower()
+                elif n == b"MODL": d["model"] = M.cstr(v)
+            if "id" in d and "model" in d:
+                items["weap:" + d["id"]] = d
         elif tag in (b"ARMO", b"CLOT"):
             d = {"parts": []}
             cur = None
@@ -190,13 +214,31 @@ class Skeleton:
                 s = float(k["sv"][i][0] * (1 - f) + k["sv"][j][0] * f)
         return trafo(R, tr, s)
 
-    def pose(self, t=None, strip_root=True):
-        """every node's matrix in the character's space"""
+    def subtree(self, name):
+        root = self.by_name.get(name.lower())
+        out = set()
+        for ni, (bi, nm, parent) in enumerate(self.nodes):
+            if ni == root or parent in out: out.add(ni)
+        return out
+
+    def pose(self, t=None, strip_root=True, over=None):
+        """every node's matrix in the character's space; over = (nodes, time): those nodes' own
+        motion from another time (a layered animation: the arm with the torch)"""
         out = [None] * len(self.nodes)
         for ni, (bi, name, parent) in enumerate(self.nodes):
-            L = self.local(ni, t, strip_root)
+            L = self.local(ni, over[1], strip_root) if over and ni in over[0] else self.local(ni, t, strip_root)
             out[ni] = L if parent < 0 else out[parent] @ L
         return out
+
+    def keys(self, name, k0, k1):
+        """the times of two text keys of a group ("chop start" .. "chop small follow stop")"""
+        a = b = None
+        for t, txt in self.text:
+            for line in txt.replace("\r", "").split("\n"):
+                line = line.strip().lower()
+                if line == (name + ": " + k0).lower(): a = t
+                elif line == (name + ": " + k1).lower(): b = t
+        return a, b
 
     def group(self, name):
         start = stop = lstart = lstop = None
@@ -234,6 +276,8 @@ class Mesh:
     def __init__(self, tex, alpha, colour):
         self.tex, self.alpha, self.colour = tex, alpha, colour
         self.uv = []; self.infl = []; self.tri = None   # infl: per vertex a list of (bone node, w, pos, nrm)
+        # for the GPU: the vertices as in the NIF and per bone the matrix into that bone's space
+        self.vpos = None; self.vnrm = None; self.bm = {}
 
 
 def part_meshes(vfs, tex, sk, model, slot, warn):
@@ -285,6 +329,7 @@ def part_meshes(vfs, tex, sk, model, slot, warn):
                     if ni is None:
                         warn("%s: bone %s not in the skeleton" % (model, bname)); continue
                     Bm = trafo(rot, tr, sc)
+                    m.bm[ni] = Bm
                     for vi, wt in zip(idx, w):
                         if wt <= 0.001 or vi >= nv: continue
                         p = Bm[:3, :3] @ d["v"][vi] + Bm[:3, 3]
@@ -292,6 +337,7 @@ def part_meshes(vfs, tex, sk, model, slot, warn):
                         m.infl[vi].append((ni, float(wt), p, n))
             else:
                 L = mirror @ W
+                m.bm[attach] = L
                 for vi in range(nv):
                     p = L[:3, :3] @ d["v"][vi] + L[:3, 3]
                     n = L[:3, :3] @ nrm[vi]; n = n / max(np.linalg.norm(n), 1e-6)
@@ -304,12 +350,40 @@ def part_meshes(vfs, tex, sk, model, slot, warn):
                 tot = sum(e[1] for e in lst)
                 m.infl[vi] = [(a, w / tot, p, n) for a, w, p, n in lst]
             m.tri = d["tri"].astype(np.int64)
+            m.vpos = np.asarray(d["v"], float); m.vnrm = np.asarray(nrm, float)
             out.append(m)
             return
         for c in b.get("children", []):
             walk(c, W, pr, depth + 1)
 
     walk(0, np.eye(4), {}, 0)
+    return out
+
+
+def split_mesh(m):
+    """meshes using more than MAXB bones cut into pieces of at most MAXB (by triangles)"""
+    usedb = {e[0] for inf in m.infl for e in inf}
+    m.bm = {k: v for k, v in m.bm.items() if k in usedb}
+    for ni in usedb - set(m.bm):   # (an influence without a matrix: the fallback to the attach node)
+        m.bm[ni] = np.eye(4)
+    if len(m.bm) <= MAXB:
+        return [m]
+    out = []
+    tris = list(m.tri)
+    while tris:
+        bones, take, rest = set(), [], []
+        for t in tris:
+            tb = {e[0] for vi in t for e in m.infl[vi]}
+            if len(bones | tb) <= MAXB: bones |= tb; take.append(t)
+            else: rest.append(t)
+        if not take: break
+        vs = sorted({int(v) for t in take for v in t}); rm = {v: k for k, v in enumerate(vs)}
+        q = Mesh(m.tex, m.alpha, m.colour)
+        q.uv = np.asarray(m.uv)[vs]; q.infl = [m.infl[v] for v in vs]
+        q.vpos = m.vpos[vs]; q.vnrm = m.vnrm[vs]
+        q.bm = {ni: m.bm[ni] for ni in bones if ni in m.bm}
+        q.tri = np.array([[rm[int(v)] for v in t] for t in take], np.int64)
+        out.append(q); tris = rest
     return out
 
 
@@ -334,7 +408,7 @@ class Character:
         def group_for(model, slot):
             key = (model.lower(), slot)
             if key not in cache:
-                ms = part_meshes(vfs, tex, self.sk, model, slot, warn)
+                ms = [q for m0 in part_meshes(vfs, tex, self.sk, model, slot, warn) for q in split_mesh(m0)]
                 if not ms:
                     cache[key] = -1
                 else:
@@ -373,19 +447,70 @@ class Character:
                 helmet = 1 if any(s in (0, 1) for s, _ in parts) else 0
                 lst.append(len(self.items)); self.items.append((iid, helmet, parts))
             self.outfits.append((oname, lst))
+        # weapons
+        self.weapons = []   # (name, group)
+        for wid in WEAPONS:
+            w = items.get("weap:" + wid)
+            if w is None:
+                warn("no weapon " + wid); continue
+            g = group_for(w["model"], WEAPON_SLOT)
+            if g >= 0: self.weapons.append((wid, g))
+            if len(self.weapons) >= MAX_WEAPONS: break
+        log("  weapons: %s" % ", ".join(n for n, g in self.weapons))
+        # the torch: a rigid part on the shield bone; its flame where the NIF's "AttachLight" is
+        self.torch = group_for(TORCH_MODEL, TORCH_SLOT)
+        self.flame = np.array([0.0, 0.0, 30.0])
+        tb = M.parse_nif(vfs.read("meshes\\" + TORCH_MODEL.replace("/", "\\")))
+        def find(i, Mx, depth=0):
+            if not (0 <= i < len(tb)) or depth > 64: return None
+            b = tb[i]
+            if "r" not in b: return None
+            W = Mx @ trafo(b["r"], b["t"], b["s"])
+            if b.get("name", "").lower() == "attachlight": return W[:3, 3]
+            for c in b.get("children", []):
+                r = find(c, W, depth + 1)
+                if r is not None: return r
+            return None
+        fp = find(0, np.eye(4))
+        if fp is not None: self.flame = fp
+        # Hung on the shield bone as it is, the torch points out sideways in the "Torch" pose: turned
+        # (in the bone's space) to point up and a little forward there.
+        ta, tb_ = self.sk.group("Torch")
+        if self.torch >= 0 and ta is not None:
+            sbn = self.sk.by_name.get(SLOT_NODE[TORCH_SLOT].lower())
+            arm = self.sk.subtree("Bip01 L Clavicle")
+            P = self.sk.pose(ta, over=(arm, ta + (tb_ - ta) * 0.5))
+            Rb = P[sbn][:3, :3]; Rb = Rb / np.linalg.norm(Rb[:, 0])
+            want = np.array([0.0, 0.45, 1.0]); want /= np.linalg.norm(want)
+            v = Rb.T @ want
+            z = self.flame / max(np.linalg.norm(self.flame), 1e-6)
+            ax = np.cross(z, v); sn = np.linalg.norm(ax); cs = float(z @ v)
+            if sn > 1e-6:
+                ax /= sn; K = np.array([[0, -ax[2], ax[1]], [ax[2], 0, -ax[0]], [-ax[1], ax[0], 0]])
+                Rf = np.eye(3) + sn * K + (1 - cs) * K @ K
+                R4 = np.eye(4); R4[:3, :3] = Rf
+                for mi in self.groups[self.torch]:
+                    m = self.meshes[mi]
+                    m.infl = [[(a, w, Rf @ p_, Rf @ n_) for a, w, p_, n_ in lst] for lst in m.infl]
+                    m.bm = {k: R4 @ v for k, v in m.bm.items()}
+                self.flame = Rf @ self.flame
+        log("  torch: group %d, flame at %s" % (self.torch, np.round(self.flame, 1)))
         # the bones the meshes use
-        used = sorted({e[0] for m in self.meshes for inf in m.infl for e in inf})
+        used = {e[0] for m in self.meshes for inf in m.infl for e in inf}
+        neck = self.sk.by_name.get("bip01 neck")
+        if neck is not None: used.add(neck)
+        used = sorted(used)
         self.bones = used
         self.bone_index = {ni: i for i, ni in enumerate(used)}
         # the animations
         self.anims = []
-        for short, group, moves in ANIMS:
-            a, b = self.sk.group(group)
+        for short, group, moves, keys, loop in ANIMS:
+            a, b = self.sk.keys(group, *keys) if keys else self.sk.group(group)
             if a is None or b is None:
                 warn("no animation " + group); continue
             n = max(2, int(round((b - a) * FPS)))
             frames = []
-            for k in range(n):
+            for k in range(n + (0 if loop else 1)):   # a one-off ends on its last key
                 P = self.sk.pose(a + (b - a) * k / n, strip_root=True)
                 frames.append(np.stack([P[ni][:3, :4] for ni in used]))
             speed = 0.0
@@ -394,8 +519,17 @@ class Character:
                 p0 = self.sk.pose(a, strip_root=False)[bip][:3, 3]
                 p1 = self.sk.pose(b, strip_root=False)[bip][:3, 3]
                 speed = float(np.linalg.norm((p1 - p0)[:2]) / max(b - a, 1e-6))
-            self.anims.append((short, np.stack(frames), speed))
-            log("  animation %s: %.2f s, %d frames, %.0f units/s" % (short, b - a, n, speed))
+            self.anims.append((short, np.stack(frames), speed, loop))
+            log("  animation %s: %.2f s, %d frames, %.0f units/s%s" % (short, b - a, len(frames), speed, "" if loop else ", once"))
+        # the torch held up: the left arm's bones from the "Torch" pose, laid on whatever plays (at run
+        # time, relative to the neck)
+        arm = self.sk.subtree("Bip01 L Clavicle")
+        self.arm_mask = [1 if ni in arm else 0 for ni in used]
+        self.neck_index = self.bone_index.get(neck, 0)
+        self.torch_pose = None
+        if ta is not None:
+            P = self.sk.pose(ta, strip_root=True, over=(arm, ta + (tb_ - ta) * 0.5))
+            self.torch_pose = np.stack([P[ni][:3, :4] for ni in used])
         nv = sum(len(m.infl) for m in self.meshes)
         log("  %d meshes in %d groups, %d vertices, %d bones used, %d items, %d warnings" % (
             len(self.meshes), len(self.groups), nv, len(used), len(self.items), len(self.warnings)))
@@ -403,24 +537,41 @@ class Character:
             log("    " + w)
 
     def write(self, path):
+        """char.bin "MWCK" (GPU skinning; see main.c loadCharacter):
+          u32 nbones, nanims, nmeshes, ngroups, nitems, noutfits, nweapons
+          anims:   name[16], u32 frames, f32 fps, f32 speed, u32 loops; frames x nbones x 12 f32
+          meshes:  u16 tex, u8 alpha, u8 npal, u32 nverts, nidx, f32 colour[3]
+                   npal x { u8 bone, 3 pad, f32 m[12] } (the NIF's mesh space into that bone's)
+                   nverts x { f32 pos[3], s16 nrm[4] (x 32767), s16 uv[2] (x 1024), u8 pal[4] (x 3), u8 w[4] (x 255) }
+                   nidx x u16, padded to 4
+          groups, body, items, outfits: as before
+          weapons: name[24], s16 group, 2 pad
+          "TRCH": s16 group, u8 bone, u8 neck, f32 flame[3], nbones x u8 arm mask (padded to 4),
+                  nbones x 12 f32 (the torch pose)"""
         with open(path, "wb") as f:
-            f.write(b"MWCH" + struct.pack("<6I", len(self.bones), len(self.anims), len(self.meshes),
-                                          len(self.groups), len(self.items), len(self.outfits)))
-            for name, frames, speed in self.anims:
-                f.write(name.encode()[:15].ljust(16, b"\0") + struct.pack("<Iff", len(frames), FPS, speed))
+            f.write(b"MWCK" + struct.pack("<7I", len(self.bones), len(self.anims), len(self.meshes),
+                                          len(self.groups), len(self.items), len(self.outfits), len(self.weapons)))
+            for name, frames, speed, loop in self.anims:
+                f.write(name.encode()[:15].ljust(16, b"\0") + struct.pack("<IffI", len(frames), FPS, speed, 1 if loop else 0))
                 f.write(frames.astype("<f4").tobytes())
+            vt = np.dtype([("p", "<f4", 3), ("n", "<i2", 4), ("t", "<i2", 2), ("i", "u1", 4), ("w", "u1", 4)])
             for m in self.meshes:
-                ninf = sum(len(i) for i in m.infl)
-                f.write(struct.pack("<HBBIII3f", m.tex, m.alpha, 0, len(m.infl), ninf, m.tri.size, *m.colour))
-                vt = bytearray()
-                inf = bytearray()
+                pal = sorted(m.bm)
+                slot = {ni: k for k, ni in enumerate(pal)}
+                f.write(struct.pack("<HBBII3f", m.tex, m.alpha, len(pal), len(m.vpos), m.tri.size, *m.colour))
+                for ni in pal:
+                    f.write(struct.pack("<B3x12f", self.bone_index[ni], *m.bm[ni][:3, :4].ravel()))
+                v = np.zeros(len(m.vpos), vt)
+                v["p"] = m.vpos
+                v["n"][:, :3] = np.clip(np.round(m.vnrm * 32767), -32767, 32767)
+                v["t"] = np.clip(np.round(np.asarray(m.uv) * 1024), -32767, 32767)
                 for vi, lst in enumerate(m.infl):
-                    u, v = m.uv[vi]
-                    vt += struct.pack("<hhB3x", int(np.clip(round(u * 1024), -32767, 32767)),
-                                      int(np.clip(round(v * 1024), -32767, 32767)), len(lst))
-                    for ni, w, p, n in lst:
-                        inf += struct.pack("<B3x7f", self.bone_index[ni], w, *p, *n)
-                f.write(vt); f.write(inf)
+                    tot = 0
+                    for k, (ni, w, _, _) in enumerate(lst[:4]):
+                        v["i"][vi, k] = slot.get(ni, 0) * 3
+                        q = int(round(w * 255)); v["w"][vi, k] = q; tot += q
+                    v["w"][vi, 0] = max(0, min(255, int(v["w"][vi, 0]) + 255 - tot))   # the weights sum to 255
+                f.write(v.tobytes())
                 idx = m.tri.astype("<u2").tobytes()
                 f.write(idx)
                 if len(idx) % 4: f.write(b"\0" * (4 - len(idx) % 4))
@@ -431,13 +582,20 @@ class Character:
             f.write(b"\0\0")
             for name, helmet, parts in self.items:
                 f.write(name.encode()[:23].ljust(24, b"\0") + struct.pack("<BB", helmet, len(parts)))
-                for slot, g in parts:
-                    f.write(struct.pack("<BBh", slot, 0, g))
+                for slot_, g in parts:
+                    f.write(struct.pack("<BBh", slot_, 0, g))
                 f.write(b"\0\0")
             for name, lst in self.outfits:
                 f.write(name.encode()[:15].ljust(16, b"\0") + struct.pack("<B", len(lst)) + bytes(lst))
                 pad = (-(17 + len(lst))) % 4
                 f.write(b"\0" * pad)
+            for name, g in self.weapons:
+                f.write(name.encode()[:23].ljust(24, b"\0") + struct.pack("<hxx", g))
+            tbone = self.bone_index.get(self.sk.by_name.get(SLOT_NODE[TORCH_SLOT].lower()), 0)
+            f.write(b"TRCH" + struct.pack("<hBB3f", self.torch, tbone, self.neck_index, *self.flame))
+            f.write(bytes(self.arm_mask) + b"\0" * ((-len(self.arm_mask)) % 4))
+            tp = self.torch_pose if self.torch_pose is not None else self.anims[0][1][0]
+            f.write(tp.astype("<f4").tobytes())
 
     # ----------------------------------------------------------------------- preview (PC)
 

@@ -8,6 +8,8 @@
 .fvec origin        ; xyz = cell centre - eye, w = uv scale (1/1024)
 .fvec fogRow        ; fog factor = dp4(fogRow, position): 1 near, 0 at the fog's end
 .fvec detail        ; texcoord 1 (the terrain's detail) = position.xy * detail.z
+.fvec torch         ; xyz = the torch's flame - eye, w = 1 / its reach squared (0: no torch)
+.fvec torchCol      ; the torch light's colour (added to the baked light, falling off with the distance)
 
 .constf consts(0.0, 1.0, 0.00392156862, 0.0)
 .alias zero  consts.xxxx
@@ -37,6 +39,17 @@
 	min r1.x, one, r1.x
 
 	mul r2.xyz, consts.zzz, inclr.xyz
+
+	; the torch: (1 - d^2 / reach^2)^2, no normals (a glow round the flame), added to the light
+	add r5.xyz, -torch.xyz, r0.xyz
+	dp3 r5.x, r5, r5
+	mul r5.x, torch.w, r5.x
+	add r5.x, one, -r5.x
+	max r5.x, zero, r5.x
+	mul r5.x, r5.x, r5.x
+	mul r6.xyz, torchCol.xyz, r5.xxx
+	add r2.xyz, r2.xyz, r6.xyz
+	min r2.xyz, one, r2.xyz
 	mov r2.w, r1.x
 	mov outclr, r2
 

@@ -1,0 +1,124 @@
+; Skinned characters on the GPU (PICA200). A vertex hangs on up to 4 bones of its mesh's palette:
+; each palette entry is a 3x4 matrix (3 rows) = facing x the bone's pose x the NIF's mesh-to-bone
+; matrix, world-relative to the eye but for `origin` (the feet - eye). Lit like the baker lights:
+; ambient + the sun on the skinned normal, x the mesh's colour; the torch added; fog in the alpha.
+;
+; Vertex: v0 position (f32 x3, the NIF's mesh space), v1 normal (s16 x3, x 32767), v2 texcoord
+; (s16 x2, x 1024), v3 palette rows (u8 x4: entry x 3), v4 weights (u8 x4, x 255).
+
+.fvec mvp[4]
+.fvec origin        ; xyz = feet - eye
+.fvec fogRow
+.fvec sun           ; xyz: towards the sun (world), w unused
+.fvec mcol          ; the mesh's colour
+.fvec torch         ; as the world shader's
+.fvec torchCol
+.fvec bones[36]     ; 12 palette entries x 3 rows
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0000305185)   ; 0, 1, 1/255, 1/32767
+.constf amb(0.52, 0.54, 0.60, 0.0)
+.constf dif(0.62, 0.58, 0.50, 0.0)
+.constf uvk(0.0009765625, 0.0, 0.0, 0.0)               ; 1/1024
+.alias zero  consts.xxxx
+.alias one   consts.yyyy
+
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+.alias inpos v0
+.alias innrm v1
+.alias intc  v2
+.alias inidx v3
+.alias inw   v4
+
+.proc main
+	mov r0.xyz, inpos.xyz
+	mov r0.w, one
+	mul r1.xyz, consts.www, innrm.xyz
+	mov r1.w, zero
+	mul r2, consts.zzzz, inw            ; the weights
+	mov r3, zero                        ; skinned position
+	mov r4, zero                        ; skinned normal
+
+	; influence 1..4 (an unused one has weight 0 and entry 0)
+	mova a0.x, inidx.x
+	dp4 r5.x, bones[a0.x], r0
+	dp4 r5.y, bones[a0.x+1], r0
+	dp4 r5.z, bones[a0.x+2], r0
+	dp3 r6.x, bones[a0.x], r1
+	dp3 r6.y, bones[a0.x+1], r1
+	dp3 r6.z, bones[a0.x+2], r1
+	mad r3.xyz, r5.xyz, r2.xxx, r3.xyz
+	mad r4.xyz, r6.xyz, r2.xxx, r4.xyz
+
+	mova a0.x, inidx.y
+	dp4 r5.x, bones[a0.x], r0
+	dp4 r5.y, bones[a0.x+1], r0
+	dp4 r5.z, bones[a0.x+2], r0
+	dp3 r6.x, bones[a0.x], r1
+	dp3 r6.y, bones[a0.x+1], r1
+	dp3 r6.z, bones[a0.x+2], r1
+	mad r3.xyz, r5.xyz, r2.yyy, r3.xyz
+	mad r4.xyz, r6.xyz, r2.yyy, r4.xyz
+
+	mova a0.x, inidx.z
+	dp4 r5.x, bones[a0.x], r0
+	dp4 r5.y, bones[a0.x+1], r0
+	dp4 r5.z, bones[a0.x+2], r0
+	dp3 r6.x, bones[a0.x], r1
+	dp3 r6.y, bones[a0.x+1], r1
+	dp3 r6.z, bones[a0.x+2], r1
+	mad r3.xyz, r5.xyz, r2.zzz, r3.xyz
+	mad r4.xyz, r6.xyz, r2.zzz, r4.xyz
+
+	mova a0.x, inidx.w
+	dp4 r5.x, bones[a0.x], r0
+	dp4 r5.y, bones[a0.x+1], r0
+	dp4 r5.z, bones[a0.x+2], r0
+	dp3 r6.x, bones[a0.x], r1
+	dp3 r6.y, bones[a0.x+1], r1
+	dp3 r6.z, bones[a0.x+2], r1
+	mad r3.xyz, r5.xyz, r2.www, r3.xyz
+	mad r4.xyz, r6.xyz, r2.www, r4.xyz
+
+	; eye-relative
+	add r3.xyz, origin.xyz, r3.xyz
+	mov r3.w, one
+	dp4 outpos.x, mvp[0], r3
+	dp4 outpos.y, mvp[1], r3
+	dp4 outpos.z, mvp[2], r3
+	dp4 outpos.w, mvp[3], r3
+
+	; the light: amb + dif * max(0, n . sun / |n|)
+	dp3 r7.x, r4, r4
+	rsq r7.x, r7.x
+	dp3 r7.y, sun, r4
+	mul r7.y, r7.x, r7.y
+	max r7.y, zero, r7.y
+	mov r8, amb
+	mad r8.xyz, r7.yyy, dif.xyz, r8.xyz
+	mul r8.xyz, mcol.xyz, r8.xyz
+
+	; the torch
+	add r9.xyz, -torch.xyz, r3.xyz
+	dp3 r9.x, r9, r9
+	mul r9.x, torch.w, r9.x
+	add r9.x, one, -r9.x
+	max r9.x, zero, r9.x
+	mul r9.x, r9.x, r9.x
+	mul r10.xyz, torchCol.xyz, r9.xxx
+	add r8.xyz, r8.xyz, r10.xyz
+	min r8.xyz, one, r8.xyz
+
+	; fog
+	dp4 r11.x, fogRow, r3
+	max r11.x, zero, r11.x
+	min r11.x, one, r11.x
+	mov r8.w, r11.x
+	mov outclr, r8
+
+	mul r12, uvk.xxxx, intc
+	mov outtc0, r12
+	end
+.end

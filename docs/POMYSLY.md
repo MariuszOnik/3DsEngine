@@ -130,3 +130,17 @@ Proponowana kolejność (po teście stream1):
 - Ekran dotykowy 3DS pasuje do RTS: dotknij, żeby iść, zaznacz postać, menu na dolnym ekranie.
 - Uwagi: wysokie obiekty zasłaniają postać (trzeba przezroczystości / zdejmowania dachów i koron przy postaci);
   traci się widoki na horyzont; kąt i wysokość kamery najlepiej ograniczyć, bo od nich zależy budżet.
+
+## 6. Postać, ekwipunek, kolizja, większy świat (2026-11-16)
+
+- **Postać z gry** (`tools/chrbake.py` → `romfs/char.bin`): szkielet i animacje z `meshes/base_anim.nif`
+  (spoczynek 2,7 s, chód 1 s / 154 j/s, bieg 0,93 s / 223 j/s; ruch korzenia `Bip01` wycięty, tempo
+  animacji dopasowane do prędkości), ciało Mrocznego Elfa (głowa 01, włosy 01). Części jak w OpenMW:
+  skórowane NIF-y biorą kształty `Tri <węzeł slotu>`, sztywne wiszą na węźle, lewa strona w lustrze.
+  Podgląd na PC bez konsoli: `python tools/chrbake.py --preview <folder>`.
+- **Ekwipunek**: 6 strojów (goły, chłop, netch, żelazo, kościana, szkło), X zmienia, Y hełm (hełm chowa włosy).
+  2–5 tys. wierzchołków na strój, skórowanie na CPU (do zmierzenia na Old 3DS; potem ewentualnie GPU).
+- **Kolizja**: w konwerterze dla każdej rzeczy obrócony prostokąt z trójkątów w pasie 30–140 j. nad gruntem
+  (pień, nie korona; ściany, nie okap); pomosty, mosty, schody bez kolizji. Postać = koło 22 j., ślizga się
+  po przeszkodzie; z przeszkody, w której stoi, zawsze może wyjść. Komórki `MWC2` (boksy na końcu pliku).
+- **Świat**: Seyda Neen → Pelagiad → Balmora, 88 komórek (162 MB .3dsx).

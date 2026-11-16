@@ -1466,6 +1466,8 @@ def main():
         write_objects(objp, esm, models, tex, dyn, shifts)
     elif os.path.exists(objp):
         os.remove(objp)
+    import pathbake   # Morrowind's path grids of the baked cells (the cursor walk's A*)
+    pathbake.bake(os.path.join(a.data, "Morrowind.esm"), a.out, [c for c in done if c[0] < 100], shifts)
     tex.write(os.path.join(a.out, "textures.bin"))
     # start: the centre cell, above the ground
     sx, sy = a.start

@@ -2607,14 +2607,160 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 	if (camMode == CAM_FPP && kind != CK_GROUND && curDist > 260.0f) curLabel[0] = 0;
 }
 
-// Path finding (RTS cursor walks): A* over the baked collision map's 16-unit squares, in a window of
-// PN x PN squares round the way. A square is passable when the feet can stand there coming from the
-// neighbour (a step up of at most 45: stairs yes, a cliff no) and it and the squares round it are
-// not blocked (the body is 22 wide: the blocked map of the ground, or the upper one on stairs / roofs).
-// Deep water is swum (dearer). The squares found are thinned to the corners (the straight stretches
-// between them checked on the map), the walk goes from corner to corner.
-#define PN 192
+// Path finding (RTS cursor walks), as Morrowind does it: its path grids (PGRD: the points the designers set
+// in a cell, on stairs and docks too, each with its height, and the links between them; tools/pathbake.py
+// -> pathgrid.bin). The way: straight when the goal is seen (the collision map along the line), else from
+// a point of the grid seen from the character over the links to one that sees the goal (A* over ~1000
+// points: a fraction of a millisecond). Where there is no grid (the wilds): A* over the baked collision
+// map's 16-unit squares, a few milliseconds a frame (the user: the squares in one go froze the game for
+// seconds on docks and stairs).
+typedef struct { float p[3]; u32 first; u16 n, cell; } __attribute__((packed)) PgPoint;
+static PgPoint* pgPts;
+static u16* pgLinks;
+static int pgN;
+
+static void pgLoad(void)
+{
+	FILE* f = fopen(dataPath("pathgrid.bin"), "rb");
+	if (!f) return;
+	char magic[4]; u32 n = 0, nl = 0;
+	if (fread(magic, 1, 4, f) == 4 && !memcmp(magic, "MWP1", 4) && fread(&n, 4, 1, f) == 1 && fread(&nl, 4, 1, f) == 1 && n < 60000) {
+		pgPts = malloc(n * sizeof(PgPoint)); pgLinks = malloc((nl ? nl : 1) * sizeof(u16));
+		if (pgPts && pgLinks && fread(pgPts, sizeof(PgPoint), n, f) == n && fread(pgLinks, 2, nl, f) == nl) pgN = n;
+	}
+	fclose(f);
+	logw("pathgrid: %d points\n", pgN);
+}
+
 #define PMAXW 128
+static float pathPts[PMAXW][3];
+static int pathN, pathAt;
+static float pathMs;
+
+// Free for the body at (x, y) standing at z: the square and (wide) the 8 round it.
+static bool pClear(float x, float y, float z, bool wide)
+{
+	float g;
+	bool up = groundAt(x, y, &g) && z > g + 8.0f;
+	if (occBit(x, y, up)) return false;
+	if (!wide) return true;
+	for (int dy = -1; dy <= 1; dy++)
+		for (int dx = -1; dx <= 1; dx++)
+			if ((dx || dy) && occBit(x + dx * 16.0f, y + dy * 16.0f, up)) return false;
+	return true;
+}
+
+// The straight way from a to b walkable (every 12 units: steps of at most 45, nothing in the way)?
+static bool pLine(const float a[3], const float b[3])
+{
+	float dx = b[0] - a[0], dy = b[1] - a[1];
+	float len = sqrtf(dx * dx + dy * dy);
+	int n = (int)(len / 12.0f) + 1;
+	float z = a[2];
+	for (int k = 1; k <= n; k++) {
+		float t = (float)k / n;
+		float x = a[0] + dx * t, y = a[1] + dy * t, g;
+		if (!standAt(x, y, z, 45.0f, &g)) return false;
+		if (g < -9000.0f) g = -2000.0f;
+		if (g > z + 45.0f || g < -SWIM_DEPTH) return false;
+		if (fabsf(g - (a[2] + (b[2] - a[2]) * t)) > 80.0f) return false;   // off an edge the way keeps to
+		if (!pClear(x, y, g, false)) return false;
+		z = g;
+	}
+	return true;
+}
+
+// ---- A* over the path grid
+#define PGNEAR 6
+static float* pgG;
+static u16* pgPar;
+static u8* pgSt;
+
+// the nearest grid points (at most PGNEAR, within r) of p that a straight walk joins with p
+static int pgNearSeen(const float p[3], float r, bool fromPoint, int* out, float* dist)
+{
+	int idx[24]; float dd[24]; int m = 0;
+	for (int i = 0; i < pgN; i++) {
+		float dx = pgPts[i].p[0] - p[0], dy = pgPts[i].p[1] - p[1], dz = pgPts[i].p[2] - p[2];
+		if (fabsf(dz) > 300.0f) continue;
+		float d = dx * dx + dy * dy;
+		if (d > r * r) continue;
+		// keep the 24 nearest (insertion)
+		int k;
+		if (m < 24) k = m++;
+		else if (d < dd[23]) k = 23;
+		else continue;
+		while (k > 0 && dd[k - 1] > d) { dd[k] = dd[k - 1]; idx[k] = idx[k - 1]; k--; }
+		dd[k] = d; idx[k] = i;
+	}
+	int n = 0;
+	for (int k = 0; k < m && n < PGNEAR; k++) {
+		const float* q = pgPts[idx[k]].p;
+		if (fromPoint ? pLine(q, p) : pLine(p, q)) { out[n] = idx[k]; dist[n] = sqrtf(dd[k]); n++; }
+		if (k >= 10 && n == 0) break;   // (the ten nearest not seen: it is no use)
+	}
+	return n;
+}
+
+static bool pgFind(const float from[3], const float goal[3])
+{
+	if (!pgN) return false;
+	if (!pgG) { pgG = malloc(pgN * 4); pgPar = malloc(pgN * 2); pgSt = malloc(pgN); }
+	if (!pgG || !pgPar || !pgSt) return false;
+	int sN[PGNEAR], gN[PGNEAR]; float sD[PGNEAR], gD[PGNEAR];
+	int ns = pgNearSeen(from, 900.0f, false, sN, sD);
+	if (!ns) return false;
+	int ng = pgNearSeen(goal, 900.0f, true, gN, gD);
+	if (!ng) return false;
+	memset(pgSt, 0, pgN);
+	// open list: a small linear scan (the grid is ~1000 points)
+	for (int k = 0; k < ns; k++) { pgG[sN[k]] = sD[k]; pgPar[sN[k]] = 0xFFFF; pgSt[sN[k]] = 1; }
+	int found = -1; float foundCost = 1e30f;
+	for (int it = 0; it < pgN; it++) {
+		int best = -1; float bf = 1e30f;
+		for (int i = 0; i < pgN; i++)
+			if (pgSt[i] == 1) {
+				float dx = pgPts[i].p[0] - goal[0], dy = pgPts[i].p[1] - goal[1];
+				float f = pgG[i] + sqrtf(dx * dx + dy * dy);
+				if (f < bf) { bf = f; best = i; }
+			}
+		if (best < 0 || bf >= foundCost) break;
+		pgSt[best] = 2;
+		for (int k = 0; k < ng; k++)
+			if (gN[k] == best && pgG[best] + gD[k] < foundCost) { foundCost = pgG[best] + gD[k]; found = best; }
+		const PgPoint* p = &pgPts[best];
+		for (u32 l = 0; l < p->n; l++) {
+			int j = pgLinks[p->first + l];
+			if (j >= pgN || pgSt[j] == 2) continue;
+			float dx = pgPts[j].p[0] - p->p[0], dy = pgPts[j].p[1] - p->p[1], dz = pgPts[j].p[2] - p->p[2];
+			float g = pgG[best] + sqrtf(dx * dx + dy * dy + dz * dz);
+			if (pgSt[j] == 1 && g >= pgG[j]) continue;
+			pgG[j] = g; pgPar[j] = (u16)best; pgSt[j] = 1;
+		}
+	}
+	if (found < 0) return false;
+	// the points back to the start, then the goal
+	int chain[PMAXW], n = 0;
+	for (int i = found; i != 0xFFFF && n < PMAXW - 1; i = pgPar[i]) chain[n++] = i;
+	pathN = 0;
+	for (int k = n - 1; k >= 0; k--) memcpy(pathPts[pathN++], pgPts[chain[k]].p, 12);
+	memcpy(pathPts[pathN++], goal, 12);
+	// a point skipped when the one after it is seen straight (a few tries each: cheap)
+	float cur[3] = { from[0], from[1], from[2] };
+	int w = 0;
+	for (int i = 0; i < pathN; ) {
+		int far = i;
+		for (int j = i + 1; j < pathN && j <= i + 3; j++) if (pLine(cur, pathPts[j])) far = j;
+		memcpy(pathPts[w], pathPts[far], 12);
+		memcpy(cur, pathPts[far], 12);
+		w++; i = far + 1;
+	}
+	pathN = w; pathAt = 0;
+	return true;
+}
+
+// ---- A* over the squares, a few milliseconds a frame (where there is no grid)
+#define PN 160
 static float pG[PN * PN], pZ[PN * PN];
 static u16 pPar[PN * PN];
 static u8 pState[PN * PN];   // 0 unseen, 1 open, 2 closed
@@ -2622,9 +2768,7 @@ typedef struct { float f; u16 i; } PHeap;
 #define PHEAP 24576
 static PHeap pHeap[PHEAP];
 static int pHeapN;
-static float pathPts[PMAXW][3];
-static int pathN, pathAt;
-static float pathMs;
+static struct { bool on; int ox, oy, s, expanded, pass; float goal[3], near; } gj;
 
 static void pPush(float f, u16 i)
 {
@@ -2654,128 +2798,123 @@ static u16 pPop(void)
 	return top;
 }
 
-// Free for the body at (x, y) standing at z: the square and (wide) the 8 round it.
-static bool pClear(float x, float y, float z, bool wide)
+static void gridRestart(void)
 {
-	float g;
-	bool up = groundAt(x, y, &g) && z > g + 8.0f;
-	if (occBit(x, y, up)) return false;
-	if (!wide) return true;
-	for (int dy = -1; dy <= 1; dy++)
-		for (int dx = -1; dx <= 1; dx++)
-			if ((dx || dy) && occBit(x + dx * 16.0f, y + dy * 16.0f, up)) return false;
+	memset(pState, 0, sizeof pState);
+	pHeapN = 0;
+	pG[gj.s] = 0; pZ[gj.s] = chr[2]; pPar[gj.s] = 0xFFFF; pState[gj.s] = 1;
+	pPush(0, (u16)gj.s);
+}
+
+static bool gridBegin(const float goal[3], float near)
+{
+	float mx = (chr[0] + goal[0]) / 2, my = (chr[1] + goal[1]) / 2;
+	gj.ox = (int)floorf(mx / 16.0f) - PN / 2; gj.oy = (int)floorf(my / 16.0f) - PN / 2;
+	int sx = (int)floorf(chr[0] / 16.0f) - gj.ox, sy = (int)floorf(chr[1] / 16.0f) - gj.oy;
+	int gx = (int)floorf(goal[0] / 16.0f) - gj.ox, gy = (int)floorf(goal[1] / 16.0f) - gj.oy;
+	if (sx < 1 || sy < 1 || sx >= PN - 1 || sy >= PN - 1 || gx < 1 || gy < 1 || gx >= PN - 1 || gy >= PN - 1) return false;
+	gj.s = sy * PN + sx; gj.expanded = 0; gj.pass = 0; gj.near = near;
+	memcpy(gj.goal, goal, 12);
+	gridRestart();
+	gj.on = true;
 	return true;
 }
 
-// The straight way from a to b free (every 8 units; the heights from the path's own)?
-static bool pLine(const float a[3], const float b[3])
+// 1 found (pathPts), -1 none, 0 not yet (call again next frame)
+static int gridStep(float budgetMs)
 {
-	float dx = b[0] - a[0], dy = b[1] - a[1];
-	float len = sqrtf(dx * dx + dy * dy);
-	int n = (int)(len / 8.0f) + 1;
-	float z = a[2];
-	for (int k = 1; k <= n; k++) {
-		float t = (float)k / n;
-		float x = a[0] + dx * t, y = a[1] + dy * t, g;
-		if (!standAt(x, y, z, 45.0f, &g)) return false;
-		if (g < -9000.0f) g = -2000.0f;
-		if (g > z + 45.0f) return false;
-		if (fabsf(g - (a[2] + (b[2] - a[2]) * t)) > 60.0f) return false;   // off an edge the path keeps to
-		if (!pClear(x, y, g, true)) return false;
-		z = g;
+	u64 t0 = ticks();
+	int found = -1;
+	float nearSq = gj.near * gj.near;
+	bool wide = gj.pass == 0;
+	int n = 0;
+	while (pHeapN > 0 && gj.expanded < 12000) {
+		if ((++n & 31) == 0 && msSince(t0) > budgetMs) { pathMs += msSince(t0); return 0; }
+		int i = pPop();
+		if (pState[i] == 2) continue;
+		pState[i] = 2;
+		gj.expanded++;
+		int x = i % PN, y = i / PN;
+		float wx = (gj.ox + x) * 16.0f + 8.0f, wy = (gj.oy + y) * 16.0f + 8.0f;
+		float ddx = wx - gj.goal[0], ddy = wy - gj.goal[1];
+		if (ddx * ddx + ddy * ddy <= nearSq) { found = i; break; }
+		for (int k = 0; k < 8; k++) {
+			static const s8 DX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, DY[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
+			int nx = x + DX[k], ny = y + DY[k];
+			if (nx < 0 || ny < 0 || nx >= PN || ny >= PN) continue;
+			int j = ny * PN + nx;
+			if (pState[j] == 2) continue;
+			float nwx = (gj.ox + nx) * 16.0f + 8.0f, nwy = (gj.oy + ny) * 16.0f + 8.0f, g;
+			if (k >= 4 && (!pClear(nwx, wy, pZ[i], false) || !pClear(wx, nwy, pZ[i], false))) continue;   // not round a corner
+			if (!standAt(nwx, nwy, pZ[i], 45.0f, &g)) continue;
+			if (g < -9000.0f) g = -2000.0f;
+			if (g > pZ[i] + 45.0f) continue;
+			bool swim = g < -SWIM_DEPTH;
+			float z = swim ? SWIM_Z : g;
+			if (!swim && !pClear(nwx, nwy, g, wide)) continue;
+			float ng = pG[i] + (k >= 4 ? 22.6f : 16.0f) * (swim ? 3.0f : 1.0f);
+			if (pState[j] == 1 && ng >= pG[j]) continue;
+			pG[j] = ng; pZ[j] = z; pPar[j] = (u16)i; pState[j] = 1;
+			float hx = fabsf(nwx - gj.goal[0]), hy = fabsf(nwy - gj.goal[1]);
+			pPush(ng + fmaxf(hx, hy) + 0.414f * fminf(hx, hy), (u16)j);
+		}
 	}
-	return true;
+	pathMs += msSince(t0);
+	if (found < 0) {
+		if (gj.pass == 0) { gj.pass = 1; gridRestart(); return 0; }   // again with the square itself only (narrow doors)
+		gj.on = false;
+		logw("    path (squares): none, %d expanded, %.1f ms\n", gj.expanded, pathMs);
+		return -1;
+	}
+	// back to the start; a corner where the way turns
+	static u16 sq[PN * 4];
+	int n2 = 0;
+	for (int i = found; i != 0xFFFF && n2 < PN * 4; i = pPar[i]) sq[n2++] = (u16)i;
+	pathN = 0;
+	int lastDir = -99;
+	for (int k = n2 - 2; k >= 0 && pathN < PMAXW - 1; k--) {
+		int a = sq[k + 1], b = sq[k];
+		int dir = (b % PN - a % PN) * 3 + (b / PN - a / PN);
+		if (dir != lastDir && k != n2 - 2) {
+			pathPts[pathN][0] = (gj.ox + a % PN) * 16.0f + 8.0f; pathPts[pathN][1] = (gj.oy + a / PN) * 16.0f + 8.0f; pathPts[pathN][2] = pZ[a];
+			pathN++;
+		}
+		lastDir = dir;
+	}
+	int e = sq[0];
+	pathPts[pathN][0] = (gj.ox + e % PN) * 16.0f + 8.0f; pathPts[pathN][1] = (gj.oy + e / PN) * 16.0f + 8.0f; pathPts[pathN][2] = pZ[e];
+	pathN++; pathAt = 0;
+	gj.on = false;
+	logw("    path (squares): %d squares, %d corners, %d expanded, %.1f ms over frames\n", n2, pathN, gj.expanded, pathMs);
+	return 1;
 }
 
-// The way from the character to `goal` (near enough: within `near` of it). False: none found (the
-// walk then goes straight, as before).
+// The way to `goal` (near enough: within `near`). True: pathPts is set, or the search over the squares
+// goes on in walkStep (gj.on). False: straight.
 static bool pathFind(const float goal[3], float near)
 {
 	u64 t0 = ticks();
-	pathN = pathAt = 0;
-	float mx = (chr[0] + goal[0]) / 2, my = (chr[1] + goal[1]) / 2;
-	int ox = (int)floorf(mx / 16.0f) - PN / 2, oy = (int)floorf(my / 16.0f) - PN / 2;
-	int sx = (int)floorf(chr[0] / 16.0f) - ox, sy = (int)floorf(chr[1] / 16.0f) - oy;
-	int gx = (int)floorf(goal[0] / 16.0f) - ox, gy = (int)floorf(goal[1] / 16.0f) - oy;
-	if (sx < 1 || sy < 1 || sx >= PN - 1 || sy >= PN - 1 || gx < 1 || gy < 1 || gx >= PN - 1 || gy >= PN - 1) {
-		logw("    path: too far\n");
-		return false;
+	pathN = pathAt = 0; gj.on = false; pathMs = 0;
+	// the goal's point to reach: `near` short of it on the way from the character (a door, a chest: their
+	// middle is in a blocked square)
+	float dx = goal[0] - chr[0], dy = goal[1] - chr[1], d = sqrtf(dx * dx + dy * dy);
+	float to[3] = { goal[0], goal[1], goal[2] };
+	if (d > near && near > 20.0f) { to[0] -= dx / d * (near - 10.0f); to[1] -= dy / d * (near - 10.0f); }
+	float g;
+	if (standAt(to[0], to[1], goal[2] + 40.0f, 45.0f, &g) && g > -9000.0f) to[2] = g;
+	if (d < 2500.0f && pLine(chr, to)) {
+		memcpy(pathPts[0], to, 12); pathN = 1;
+		logw("    path: straight, %.1f ms\n", msSince(t0));
+		return true;
 	}
-	memset(pState, 0, sizeof pState);
-	pHeapN = 0;
-	int s = sy * PN + sx;
-	pG[s] = 0; pZ[s] = chr[2]; pPar[s] = 0xFFFF; pState[s] = 1;
-	pPush(0, (u16)s);
-	int found = -1, expanded = 0;
-	float nearSq = near * near;
-	for (int pass = 0; pass < 2 && found < 0; pass++) {   // the second time: the square itself only (narrow doors)
-		bool wide = pass == 0;
-		if (pass == 1) { memset(pState, 0, sizeof pState); pHeapN = 0; pState[s] = 1; pPush(0, (u16)s); }
-		while (pHeapN > 0 && expanded < 14000) {
-			int i = pPop();
-			if (pState[i] == 2) continue;
-			pState[i] = 2;
-			expanded++;
-			int x = i % PN, y = i / PN;
-			float wx = (ox + x) * 16.0f + 8.0f, wy = (oy + y) * 16.0f + 8.0f;
-			float ddx = wx - goal[0], ddy = wy - goal[1];
-			if (ddx * ddx + ddy * ddy <= nearSq) { found = i; break; }
-			for (int k = 0; k < 8; k++) {
-				static const s8 DX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, DY[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
-				int nx = x + DX[k], ny = y + DY[k];
-				if (nx < 0 || ny < 0 || nx >= PN || ny >= PN) continue;
-				int j = ny * PN + nx;
-				if (pState[j] == 2) continue;
-				if (k >= 4) {   // diagonal: not round a corner
-					if (pState[y * PN + nx] == 0 && !pClear((ox + nx) * 16.0f + 8.0f, wy, pZ[i], false)) continue;
-					if (pState[ny * PN + x] == 0 && !pClear(wx, (oy + ny) * 16.0f + 8.0f, pZ[i], false)) continue;
-				}
-				float nwx = (ox + nx) * 16.0f + 8.0f, nwy = (oy + ny) * 16.0f + 8.0f, g;
-				if (!standAt(nwx, nwy, pZ[i], 45.0f, &g)) continue;
-				if (g < -9000.0f) g = -2000.0f;
-				if (g > pZ[i] + 45.0f) continue;
-				bool swim = g < -SWIM_DEPTH;
-				float z = swim ? SWIM_Z : g;
-				if (!swim && !pClear(nwx, nwy, g, wide)) continue;
-				float step = (k >= 4 ? 22.6f : 16.0f) * (swim ? 3.0f : 1.0f);
-				float ng = pG[i] + step;
-				if (pState[j] == 1 && ng >= pG[j]) continue;
-				pG[j] = ng; pZ[j] = z; pPar[j] = (u16)i; pState[j] = 1;
-				float hx = fabsf(nwx - goal[0]), hy = fabsf(nwy - goal[1]);
-				float h = fmaxf(hx, hy) + 0.414f * fminf(hx, hy);
-				pPush(ng + h, (u16)j);
-			}
-		}
+	if (pgFind(chr, to)) {
+		logw("    path (grid): %d points, %.1f ms\n", pathN, msSince(t0));
+		return true;
 	}
 	pathMs = msSince(t0);
-	if (found < 0) { logw("    path: none (%d squares, %.1f ms)\n", expanded, pathMs); return false; }
-	// the squares back to the start, then only the corners
-	static u16 sq[PN * 4];
-	int n = 0;
-	for (int i = found; i != 0xFFFF && n < PN * 4; i = pPar[i]) sq[n++] = (u16)i;
-	float pts[PMAXW][3];
-	int np = 0;
-	float cur[3] = { chr[0], chr[1], chr[2] };
-	int k = n - 1;
-	while (k > 0 && np < PMAXW) {
-		// the farthest square still seen in a straight line from cur
-		int far = k - 1;
-		for (int j = (k - 40 > 0 ? k - 40 : 0); j < k; j++) {
-			int i = sq[j];
-			float p[3] = { (ox + i % PN) * 16.0f + 8.0f, (oy + i / PN) * 16.0f + 8.0f, pZ[i] };
-			if (pLine(cur, p)) { far = j; break; }
-		}
-		int i = sq[far];
-		pts[np][0] = (ox + i % PN) * 16.0f + 8.0f; pts[np][1] = (oy + i / PN) * 16.0f + 8.0f; pts[np][2] = pZ[i];
-		memcpy(cur, pts[np], sizeof cur);
-		np++;
-		k = far;
-	}
-	memcpy(pathPts, pts, np * sizeof pts[0]);
-	pathN = np; pathAt = 0;
-	pathMs = msSince(t0);
-	logw("    path: %d squares, %d corners, %d expanded, %.1f ms\n", n, np, expanded, pathMs);
-	return true;
+	if (gridBegin(goal, near)) { logw("    path: no grid here, squares (%.1f ms so far)\n", pathMs); return true; }
+	logw("    path: none, straight\n");
+	return false;
 }
 
 // How near the walk must get to what it goes to (the ground point, an NPC, an object: its edge).
@@ -2810,6 +2949,13 @@ static void fightStartAt(int want);
 static bool walkStep(float dt, float* mx, float* my, bool* run)
 {
 	if (!walkTo.on) return false;
+	if (gj.on) {   // the way over the squares is being found: a few milliseconds a frame, standing
+		int r = gridStep(3.0f);
+		*mx = *my = 0; *run = false;
+		if (r < 0) pathN = pathAt = 0;   // none: straight
+		if (r != 0) { walkTo.best = 1e9f; walkTo.stuckT = 0; }
+		return true;
+	}
 	if (walkTo.kind == CK_NPC) {   // it may move
 		Actor* a = &actors[walkTo.idx];
 		if (!a->used) { walkTo.on = false; return false; }
@@ -3587,6 +3733,7 @@ int main(void)
 		printf("character: %s (%d meshes, %d outfits) %.0f ms\n", ok ? "ok" : "none", chNMesh, chNOutfit, msSince(c0));
 	}
 	objsOk = objLoad();
+	pgLoad();
 	if (objsOk) objInitGpu();
 	loadInteriors();
 	printf("%d textures %lu KB in %.0f ms\n", ntex, texBytes / 1024, texMs);

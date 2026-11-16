@@ -11,7 +11,7 @@ enum { OF_TAKEN = 1, OF_OPEN = 2, OF_LOCKED = 4, OF_CHANGED = 0x8000 };   // CHA
 typedef struct { u32 idOfs, nameOfs; u16 type, model; } __attribute__((packed)) ObjBase;
 typedef struct { u16 first, nparts; float quant, radius; } __attribute__((packed)) ObjModel;
 typedef struct { u16 tex; u8 flags, pad; u32 vofs, vcount, iofs, icount; } __attribute__((packed)) ObjPart;
-typedef struct { u32 frmr; u16 plugin, base; s16 gx, gy; float pos[3], rot[3], scale; u32 destOfs; } __attribute__((packed)) ObjRec;
+typedef struct { u32 frmr; u16 plugin, base; s16 gx, gy; float pos[3], rot[3], scale; u32 destOfs; float dest[4]; } __attribute__((packed)) ObjRec;
 
 typedef struct {
 	u32 frmr; u16 plugin, base;
@@ -20,6 +20,7 @@ typedef struct {
 	u16 flags;
 	float open;                // doors: 0 shut .. 1 open (animated towards the OF_OPEN flag)
 	u32 destOfs;               // a load door's destination (objDest), 0xFFFFFFFF: not a load door
+	float dest[4];             // ... where it puts you: x y z, facing (the baked interiors are moved: see mwbake)
 } WObj;
 
 extern WObj* objs;

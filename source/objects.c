@@ -30,7 +30,7 @@ bool objLoad(void)
 	bool ok = objData && fread(objData, 1, n, f) == (size_t)n;
 	fclose(f);
 	const ObjHdr* h = (const ObjHdr*)objData;
-	if (!ok || n < (long)sizeof *h || memcmp(h->magic, "MWO2", 4) || h->strofs + h->strbytes > (u32)n) {
+	if (!ok || n < (long)sizeof *h || memcmp(h->magic, "MWO3", 4) || h->strofs + h->strbytes > (u32)n) {
 		if (objData) linearFree(objData);
 		objData = NULL;
 		return false;
@@ -50,6 +50,7 @@ bool objLoad(void)
 		o->gx = r[i].gx; o->gy = r[i].gy;
 		memcpy(o->pos, r[i].pos, 12); memcpy(o->rot, r[i].rot, 12); o->scale = r[i].scale;
 		o->destOfs = r[i].destOfs;
+		memcpy(o->dest, r[i].dest, 16);
 	}
 	GSPGPU_FlushDataCache(objData, n);
 	return true;

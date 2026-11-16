@@ -224,6 +224,7 @@ static int uTorch, uTorchCol;
 static float rtsYaw;                     // the camera's turn round the character
 static float chr[3];                     // the character's feet
 static float chrYaw, chrPhase, chrSwing; // facing; walk cycle phase and its strength (0 standing .. 1)
+static float chrPlaceUp = 400.0f;      // where the floor is looked for when placing: from this over chr[2]
 static bool chrPlaced;                   // on the ground once its cell is in
 
 // stats
@@ -666,6 +667,7 @@ static void pickJob(void)
 			} else inner = abs(dx) <= radius && abs(dy) <= radius;
 			const Avail* a = findAvail(gx, gy);
 			if (!a || findCell(gx, gy)) continue;
+			if (gx >= 100 && (gx != cgx || gy != cgy)) continue;   // an interior: only the one the character is in
 			if (job.state != JOB_IDLE && job.gx == gx && job.gy == gy) { if (inner) cellsMissing++; continue; }
 			float cx = gx * CELL + HALF - eye[0], cy = gy * CELL + HALF - eye[1];
 			if (!inner) {   // the outer ring: only ahead, while moving
@@ -853,6 +855,58 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 
 static bool uiOn, uiDirty = true;
 
+// Interiors (as Morrowind: their own cells behind load doors). The baker puts each at its own grid cell far off
+// the map (100 + k, 100), so the streaming, the collision and the objects work as outside; entering = moving the
+// character there. Inside: the cell's fog colour, a short view, and the roof cut away (a clip plane over the head).
+typedef struct { s32 gx, gy; u32 fog; char name[64]; } Interior;
+static Interior* interiors;
+static int ninterior;
+static int inInterior = -1;        // the interior the character is in, -1 outside
+static bool teleported;            // (the loader's velocity must not see the jump)
+
+static void loadInteriors(void)
+{
+	u32 size;
+	u8* b = readFile("romfs:/interiors.bin", &size);
+	if (!b || size < 8 || memcmp(b, "MWN1", 4)) { free(b); return; }
+	memcpy(&ninterior, b + 4, 4);
+	if (8 + ninterior * sizeof(Interior) > size) ninterior = 0;
+	interiors = (Interior*)malloc(ninterior * sizeof(Interior) + 1);
+	memcpy(interiors, b + 8, ninterior * sizeof(Interior));
+	for (int i = 0; i < ninterior; i++) interiors[i].name[63] = 0;
+	free(b);
+}
+
+static int interiorAt(float x, float y)
+{
+	int gx = (int)floorf(x / CELL), gy = (int)floorf(y / CELL);
+	for (int i = 0; i < ninterior; i++) if (interiors[i].gx == gx && interiors[i].gy == gy) return i;
+	return -1;
+}
+
+// The user clip plane of the PICA200 (GPUREG_FRAGOP_CLIP): what is above world height z is not drawn.
+// The plane is given in clip space: a world plane a (camera-relative) becomes inverse(mvp)^T a.
+static void clipAbove(const C3D_Mtx* mvp, float z)
+{
+	C3D_Mtx inv = *mvp;
+	if (Mtx_Inverse(&inv) == 0.0f) return;
+	float a[4] = { 0, 0, -1, z - eye[2] };   // keep -z + (z0 - eye z) >= 0
+	float c[4];
+	for (int j = 0; j < 4; j++) {
+		float s = 0;
+		for (int i = 0; i < 4; i++) {
+			const C3D_FVec* r = &inv.r[i];
+			float m = j == 0 ? r->x : j == 1 ? r->y : j == 2 ? r->z : r->w;
+			s += m * a[i];
+		}
+		c[j] = s;
+	}
+	u32 d[4] = { f32tof24(c[0]), f32tof24(c[1]), f32tof24(c[2]), f32tof24(c[3]) };
+	GPUCMD_AddWrite(GPUREG_FRAGOP_CLIP, 1);
+	GPUCMD_AddIncrementalWrites(GPUREG_FRAGOP_CLIP_DATA0, d, 4);
+}
+static void clipOff(void) { GPUCMD_AddWrite(GPUREG_FRAGOP_CLIP, 0); }
+
 // Items, doors, containers: each copy drawn with its own matrix (obj.v.pica), only in loaded cells, not
 // taken. Small things (radius < 40) only up to 2500 units. The shader's state as drawWorld left it.
 static DVLB_s* oDvlb;
@@ -978,9 +1032,20 @@ static void objActivate(int i)
 		gameMessage(b);
 		scriptAfter(i, SE_TAKE);
 	} else if (type == OT_DOOR && objDest(i)) {
-		// a load door: it leads into an interior (there are none yet), it does not swing
+		// a load door: it takes the character to its destination when that cell is baked (an interior, or
+		// back outside), else it only says where it leads
+		const float* d = o->dest;
 		char b[96];
-		snprintf(b, sizeof b, "Drzwi do: %s (wnętrz jeszcze nie ma)", objDest(i)[0] ? objDest(i) : "na zewnątrz");
+		if (findAvail((int)floorf(d[0] / CELL), (int)floorf(d[1] / CELL))) {
+			chr[0] = d[0]; chr[1] = d[1]; chr[2] = d[2];
+			chrYaw = rtsYaw = d[3];
+			chrPlaced = false;          // stood on the floor once the cell is in: the one at the door's mark,
+			chrPlaceUp = 40.0f;         // not a beam over it (the start outside looks from 400 up)
+			chrVz = 0; swimming = false;
+			teleported = true;
+			objTarget = -1;
+			snprintf(b, sizeof b, "%s", objDest(i)[0] ? objDest(i) : "Na zewnątrz");
+		} else snprintf(b, sizeof b, "Drzwi do: %s (tego wnętrza nie ma)", objDest(i)[0] ? objDest(i) : "na zewnątrz");
 		gameMessage(b);
 		audioPlay(SND_CLICK, 0.5f, 0);
 	} else if (o->flags & OF_LOCKED) {
@@ -2327,7 +2392,7 @@ static void chrUpdate(float dt, float mx, float my, bool run, bool dive, bool ju
 {
 	float g;
 	if (!chrPlaced) {
-		if (standAt(chr[0], chr[1], chr[2] + 400.0f, 0, &g)) { chr[2] = g > -10000.0f ? g : SWIM_Z; chrPlaced = true; }
+		if (standAt(chr[0], chr[1], chr[2] + chrPlaceUp, 0, &g)) { chr[2] = g > -10000.0f ? g : SWIM_Z; chrPlaced = true; chrPlaceUp = 400.0f; }
 		return;
 	}
 	float len = sqrtf(mx * mx + my * my);
@@ -2664,7 +2729,10 @@ static const View VIEWS[] = {
 	// the objects (objects.bin) and their scripts: a door near the start used once (the script: knocking),
 	// then twice (open, swinging); a barrel searched (the script counts)
 	{ "door: knock",     -10468, -70688, 400, CAM_RTS, false, 2.83f, 0, false, false, 1.0f, 0, V_USE1 },
-	{ "door: open",      0, 0, 0, CAM_RTS, false, 2.83f, 0, false, false, 2.0f, 0, V_USE1 },
+	{ "door: enter",     0, 0, 0, CAM_RTS, false, 2.83f, 0, false, false, 2.0f, 0, V_USE1 },
+	{ "inside rts",      0, 0, 0, CAM_RTS, false, -1, 0, false, false, 1.5f, 0 },
+	{ "inside tpp",      0, 0, 0, CAM_TPP, false, -1, 0, false, false, 1.5f, 300 },
+	{ "door: exit",      0, 0, 0, CAM_TPP, false, -1, 0, false, false, 2.0f, 300, V_USE1 },
 	{ "barrel: search",  -10781, -71763, 300, CAM_RTS, false, 1.57f, 0, false, false, 1.0f, 0, V_USE2 },
 };
 #define NVIEWS (int)(sizeof VIEWS / sizeof VIEWS[0])
@@ -2690,7 +2758,7 @@ static void viewsBegin(int k)
 	if (v->act == V_JUMP && chOk) { PL->weapon = -1; PL->dirty = true; vJump = true; }
 	if (v->act == V_FIGHT && chOk) { PL->weapon = 0; PL->dirty = true; clearNpcs(); vFight = true; }
 	vUse = v->act == V_USE1 ? 1 : v->act == V_USE2 ? 2 : 0;
-	if (v->yaw >= 0) rtsYaw = v->yaw; else rtsYaw = startYaw;
+	if (v->yaw >= 0) rtsYaw = v->yaw; else if (v->x == 0 && inInterior >= 0) rtsYaw = chrYaw; else rtsYaw = startYaw;
 	setCamLimits();
 }
 
@@ -3038,6 +3106,7 @@ int main(void)
 	}
 	objsOk = objLoad();
 	if (objsOk) objInitGpu();
+	loadInteriors();
 	printf("%d textures %lu KB in %.0f ms\n", ntex, texBytes / 1024, texMs);
 
 	// the loader thread: above the main thread on its core (it mostly waits on the SD)
@@ -3075,7 +3144,7 @@ int main(void)
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
 		     navail, nroute, loaderThread ? "" : ", NO LOADER THREAD");
 		logw("    sound: %s\n", sound ? "on" : "OFF (no sdmc:/3ds/dspfirm.cdc: run DSP1.3dsx once)");
-		logw("    objects: %s, %d (%d models, %d parts, %lu KB)\n", objsOk ? "ok" : "NONE", nobj, objNModels, objNParts, objBytes / 1024);
+		logw("    objects: %s, %d (%d models, %d parts, %lu KB), interiors %d\n", objsOk ? "ok" : "NONE", nobj, objNModels, objNParts, objBytes / 1024, ninterior);
 		scriptsOk = scriptInit();
 		if (!scriptsOk) { logw("    scripts: %s\n", scriptError()); if (scriptError()[0]) gameMessage(scriptError()); }
 		logFlush();
@@ -3224,7 +3293,7 @@ int main(void)
 		if (fightUpdate(dt)) uiDirty = true;
 		if (objsOk) {   // doors swing; the object in reach (RTS / TPP / FPP: the character's)
 			objUpdate(dt);
-			int t = rtsMode && !bench && !fight.on ? objNearest(chr, chrYaw, 70.0f) : -1;
+			int t = rtsMode && !bench && !fight.on ? objNearest(chr, chrYaw, 130.0f) : -1;
 			if (t != objTarget) { objTarget = t; uiDirty = true; }
 		}
 		scriptMs = 0; scriptCalls = 0;
@@ -3267,7 +3336,14 @@ int main(void)
 			bool uw = rtsMode && eye[2] < -2.0f && groundAt(eye[0], eye[1], &g) && g < eye[2];
 			if (uw != underwater) { underwater = uw; setCamLimits(); }
 			fogColour = underwater ? 0xFF000000 | 0x58 << 16 | 0x4C << 8 | 0x1C : 0xFF000000 | SKY_B << 16 | SKY_G << 8 | SKY_R;
+			inInterior = interiorAt(chr[0], chr[1]);
+			if (inInterior >= 0) {   // inside: the cell's own fog (dark), the view short
+				u32 f = interiors[inInterior].fog;
+				fogColour = 0xFF000000 | ((f & 0xFF) / 2) | ((f >> 8 & 0xFF) / 2) << 8 | ((f >> 16 & 0xFF) / 2) << 16;
+				if (farDist > 3000.0f) farDist = 3000.0f;
+			}
 		}
+		if (teleported) { vel[0] = vel[1] = 0; prevEye[0] = chr[0]; prevEye[1] = chr[1]; teleported = false; }
 		if (dt > 0) {   // smoothed velocity for the loader's prediction
 			float k = dt * 3.0f; if (k > 1) k = 1;
 			// RTS: the character's, not the camera's (turning round it is not going anywhere: hardware
@@ -3312,6 +3388,8 @@ int main(void)
 			u32 clr = (fogColour & 0xFF) << 24 | (fogColour >> 8 & 0xFF) << 16 | (fogColour >> 16 & 0xFF) << 8 | 0xFF;
 			C3D_RenderTargetClear(rt, C3D_CLEAR_ALL, clr, 0);
 			C3D_FrameDrawOn(rt);
+			if (inInterior >= 0 && rtsMode && camMode != CAM_FPP) clipAbove(&mvp, chr[2] + (camMode == CAM_RTS ? 160.0f : 230.0f));
+			else clipOff();
 			int d0 = statDraws; u32 t0s = statTris;
 			drawWorld(&mvp, fwd);   // (resets the stats: the second eye's adds to the first's below)
 			drawObjects(&mvp, fwd);
@@ -3323,6 +3401,7 @@ int main(void)
 			if (rtsMode && torchOn && !swimming && camMode != CAM_FPP) drawFlame(&mvp, fwd);
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
+		clipOff();
 		if (uiOn && uiDirty) {
 			for (int i = 1; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));   // (the 3D's fog stage off: it tinted the window)
 			uiFill();

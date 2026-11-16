@@ -125,6 +125,8 @@ class ESM:
         self.ltex = {}     # index -> texture name
         self.kind = {}     # id (lower) -> record tag (b"MISC", b"DOOR"...) of the things with a model
         self.names = {}    # id (lower) -> the name shown in the game (FNAM)
+        self.interiors = {}    # cell name -> {"refs": [...], "ambi": (ambient, sunlight, fog) rgb 0..1}
+        self.lights = {}       # LIGH id -> (radius, rgb 0..1)
         self.organic = set()   # containers that are plants to pick (flora_, kollop_, trama roots): stay static for now
 
     def load(self, path):
@@ -142,6 +144,11 @@ class ESM:
                 for n, d in subrecords(body):
                     if n == b"NAME": ident = cstr(d).lower()
                     elif n == b"MODL": model = cstr(d)
+                    elif n == b"LHDT" and tag == b"LIGH" and len(d) >= 24:
+                        rad = struct.unpack_from("<i", d, 12)[0]
+                        fl = struct.unpack_from("<I", d, 20)[0]
+                        if not fl & 0x100:   # (negative lights: none)
+                            self.lights[ident or ""] = (float(rad), np.frombuffer(d[16:19], np.uint8) / 255.0)
                     elif n == b"FLAG" and tag == b"CONT" and len(d) >= 4 and struct.unpack("<I", d[:4])[0] & 1:
                         organic = True
                     elif n == b"FNAM": fname = d.split(b"\0")[0].decode("cp1250", "replace")
@@ -167,12 +174,17 @@ class ESM:
         grid = None
         refs = []
         cur = None
+        cname, inter, ambi = None, False, None
         for n, d in subrecords(body):
-            if cur is None and n == b"DATA" and len(d) >= 12:
+            if cur is None and n == b"NAME": cname = cstr(d)
+            elif cur is None and n == b"AMBI" and len(d) >= 12:
+                ambi = tuple(np.frombuffer(d[k * 4:k * 4 + 3], np.uint8) / 255.0 for k in range(3))
+            elif cur is None and n == b"DATA" and len(d) >= 12:
                 flags, gx, gy = struct.unpack("<Iii", d[:12])
                 if flags & 1:
-                    return  # interior
-                grid = (gx, gy)
+                    inter = True   # an interior: kept by its name (baked only when asked: --interiors)
+                else:
+                    grid = (gx, gy)
             elif n == b"FRMR":
                 cur = {"id": None, "scale": 1.0, "pos": None, "del": False, "frmr": struct.unpack("<I", d[:4])[0]}
                 refs.append(cur)
@@ -181,8 +193,14 @@ class ESM:
                 elif n == b"XSCL": cur["scale"] = struct.unpack("<f", d[:4])[0]
                 elif n == b"DELE": cur["del"] = True
                 elif n == b"DATA" and len(d) >= 24: cur["pos"] = struct.unpack("<6f", d[:24])
-                elif n == b"DODT": cur.setdefault("dest", "")     # a load door: it takes you somewhere
+                elif n == b"DODT":   # a load door: it takes you somewhere (where to stand, facing)
+                    cur.setdefault("dest", ""); cur["destpos"] = struct.unpack("<6f", d[:24])
                 elif n == b"DNAM": cur["dest"] = cstr(d)          # ... into this interior (no DNAM: outside)
+        if inter and cname:
+            e = self.interiors.setdefault(cname, {"refs": [], "ambi": None})
+            e["refs"].extend(r for r in refs if r["id"] and r["pos"] and not r["del"])
+            if ambi: e["ambi"] = ambi
+            return
         if grid is None:
             return
         lst = self.cells.setdefault(grid, [])
@@ -836,10 +854,26 @@ def terrain_texture(esm, tex, gx, gy, size):
     return data, levels, FMT_RGB565
 
 
-def bake_cell(esm, models, tex, gx, gy, stats, dyn=None):
+def point_light(v, nrm, lights):
+    """the lamps of an interior on vertices (cell-relative): sum of colour x (1 - d / radius) x facing"""
+    out = np.zeros((len(v), 3))
+    for p, r, c in lights:
+        d = p[None, :] - v
+        dist = np.maximum(np.linalg.norm(d, axis=1), 1e-3)
+        att = np.clip(1.0 - dist / r, 0, 1)
+        if not att.any():
+            continue
+        face = np.ones(len(v)) if nrm is None else np.clip((nrm * d).sum(axis=1) / dist, 0, 1) * 0.75 + 0.25
+        out += c[None, :] * (att * face)[:, None]
+    return out * 1.3
+
+
+def bake_cell(esm, models, tex, gx, gy, stats, dyn=None, inter=None):
+    """inter: an interior put at this grid cell ({"refs": shifted refs, "lights": [(pos, radius, rgb)]}):
+    no terrain, no water, its own light; every wide upward face is a floor (stairs, tables...)"""
     ox, oy = gx * CELL + HALF, gy * CELL + HALF
     batches = []    # list of Batch
-    land = esm.lands.get((gx, gy))
+    land = esm.lands.get((gx, gy)) if inter is None else None
     terrain_tex = None
     minh = 0.0
     if land is not None and "h" in land:
@@ -877,7 +911,7 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None):
     boxes = []
     solids = []    # (triangles (n, 3, 3) cell-relative) of the things that block the way
     floors = []    # wide upward triangles of the things walked on (bridges, docks, stairs)
-    for ref in esm.cells.get((gx, gy), []):
+    for ref in (esm.cells.get((gx, gy), []) if inter is None else inter["refs"]):
         mpath = esm.models.get(ref["id"])
         if not mpath:
             continue
@@ -907,7 +941,7 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None):
         rad = float(np.linalg.norm(allv, axis=1).max()) * ref["scale"]
         top = pz + float((allv @ R.T)[:, 2].max())
         cls = (8 if rad < SMALL_RADIUS else 0) | (16 if top < 0 else 0)
-        walk = any(w in ref["id"] for w in WALKABLE)
+        walk = inter is not None or any(w in ref["id"] for w in WALKABLE)
         # plants: walked through (the user: they held the character). Grass, ferns, bushes, kelp: every
         # flora_ thing but trees, stumps, logs and roots; and any small thing with see-through leaves.
         rid = ref["id"]
@@ -933,6 +967,8 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None):
                 v = s["v"] @ R.T + np.array([lx, ly, pz])
                 nrm = None if s["n"] is None else s["n"] @ Rn.T
                 rgb = light(nrm, s["base"], s["emi"])
+                if inter is not None and inter["lights"]:
+                    rgb = np.clip(rgb + s["base"] * point_light(v, nrm, inter["lights"]), 0, 1)
                 col = np.concatenate([rgb * 255, s["a"][:, None] * 255], axis=1)
                 col = np.clip(col, 0, 255).astype(np.uint8)
                 ti = tex.get(s["tex"], s["alpha"])
@@ -946,7 +982,7 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None):
             stats["object_tris"] += len(s0["tri"])
     for key in sorted(groups):
         batches.extend(groups[key])
-    if land is None or minh < 0:
+    if inter is None and (land is None or minh < 0):
         # water at z = 0
         bt = Batch(0, 4, 150)
         p = np.array([[-HALF, -HALF, 0], [HALF, -HALF, 0], [HALF, HALF, 0], [-HALF, HALF, 0]])
@@ -1136,7 +1172,7 @@ def write_cell(path, gx, gy, batches, terrain_tex, tsize, coll=None):
         f.seek(0); f.write(hdr.pack(b"MWC3", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, 0, flofs, nflo, occofs))
 
 
-def write_objects(path, esm, models, tex, dyn):
+def write_objects(path, esm, models, tex, dyn, shifts=None):
     """objects.bin (docs/PLAN.md step 1): the dynamic objects of the baked cells, each with its persistent id
     (plugin, FRMR), and their models once each (shared by every copy).
 
@@ -1145,7 +1181,8 @@ def write_objects(path, esm, models, tex, dyn):
       model   nmodel x (u16 first part, u16 parts, f32 quant (position = int16 x quant), f32 radius)
       part    npart x (u16 texture, u8 flags (1 alpha, 2 two-sided), u8 0, u32 vofs, u32 vcount, u32 iofs, u32 icount)
       object  nobj x (u32 frmr, u16 plugin, u16 base, s16 gx, s16 gy, f32 pos[3], f32 rot[3], f32 scale,
-              u32 destination string ofs: a load door's interior ("" = outside), 0xFFFFFFFF not a load door)  44 bytes
+              u32 destination string ofs: a load door's interior ("" = outside), 0xFFFFFFFF not a load door,
+              f32 dest[4]: where it puts you (x y z, facing; moved like the baked interiors))  60 bytes
       strings UTF-8, NUL-terminated
       data    vertices (the cells' 16-byte format, model space, light baked as the model stands) and indices
     The light is baked for the model unturned (good enough for the things lying round; a turned door is lit as if not)."""
@@ -1189,14 +1226,19 @@ def write_objects(path, esm, models, tex, dyn):
     for ref, otype, gx, gy in dyn:
         px, py, pz, rx, ry, rz = ref["pos"]
         dest = S(ref["dest"]) if "dest" in ref else 0xFFFFFFFF
-        obj_rec.append(struct.pack("<IHHhh7fI", ref["frmr"], 0, base_ix[ref["id"]], gx, gy, px, py, pz, rx, ry, rz, ref["scale"], dest))
+        dp = list(ref.get("destpos", (0, 0, 0, 0, 0, 0)))
+        sh = (shifts or {}).get(ref.get("dest"))
+        if sh:
+            dp[0] += sh[0]; dp[1] += sh[1]; dp[2] += sh[2]
+        obj_rec.append(struct.pack("<IHHhh7fI4f", ref["frmr"], 0, base_ix[ref["id"]], gx, gy, px, py, pz, rx, ry, rz, ref["scale"], dest,
+                                   dp[0], dp[1], dp[2], dp[5]))
     hdr = struct.Struct("<4s10I")
     o = hdr.size
     def nxt(n):
         nonlocal o
         start = o; o += n; return start
     baseofs = nxt(len(base_rec)); modelofs = nxt(12 * len(model_rec)); partofs = nxt(20 * len(part_rec))
-    objofs = nxt(44 * len(obj_rec)); strofs = nxt(len(strs))
+    objofs = nxt(60 * len(obj_rec)); strofs = nxt(len(strs))
     o = (o + 15) & ~15
     dataofs = o
     # the parts' offsets are relative to the data block: made absolute here
@@ -1205,7 +1247,7 @@ def write_objects(path, esm, models, tex, dyn):
         t, fl, z, vo, vc, io_, ic = struct.unpack("<HBBIIII", pr)
         fixed.append(struct.pack("<HBBIIII", t, fl, z, vo + dataofs, vc, io_ + dataofs, ic))
     with open(path, "wb") as f:
-        f.write(hdr.pack(b"MWO2", len(bases), len(model_rec), len(part_rec), len(obj_rec),
+        f.write(hdr.pack(b"MWO3", len(bases), len(model_rec), len(part_rec), len(obj_rec),
                          baseofs, modelofs, partofs, objofs, strofs, len(strs)))
         f.write(base_rec); f.write(b"".join(model_rec)); f.write(b"".join(fixed)); f.write(b"".join(obj_rec)); f.write(strs)
         f.write(b"\0" * (dataofs - f.tell()))
@@ -1235,6 +1277,8 @@ def main():
     ap.add_argument("--contrast", type=float, default=1.0, help="texture contrast boost (1 = none)")
     ap.add_argument("--terrain-tex", type=int, default=1024, help="composite terrain texture per cell")
     ap.add_argument("--no-char", action="store_true", help="no romfs/char.bin")
+    ap.add_argument("--interiors", nargs="*", default=["Seyda Neen, Arrille's Tradehouse", "Seyda Neen, Vodunius Nuccius' House"],
+                    help="interior cells to bake (by name), each at its own far grid cell")
     ap.add_argument("--no-objects", action="store_true", help="items, doors, containers merged into the statics (no objects.bin)")
     ap.add_argument("--no-lod", action="store_true", help="no LOD copies (docs/POMYSLY.md)")
     ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
@@ -1280,6 +1324,43 @@ def main():
             print("cell %3d,%3d: %4d refs, %6d object tris, %5d terrain tris, %3d batches, %6.0f KB" % (
                 gx, gy, stats["refs"] - before["refs"], stats["object_tris"] - before["object_tris"],
                 stats["terrain_tris"] - before["terrain_tris"], len(batches), sz / 1024))
+    # interiors (as Morrowind: their own cells, entered by load doors): each put at its own grid cell far off the
+    # map (100 + k, 100), centred, the floor at ~1000 (no sea under it); interiors.bin names them
+    shifts = {}
+    inter_rec = []
+    for k, name in enumerate(a.interiors):
+        it = esm.interiors.get(name)
+        if not it or not it["refs"]:
+            print("interior %r: not found" % name); continue
+        gx, gy = 100 + k, 100
+        P = np.array([r["pos"][:3] for r in it["refs"]])
+        sh = (gx * CELL + HALF - float((P[:, 0].min() + P[:, 0].max()) / 2),
+              gy * CELL + HALF - float((P[:, 1].min() + P[:, 1].max()) / 2), 1000.0 - float(P[:, 2].min()))
+        shifts[name] = sh
+        refs = []
+        for r in it["refs"]:
+            r2 = dict(r); p = r["pos"]
+            r2["pos"] = (p[0] + sh[0], p[1] + sh[1], p[2] + sh[2], p[3], p[4], p[5])
+            refs.append(r2)
+        ox, oy = gx * CELL + HALF, gy * CELL + HALF
+        lights = [(np.array([r["pos"][0] - ox, r["pos"][1] - oy, r["pos"][2]]), *esm.lights[r["id"]]) for r in refs if r["id"] in esm.lights]
+        amb, sun, fog = it["ambi"] or (np.array([0.3, 0.3, 0.3]), np.array([0.3, 0.3, 0.3]), np.array([0.1, 0.1, 0.1]))
+        global AMBIENT, SUNCOL
+        keep = (AMBIENT, SUNCOL)
+        AMBIENT, SUNCOL = np.clip(amb * 1.15 + 0.06, 0, 1), sun * 0.5
+        before = dict(stats)
+        batches, ttex, coll = bake_cell(esm, models, tex, gx, gy, stats, dyn, {"refs": refs, "lights": lights})
+        AMBIENT, SUNCOL = keep
+        p = os.path.join(a.out, "cells", "%d_%d.bin" % (gx, gy))
+        write_cell(p, gx, gy, batches, None, a.terrain_tex, coll)
+        sz = os.path.getsize(p); total_bytes += sz; sizes[(gx, gy)] = sz
+        done.append((gx, gy))
+        fc = (np.clip(fog, 0, 1) * 255).astype(int)
+        inter_rec.append(struct.pack("<iiI64s", gx, gy, int(fc[0]) | int(fc[1]) << 8 | int(fc[2]) << 16, name.encode("utf-8")[:63]))
+        print("interior %r -> cell %d,%d: %d refs, %d lamps, %d object tris, %d batches, %.0f KB" % (
+            name, gx, gy, stats["refs"] - before["refs"], len(lights), stats["object_tris"] - before["object_tris"], len(batches), sz / 1024))
+    with open(os.path.join(a.out, "interiors.bin"), "wb") as f:
+        f.write(b"MWN1" + struct.pack("<I", len(inter_rec)) + b"".join(inter_rec))
     if not a.no_char:
         import chrbake
         ch = chrbake.Character(vfs, os.path.join(a.data, "Morrowind.esm"), tex)
@@ -1295,7 +1376,7 @@ def main():
     print("collision: %d floor triangles, %d blocked squares" % (stats.get("floors", 0), stats.get("blocked", 0)))
     objp = os.path.join(a.out, "objects.bin")
     if dyn is not None:
-        write_objects(objp, esm, models, tex, dyn)
+        write_objects(objp, esm, models, tex, dyn, shifts)
     elif os.path.exists(objp):
         os.remove(objp)
     tex.write(os.path.join(a.out, "textures.bin"))

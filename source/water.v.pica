@@ -10,6 +10,8 @@
 .fvec fogRow        ; fog factor = dp4(fogRow, position): 1 near, 0 at the fog's end
 .fvec uvA           ; texcoord 0 = position.xy * uvA.z + uvA.xy
 .fvec uvB           ; texcoord 1 = position.xy * uvB.z + uvB.xy
+.fvec fres          ; x: how much the fresnel takes off the colour (the bottom's filter pass)
+.fvec refl          ; xyz: what it adds instead (the sky's reflection, the scattered pass)
 
 .constf consts(0.0, 1.0, 0.00392156862, 0.0)
 .alias zero  consts.xxxx
@@ -40,6 +42,21 @@
 
 	mul r2, consts.zzzz, inclr
 	mul r2.w, r2.w, r1.x
+
+	; fresnel, f = (1 - |cos|)^2, cos = the view's slope (r0: the position from the eye): looking
+	; down the bottom shows, at a glancing angle the water mirrors the sky
+	dp3 r5.x, r0.xyz, r0.xyz
+	rsq r5.x, r5.x
+	mul r5.x, r5.x, r0.z
+	max r5.x, r5.x, -r5.x
+	add r5.x, one, -r5.x
+	mul r5.x, r5.x, r5.x
+	; rgb = rgb * (1 - f * fres.x) + f * refl
+	mul r6.x, fres.x, r5.x
+	add r6.x, one, -r6.x
+	mul r2.xyz, r2.xyz, r6.xxx
+	mul r7.xyz, refl.xyz, r5.xxx
+	add r2.xyz, r2.xyz, r7.xyz
 	mov outclr, r2
 
 	; ripples from the world position (cell-relative), so neighbouring cells meet

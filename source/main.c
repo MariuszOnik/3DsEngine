@@ -155,7 +155,7 @@ static bool rippleOk, detailOk;
 static int uDetail;
 static DVLB_s* wDvlb;
 static shaderProgram_s wProg;
-static int wMvp, wOrigin, wFog, wUvA, wUvB;
+static int wMvp, wOrigin, wFog, wUvA, wUvB, wFres, wRefl;
 
 // RTS camera (after the Switch port's tactical camera: -55 degrees, 700 units). The pitch and
 // the distance are locked, because the ground the camera sees (and so the GPU cost) depends
@@ -326,13 +326,15 @@ static void buildWater(Cell* c)
 			v->t[0] = v->t[1] = 0;
 			float sh = d <= 0 ? 0 : d < 40 ? d / 40.0f : 1;   // no hard edge where the water meets the shore
 			// (crystal, not blue: the user) a faint, nearly neutral shimmer
-			v->c[0] = (u8)((14 + (18 - 14) * e) * sh); v->c[1] = (u8)((18 + (25 - 18) * e) * sh);
-			v->c[2] = (u8)((20 + (29 - 20) * e) * sh);
-			v->c[3] = 255;
+			// (natural mountain water, the user's reference: a faint olive-grey, darker green-grey deep)
+			// the shore fade in the alpha: it scales the whole added layer, the sky's reflection too
+			v->c[0] = (u8)(12 + (14 - 12) * e); v->c[1] = (u8)(16 + (22 - 16) * e); v->c[2] = (u8)(14 + (18 - 14) * e);
+			v->c[3] = (u8)(255 * sh);
 			if (c->tv) {
 				Vtx* tv = &c->tv[k];
 				*tv = *v;
-				tv->c[0] = (u8)(252 + (105 - 252) * e); tv->c[1] = (u8)(255 + (130 - 255) * e); tv->c[2] = (u8)(255 + (140 - 255) * e);
+				tv->c[3] = 255;
+				tv->c[0] = (u8)(250 + (72 - 250) * e); tv->c[1] = (u8)(255 + (98 - 255) * e); tv->c[2] = (u8)(246 + (86 - 246) * e);
 				tv->c[3] = 255;
 			}
 			// the caustics: on the bottom, strongest in the shallows (~40-150), gone by ~900
@@ -909,6 +911,8 @@ static void waterProgram(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, wMvp, mvp);
 	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFres, 0, 0, 0, 0);   // no fresnel (shadow, caustics)
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wRefl, 0, 0, 0, 0);
 	C3D_AlphaTest(false, GPU_ALWAYS, 0);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
 	               GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
@@ -1008,7 +1012,9 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 {
 	if (!rippleOk) return;
 	waterProgram(mvp, fwd);
-	// 1: the bottom filtered: dst x lerp(1, colour, fog) (the colour premultiplied by the fog alpha)
+	// 1: the bottom filtered: dst x lerp(1, colour, fog) (the colour premultiplied by the fog alpha);
+	// the fresnel hides it at a glancing angle
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFres, 0.9f, 0, 0, 0);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_DST_COLOR, GPU_ONE_MINUS_SRC_ALPHA, GPU_ZERO, GPU_ONE);
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
 	C3D_TexEnvInit(env);
@@ -1034,11 +1040,14 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 		statDraws++;
 		statTris += c->wni / 3;
 	}
-	// 2: the light scattered back, x the ripples, + the glints: added (x the fog alpha)
+	// 2: the light scattered back and the sky mirrored (fresnel), x the ripples, + the glints:
+	// added (x the fog alpha)
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFres, 0, 0, 0, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wRefl, SKY_R / 255.0f * 0.38f, SKY_G / 255.0f * 0.38f, SKY_B / 255.0f * 0.38f, 0);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_ZERO, GPU_ONE);
 	float t = fxTime;
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 8.0f / 8192.0f, 0);
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 6.0f / 8192.0f, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 14.0f / 8192.0f, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 11.0f / 8192.0f, 0);
 	C3D_TexBind(0, &rippleTex);
 	C3D_TexBind(1, &rippleTex);
 	env = C3D_GetTexEnv(0);
@@ -1484,6 +1493,8 @@ int main(void)
 	wFog = shaderInstanceGetUniformLocation(wProg.vertexShader, "fogRow");
 	wUvA = shaderInstanceGetUniformLocation(wProg.vertexShader, "uvA");
 	wUvB = shaderInstanceGetUniformLocation(wProg.vertexShader, "uvB");
+	wFres = shaderInstanceGetUniformLocation(wProg.vertexShader, "fres");
+	wRefl = shaderInstanceGetUniformLocation(wProg.vertexShader, "refl");
 	makeRipples();
 	makeDetail();
 	shV = (Vtx*)linearAlloc((SH_SEG + 1) * sizeof(Vtx));

@@ -19,6 +19,7 @@ Usage: python mwbake.py [--data "<Data Files>"] [--center -2 -9] [--radius 2] [-
 """
 import argparse, math, os, struct, sys, time, io, subprocess, tempfile
 from concurrent.futures import ThreadPoolExecutor
+from simplify import lod_shape
 import numpy as np
 from PIL import Image
 
@@ -547,6 +548,7 @@ def pow2_floor(n):
 # Texture formats in textures.bin / the cell's terrain texture (the runtime maps them to GPU_TEXCOLOR)
 FMT_RGB565, FMT_RGBA4, FMT_ETC1, FMT_ETC1A4 = 0, 1, 2, 3
 ETC = True   # --rgb turns it off: 16-bit textures as before
+LOD = True   # --no-lod turns it off: no lighter copies of big things
 TEX3DS = r"C:\devkitPro\tools\bin\tex3ds.exe"
 
 
@@ -731,6 +733,9 @@ class ModelCache:
                                    "tri": tri.astype(np.int64), "tex": tname, "alpha": alpha, "double": double})
             except Exception as ex:
                 self.failed[key] = str(ex)
+        if LOD:
+            for s in shapes:
+                s["lod"] = lod_shape(s)
         self.cache[key] = shapes
         return shapes
 
@@ -851,21 +856,29 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         top = pz + float((allv @ R.T)[:, 2].max())
         cls = (8 if rad < SMALL_RADIUS else 0) | (16 if top < 0 else 0)
         stats["small_tris" if cls & 8 else "under_tris" if cls & 16 else "big_tris"] += sum(len(s["tri"]) for s in shapes)
-        for s in shapes:
-            v = s["v"] @ R.T + np.array([lx, ly, pz])
-            nrm = None if s["n"] is None else s["n"] @ Rn.T
-            rgb = light(nrm, s["base"], s["emi"])
-            col = np.concatenate([rgb * 255, s["a"][:, None] * 255], axis=1)
-            col = np.clip(col, 0, 255).astype(np.uint8)
-            ti = tex.get(s["tex"], s["alpha"])
-            flags = (1 if s["alpha"] else 0) | (2 if s["double"] else 0) | cls
-            key = (sub, ti, flags)
-            bl = groups.get(key)
-            if bl is None or bl[-1].nv + len(v) > 65000:
-                bl = groups.setdefault(key, [])
-                bl.append(Batch(ti, flags))
-            bl[-1].add(v, s["uv"], col, s["tri"])
-            stats["object_tris"] += len(s["tri"])
+        for s0 in shapes:
+            # big things with a lighter LOD copy: the full part near (flag 32), the copy farther (flag 64)
+            lod = s0.get("lod")
+            if cls == 0 and lod is not None and lod is not s0:
+                variants = ((s0, 32), (lod, 64))
+                stats["lod_tris"] += len(lod["tri"]); stats["lod_full_tris"] += len(s0["tri"])
+            else:
+                variants = ((s0, 0),)
+            for s, lodflag in variants:
+                v = s["v"] @ R.T + np.array([lx, ly, pz])
+                nrm = None if s["n"] is None else s["n"] @ Rn.T
+                rgb = light(nrm, s["base"], s["emi"])
+                col = np.concatenate([rgb * 255, s["a"][:, None] * 255], axis=1)
+                col = np.clip(col, 0, 255).astype(np.uint8)
+                ti = tex.get(s["tex"], s["alpha"])
+                flags = (1 if s["alpha"] else 0) | (2 if s["double"] else 0) | cls | lodflag
+                key = (sub, ti, flags)
+                bl = groups.get(key)
+                if bl is None or bl[-1].nv + len(v) > 65000:
+                    bl = groups.setdefault(key, [])
+                    bl.append(Batch(ti, flags))
+                bl[-1].add(v, s["uv"], col, s["tri"])
+            stats["object_tris"] += len(s0["tri"])
     for key in sorted(groups):
         batches.extend(groups[key])
     if land is None or minh < 0:
@@ -950,11 +963,13 @@ def main():
                     help="the benchmark walks from --center's cell to this one (Pelagiad: 0 -7)")
     ap.add_argument("--tex", type=int, default=128, help="max object texture size")
     ap.add_argument("--terrain-tex", type=int, default=512, help="composite terrain texture per cell")
+    ap.add_argument("--no-lod", action="store_true", help="no LOD copies (docs/POMYSLY.md)")
     ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
     ap.add_argument("--out", default=os.path.join(here, "..", "romfs"))
     a = ap.parse_args()
-    global ETC
+    global ETC, LOD
     ETC = not a.rgb
+    LOD = not a.no_lod
     if a.rgb and a.terrain_tex > 256:
         a.terrain_tex = 256
 
@@ -968,7 +983,7 @@ def main():
     for fn in os.listdir(os.path.join(a.out, "cells")):
         os.remove(os.path.join(a.out, "cells", fn))
     done = []
-    stats = {"terrain_tris": 0, "object_tris": 0, "refs": 0, "terrain_tex": a.terrain_tex, "small_tris": 0, "under_tris": 0, "big_tris": 0}
+    stats = {"terrain_tris": 0, "object_tris": 0, "refs": 0, "terrain_tex": a.terrain_tex, "small_tris": 0, "under_tris": 0, "big_tris": 0, "lod_tris": 0, "lod_full_tris": 0}
     cx, cy = a.center
     total_bytes = 0
     if a.radius is not None:
@@ -1012,6 +1027,8 @@ def main():
     tbytes = os.path.getsize(os.path.join(a.out, "textures.bin"))
     print("%d cells, %d refs, %d object tris, %d terrain tris" % (len(done), stats["refs"], stats["object_tris"], stats["terrain_tris"]))
     print("object tris by class: big %d, small %d, under water %d" % (stats["big_tris"], stats["small_tris"], stats["under_tris"]))
+    if stats["lod_full_tris"]:
+        print("LOD: parts with a copy %d tris -> %d (%.0f %%)" % (stats["lod_full_tris"], stats["lod_tris"], 100.0 * stats["lod_tris"] / stats["lod_full_tris"]))
     print("textures: %d (%.0f KB), cells %.0f KB, models parsed %d, failed %d, missing textures %d, %.1fs" % (
         len(tex.list), tbytes / 1024, total_bytes / 1024, len(models.cache), len(models.failed), len(tex.missing), time.time() - t0))
     for k, v in list(models.failed.items())[:20]:

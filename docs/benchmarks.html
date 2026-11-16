@@ -17,7 +17,7 @@
   --good-bg: #e3f3e8;
   --warn: #9a5b00;
   --warn-bg: #fbefd9;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
   --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
@@ -27,7 +27,7 @@
     --bg: #121417; --surface: #1a1c20; --ink: #eef0f3; --ink-2: #b9bfc8; --ink-3: #8a919c;
     --rule: #2c3036; --grid: #262a2f; --accent: #3987e5;
     --good: #5cc98a; --good-bg: #16301f; --warn: #f0b552; --warn-bg: #352812;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
     color-scheme: dark;
   }
 }
@@ -35,7 +35,7 @@
   --bg: #121417; --surface: #1a1c20; --ink: #eef0f3; --ink-2: #b9bfc8; --ink-3: #8a919c;
   --rule: #2c3036; --grid: #262a2f; --accent: #3987e5;
   --good: #5cc98a; --good-bg: #16301f; --warn: #f0b552; --warn-bg: #352812;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
   color-scheme: dark;
 }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
@@ -201,7 +201,7 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule)
 <script>
 (function () {
   const tests = JSON.parse(document.getElementById("bench-data").textContent);
-  const SLOT = { T1: "--s1", T2: "--s2", T3: "--s3", T4: "--s4" };
+  const SLOT = { T1: "--s1", T2: "--s2", T3: "--s3", T4: "--s4", T5: "--s5" };
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const byKey = Object.fromEntries(tests.map((t) => [t.key, t]));
   const walkOf = (t, name) => (t.walks || []).find((w) => w.name === name && w.summary);
@@ -214,6 +214,7 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule)
     T2: "Marsz 29,9 FPS, 0 brakujących komórek, ustawienie wczytanej komórki ≤ 2,4 ms (było 40–190 ms). Zostały skoki do ~40 ms co sekundę.",
     T3: "Pominięte klatki 150 → 20, zatrzymania 1 → 0, najgorsza klatka 64 → 36 ms. Stojąc 3×3: 36–43 → 43–52 FPS, GPU o ~2,5 ms mniej.",
     T4: "Tekstury 9068 → 2532 KB, ostrzejszy teren. Czeka na test na konsoli: sprawdzimy, czy ETC1 przyspiesza też GPU.",
+    T5: "Kopie LOD mają 56 % trójkątów oryginałów (584 → 324 tys.), dane komórek +14 %. Czeka na test na konsoli.",
   };
   const r1avg = (k, f) => byKey[k] && byKey[k].static["1"] ? avg(byKey[k].static["1"].map((d) => d[f])) : null;
   if (byKey.T4) gains.T4 = `Tekstury 9068 → 2528 KB, teren 2× ostrzejszy. Stojąc 3×3: GPU ${fmt(r1avg("T3", "gpu"), 2)} → ${fmt(r1avg("T4", "gpu"), 2)} ms, `
@@ -223,9 +224,10 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule)
     T2: "Streaming w osobnym wątku, przewidywanie kierunku ruchu, automatyczny zasięg z budżetem GPU 16 ms, limit 30 FPS",
     T3: "Małe obiekty (37 % trójkątów) rysowane tylko do 3000 jednostek, obiekty pod wodą wcale; bez tekstu na dolnym ekranie w teście",
     T4: "Tekstury ETC1 / ETC1A4 przez tex3ds, teren 512² w ETC1",
+    T5: "LOD: od 3500 jednostek lżejsze kopie dużych obiektów (skały i budynki uproszczone metodą kwadryk, liście przerzedzone: 40 % kart, powiększonych)",
   };
   const steps = document.getElementById("steps");
-  for (const key of ["T1", "T2", "T3", "T4"]) {
+  for (const key of ["T1", "T2", "T3", "T4", "T5"]) {
     const done = !!byKey[key];
     const row = document.createElement("div");
     row.className = "step";
@@ -236,7 +238,7 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule)
   }
 
   // ---------------- tiles: T3 vs T2 walk
-  const last = ["T4", "T3"].find((k) => byKey[k] && walkOf(byKey[k], "marsz"));   // the latest test against T2
+  const last = ["T5", "T4", "T3"].find((k) => byKey[k] && walkOf(byKey[k], "marsz"));   // the latest test against T2
   const w2 = byKey.T2 && walkOf(byKey.T2, "marsz"), w3 = last && walkOf(byKey[last], "marsz");
   const s2 = byKey.T2 && walkOf(byKey.T2, "sprint"), s3 = last && walkOf(byKey[last], "sprint");
   const tiles = document.getElementById("walk-tiles");
@@ -297,7 +299,7 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule)
 
   function draw() {
     charts.splice(0).forEach((c) => c.destroy());
-    const walkKeys = ["T2", "T3", "T4"].filter((k) => byKey[k] && walkOf(byKey[k], "marsz"));
+    const walkKeys = ["T2", "T3", "T4", "T5"].filter((k) => byKey[k] && walkOf(byKey[k], "marsz"));
 
     // max frame per second during the walk + the 33.3 ms line
     {
@@ -328,7 +330,7 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule)
       legend(lg, walkKeys);
     }
     // standing, radius 1: fps and triangles per direction
-    const sKeys = ["T1", "T2", "T3", "T4"].filter((k) => byKey[k] && byKey[k].static["1"]);
+    const sKeys = ["T1", "T2", "T3", "T4", "T5"].filter((k) => byKey[k] && byKey[k].static["1"]);
     const dirs = [0, 1, 2, 3, 4, 5, 6, 7].map((d) => `${d * 45}°`);
     for (const [id, field, title, div, lg] of [["c-sfps", "fps", "FPS", 1, "lg-sfps"], ["c-stris", "tris", "tys. trójkątów", 1000, "lg-stris"]]) {
       const o = base(title, "kierunek patrzenia");

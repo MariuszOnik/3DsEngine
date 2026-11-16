@@ -33,6 +33,7 @@
 #define MAX_CELLS 64
 #define MAX_AVAIL 1024
 #define MAX_ROUTE 4096
+#define LOD_DIST 3500.0f   // beyond it big things are drawn from their LOD copy (tools/simplify.py)
 
 #define DISPLAY_TRANSFER_FLAGS \
 	(GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | \
@@ -130,7 +131,7 @@ static int paceFrames, paceCooldown;
 static bool cap30 = true;
 
 // stats
-static int statDraws, statCulled, statSmall;   // statSmall: batches of small / under-water things left out
+static int statDraws, statCulled, statSmall, statLod;   // statSmall: batches of small / under-water things left out
 static u32 statTris;
 static int loadsTotal, loadFailed;
 static float lastIoMs, lastSetupMs;
@@ -428,7 +429,7 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 		for (int j = 0; j < 4; j++) pl[i][j] /= l;
 	}
 
-	statDraws = statCulled = statSmall = 0;
+	statDraws = statCulled = statSmall = statLod = 0;
 	statTris = 0;
 	float smallDist = farDist < 3000.0f ? farDist : 3000.0f;
 	for (int pass = 0; pass < 3; pass++) {
@@ -464,6 +465,10 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 				// above it (the water is opaque enough to hide them: Maniek, hardware test 2)
 				if ((b->flags & 8) && d > smallDist) { statSmall++; out = true; }
 				else if ((b->flags & 16) && eye[2] > 0) { statSmall++; out = true; }
+				// LOD: big things whole up to LOD_DIST (flag 32), their lighter copy beyond it (flag 64)
+				else if ((b->flags & 32) && d > LOD_DIST) out = true;
+				else if ((b->flags & 64) && d <= LOD_DIST) out = true;
+				if (!out && (b->flags & 64)) statLod++;
 				for (int p = 0; p < 4 && !out; p++)
 					if (pl[p][0] * x + pl[p][1] * y + pl[p][2] * z + pl[p][3] < -b->r) out = true;
 				if (out) { statCulled++; continue; }

@@ -37,6 +37,7 @@ Stan obiektu jest oddzielony od jego obecności w pamięci:
    FRMR), usunięcie (DELE), przeniesienie (MVRF), nowe obiekty. Test: postawić coś i coś usunąć
    w Seyda Neen, porównać na 3DS.
 6. Dopiero potem: Lua (zdarzenia), dialogi, walka turowa, AI z harmonogramem.
+   Szkic API skryptów, dialogów i questów: [SKRYPTY.md](SKRYPTY.md).
 
 ## Testy na konsoli po każdym kroku
 

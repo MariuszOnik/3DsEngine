@@ -845,7 +845,6 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 		statDraws++;
 		statTris += c->wni / 3;
 	}
-	C3D_TexBind(1, NULL);
 }
 
 // Walking: the circle pad relative to the camera, the figure turns to where it goes. The sea

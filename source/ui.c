@@ -162,10 +162,11 @@ void uiDraw(const UiState* s)
 		}
 		img(piece(s->item[i].icon), x + 3, y + 3, 32, 32);
 	}
-	// what was touched, the numbers
-	if (s->selected >= 0 && s->selected < s->nitems) {
+	// what was touched, the numbers (a note about the object in reach / a script's message first)
+	if (s->note[0]) text(s->note, 14, 158, 0.5f, GOLD, false);
+	else if (s->selected >= 0 && s->selected < s->nitems) {
 		char b[64];
-		snprintf(b, sizeof b, "%s%s", s->item[s->selected].label, s->item[s->selected].on ? "  (zaĹ‚oĹĽone)" : "");
+		snprintf(b, sizeof b, "%s%s", s->item[s->selected].label, s->item[s->selected].on ? "  (założone)" : "");
 		text(b, 14, 158, 0.5f, PALE, false);
 	}
 	text(s->status, 14, 176, 0.42f, DIM, false);

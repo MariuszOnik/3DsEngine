@@ -13,6 +13,7 @@ typedef struct {
 	bool combat, myTurn;            // the fight's window instead of the inventory
 	int hpP, maxP, hpE, maxE;
 	char enemy[48], msg[64];
+	char note[96];                  // what A does to the object in reach / a script's message (over the item line)
 } UiState;
 
 enum { UI_NONE = -1, UI_CAMERA = 1000, UI_TORCH, UI_NPC_ADD, UI_NPC_CLEAR, UI_PREV, UI_NEXT, UI_ATK = 2000, UI_FLEE = 2003, UI_ITEM = 0 };

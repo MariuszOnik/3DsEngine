@@ -1,0 +1,59 @@
+; Dynamic objects (items, doors, containers: source/objects.c). As world.v.pica, but the vertices are in the
+; model's own space (int16 x the model's quantisation), placed by a matrix per object.
+; Vertex: v0 = position (int16 x, y, z, w unused), v1 = texcoord (int16, * 1/1024), v2 = colour (u8 rgba, light baked).
+
+.fvec mvp[4]        ; projection x view (rotation only, the eye is at 0)
+.fvec model[3]      ; rows: turn x scale x quantisation | position - eye
+.fvec fogRow        ; fog factor = dp4(fogRow, position): 1 near, 0 at the fog's end
+.fvec torch         ; xyz = the torch's flame - eye, w = 1 / its reach squared (0: no torch)
+.fvec torchCol
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0009765625)
+.alias zero  consts.xxxx
+.alias one   consts.yyyy
+
+.out outpos position
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outclr color
+
+.alias inpos v0
+.alias intc  v1
+.alias inclr v2
+
+.proc main
+	mov r7.xyz, inpos.xyz
+	mov r7.w, one
+	dp4 r0.x, model[0], r7
+	dp4 r0.y, model[1], r7
+	dp4 r0.z, model[2], r7
+	mov r0.w, one
+
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	dp4 r1.x, fogRow, r0
+	max r1.x, zero, r1.x
+	min r1.x, one, r1.x
+
+	mul r2.xyz, consts.zzz, inclr.xyz
+
+	add r5.xyz, -torch.xyz, r0.xyz
+	dp3 r5.x, r5, r5
+	mul r5.x, torch.w, r5.x
+	add r5.x, one, -r5.x
+	max r5.x, zero, r5.x
+	mul r5.x, r5.x, r5.x
+	mul r6.xyz, torchCol.xyz, r5.xxx
+	add r2.xyz, r2.xyz, r6.xyz
+	min r2.xyz, one, r2.xyz
+	mov r2.w, r1.x
+	mov outclr, r2
+
+	mul r3, consts.wwww, intc
+	mov outtc0, r3
+	mov outtc1, zero
+	end
+.end

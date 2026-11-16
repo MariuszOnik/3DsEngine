@@ -14,7 +14,31 @@ bo skrypty i dialogi odwołują się do obiektów po trwałym ID i zmieniają st
 Zasada: silnik daje **czasowniki**, dane i skrypty decydują, **kiedy i komu** ich użyć. Całą grę
 da się zbudować bez kompilowania silnika.
 
-## Skrypty: Lua oparte na zdarzeniach
+## Stan na 2026-11-16: MiniSharp2 zamiast Lua (działa)
+
+Zamiast Lua wybraliśmy własny język użytkownika, MiniSharp2 (`E:\MiniSharp2`, podobny do C#). Jego `lang/`
+i niezależna od platformy część `lib/` są budowane prosto z tamtego repo (`MS2` w Makefile).
+Kod: `source/script.c`, skrypty: `scripts/*.cs` (build.ps1 kopiuje je do romfs).
+
+- **Skrypt = klasa pochodna `ObjectScript`.** Sama mówi, do czego należy (`Dla()`: `"barrel_*, crate_*"`,
+  dokładne id albo `#drzwi` / `#przedmiot` / `#pojemnik`). Silnik znajduje takie klasy przez refleksję
+  MiniSharp2, więc nie ma `Main` ani listy skryptów.
+- **Każdy obiekt ma własną kopię skryptu**, tworzoną przy pierwszym zdarzeniu. Pola klasy to stan tych
+  konkretnych drzwi (jak zmienne lokalne w Morrowindzie). `Obj` = numer obiektu.
+- **Tylko zdarzenia**: `OnActivate` (`false` = silnik nie wykona domyślnej akcji), `OnTake`, `OnOpen`, `OnClose`.
+  Co klatkę nic się nie dzieje, chyba że jakaś klasa ma `static void Update()`.
+- `Game.*`: `Message`, `Log`, `Name`, `Id`, `Type`, `Find`, `FindNext`, `IsOpen/SetOpen`, `IsTaken/SetTaken`,
+  `IsLocked/SetLocked`, `Bag`, `Time`, `Distance`; stałe `Game.Item/Door/Container`.
+- **Bez budowania**: gra czyta najpierw `sdmc:/3ds/mwcell3d/scripts/*.cs` (wrzucone przez FTP), dopiero potem
+  romfs. **L+X** w grze kompiluje skrypty od nowa (ok. 3 ms). Pola skryptów się zerują, stan świata zostaje.
+- Błędy kompilacji i wykonania pokazują `plik.cs:linia` na dolnym ekranie i w play.log. Pętla dłuższa niż
+  100 ms jest przerywana.
+- Do zrobienia w MiniSharp2: atrybuty w refleksji (`[Dla("barrel_*")]` zamiast metody `Dla()`).
+  Docelowo nazwa skryptu przyjdzie z pola „Script” obiektu w OpenMW-CS (rekord SCRI), przez bakera.
+
+Poniżej pierwotny szkic (Lua). Zdarzenia i czasowniki zostają te same, zmienił się język.
+
+## Skrypty: Lua oparte na zdarzeniach (szkic pierwotny)
 
 Na Old 3DS (268 MHz) nie ma skryptów wykonywanych co klatkę jak w MWScript. Skrypt śpi, a budzi go
 zdarzenie albo timer.

@@ -60,4 +60,32 @@ Zrobione i sprawdzone na Old 3DS:
 Do sprawdzenia na konsoli: kolory dolnego okna (w emulatorze paski HP wychodzą jasnołososiowe),
 odczucia z walki, most po wygładzeniu podłóg.
 
-Następny krok: punkt 1 planu: obiekty z FRMR.
+## Punkt 1 (obiekty z FRMR) + pierwsze skrypty: zrobione 2026-11-16, sprawdzone w Azaharze
+
+- `tools/mwbake.py` → `romfs/objects.bin` (MWO1): 444 obiekty w 88 komórkach (36 przedmiotów, 199 drzwi,
+  209 pojemników), 64 wspólne modele, 318 KB. Rośliny do zbierania (CONT z flagą organic) zostają
+  w scalonej statyce. Drzwi i pojemniki dalej blokują w siatce kolizji, przedmioty nie.
+- Uwaga: na zewnątrz prawie nie ma luźnych przedmiotów (Seyda Neen: 0). Leżą we wnętrzach.
+  Najbliższe: -2,-8 (sztylet Firebite, złoto) i -2,-10 (topór, złoto, kubek).
+- Silnik: `source/objects.c` (stan zawsze w RAM, flagi TAKEN/OPEN/LOCKED/CHANGED), `obj.v.pica`
+  (macierz na obiekt), A przy obiekcie = weź / otwórz / przeszukaj (podpowiedź na dolnym ekranie).
+- Drzwi: 196 ze 199 na zewnątrz to drzwi ładujące (DODT/DNAM w FRMR: prowadzą do wnętrz). Nie obracają
+  się; A pokazuje „Drzwi do: <wnętrze> (wnętrz jeszcze nie ma)”. Na zawiasach chodzą tylko drzwi bez celu.
+  objects.bin = MWO2 (rekord 44 B z celem drzwi).
+- Skrypty MiniSharp2: docs/SKRYPTY.md. Test „views 18” (bench.txt): drzwi (pukanie, potem cel),
+  beczka (licznik skryptu).
+- Do sprawdzenia na konsoli: koszt rysowania obiektów (`obj draws` w play.log), czy podpowiedź „A: ...”
+  łapie właściwy obiekt.
+
+## Kolejne kroki (2026-11-16)
+
+1. **Kursor w świecie** (pomysł użytkownika). Old 3DS nie ma C-sticka, a dotyk działa tylko na dolnym ekranie.
+   Propozycja: tryb celowania (przycisk na dolnym ekranie albo L+R), kursor na ziemi na górnym ekranie
+   sterowany circle padem (promień z kamery na siatkę wysokości terenu), przyciąganie do obiektu lub NPC
+   pod kursorem. A = potwierdź: idź tutaj / użyj / atakuj ten cel. Linia trasy i **koszt w punktach
+   akcji za metr** (walka turowa i eksploracja). Zaznaczanie celu ataku zastępuje dzisiejsze „najbliższy NPC”.
+   Alternatywa / dodatek: dotyk na mapce z góry na dolnym ekranie.
+2. Punkt 3 planu: zapis różnic (flagi CHANGED + pola skryptów).
+3. Edytor w grze (pomysł z rozmowy): dolny ekran = edytor MiniSharp2 (app/editor.c), L+X przeładowuje;
+   stawianie obiektów kursorem (z puli wypieczonych modeli), zapis jako dodatek na karcie SD.
+4. Wnętrza (drzwi ładujące już znają cel).

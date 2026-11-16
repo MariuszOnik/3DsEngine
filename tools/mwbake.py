@@ -95,6 +95,12 @@ class VFS:
 
 MODEL_TYPES = {b"STAT", b"ACTI", b"DOOR", b"CONT", b"LIGH", b"MISC", b"WEAP", b"ARMO", b"CLOT",
                b"BOOK", b"ALCH", b"APPA", b"LOCK", b"PROB", b"REPA", b"INGR"}
+# Dynamic objects (docs/PLAN.md step 1): not merged into the cell's statics but written to objects.bin with their
+# FRMR id, so the game can take, open and move them. Type numbers as in objects.bin (1 item, 2 door, 3 container).
+ITEM_TYPES = {b"MISC", b"WEAP", b"ARMO", b"CLOT", b"BOOK", b"ALCH", b"APPA", b"LOCK", b"PROB", b"REPA", b"INGR"}
+OT_ITEM, OT_DOOR, OT_CONT = 1, 2, 3
+def obj_type(tag):
+    return OT_ITEM if tag in ITEM_TYPES else OT_DOOR if tag == b"DOOR" else OT_CONT if tag == b"CONT" else 0
 
 
 def cstr(b):
@@ -117,6 +123,9 @@ class ESM:
         self.cells = {}    # (gx, gy) -> list of refs (id, pos[3], rot[3], scale)
         self.lands = {}    # (gx, gy) -> dict
         self.ltex = {}     # index -> texture name
+        self.kind = {}     # id (lower) -> record tag (b"MISC", b"DOOR"...) of the things with a model
+        self.names = {}    # id (lower) -> the name shown in the game (FNAM)
+        self.organic = set()   # containers that are plants to pick (flora_, kollop_, trama roots): stay static for now
 
     def load(self, path):
         with open(path, "rb") as f:
@@ -128,11 +137,19 @@ class ESM:
             body = data[p + 16:p + 16 + size]
             p += 16 + size
             if tag in MODEL_TYPES:
-                ident = model = None
+                ident = model = fname = None
+                organic = False
                 for n, d in subrecords(body):
                     if n == b"NAME": ident = cstr(d).lower()
                     elif n == b"MODL": model = cstr(d)
+                    elif n == b"FLAG" and tag == b"CONT" and len(d) >= 4 and struct.unpack("<I", d[:4])[0] & 1:
+                        organic = True
+                    elif n == b"FNAM": fname = d.split(b"\0")[0].decode("cp1250", "replace")
                 if ident:
+                    self.kind[ident] = tag
+                    if organic: self.organic.add(ident)
+                    else: self.organic.discard(ident)
+                    if fname: self.names[ident] = fname
                     if model: self.models[ident] = model
                     else: self.models.pop(ident, None)
             elif tag == b"CELL":
@@ -157,13 +174,15 @@ class ESM:
                     return  # interior
                 grid = (gx, gy)
             elif n == b"FRMR":
-                cur = {"id": None, "scale": 1.0, "pos": None, "del": False}
+                cur = {"id": None, "scale": 1.0, "pos": None, "del": False, "frmr": struct.unpack("<I", d[:4])[0]}
                 refs.append(cur)
             elif cur is not None:
                 if n == b"NAME": cur["id"] = cstr(d).lower()
                 elif n == b"XSCL": cur["scale"] = struct.unpack("<f", d[:4])[0]
                 elif n == b"DELE": cur["del"] = True
                 elif n == b"DATA" and len(d) >= 24: cur["pos"] = struct.unpack("<6f", d[:24])
+                elif n == b"DODT": cur.setdefault("dest", "")     # a load door: it takes you somewhere
+                elif n == b"DNAM": cur["dest"] = cstr(d)          # ... into this interior (no DNAM: outside)
         if grid is None:
             return
         lst = self.cells.setdefault(grid, [])
@@ -817,7 +836,7 @@ def terrain_texture(esm, tex, gx, gy, size):
     return data, levels, FMT_RGB565
 
 
-def bake_cell(esm, models, tex, gx, gy, stats):
+def bake_cell(esm, models, tex, gx, gy, stats, dyn=None):
     ox, oy = gx * CELL + HALF, gy * CELL + HALF
     batches = []    # list of Batch
     land = esm.lands.get((gx, gy))
@@ -872,6 +891,15 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         R = rot_matrix(rx, ry, rz) * ref["scale"]
         Rn = rot_matrix(rx, ry, rz)
         lx, ly = px - ox, py - oy
+        otype = obj_type(esm.kind.get(ref["id"]))
+        if otype == OT_CONT and ref["id"] in esm.organic:
+            otype = 0
+        if otype and dyn is not None:
+            # a dynamic object: its own record (objects.bin), not merged; doors and containers still block the way
+            dyn.append((ref, otype, gx, gy))
+            if otype != OT_ITEM:
+                solids.append(np.concatenate([(sh["v"] @ R.T + np.array([lx, ly, pz]))[sh["tri"]] for sh in shapes]))
+            continue
         sub = (0 if lx < 0 else 1) + (0 if ly < 0 else 2)
         # size class (docs/POMYSLY.md, step 1): small things (grass, kelp, shells: radius < 180) get their own
         # batches, drawn only near; things wholly under the water too (seen from the land only close by)
@@ -1108,6 +1136,88 @@ def write_cell(path, gx, gy, batches, terrain_tex, tsize, coll=None):
         f.seek(0); f.write(hdr.pack(b"MWC3", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, 0, flofs, nflo, occofs))
 
 
+def write_objects(path, esm, models, tex, dyn):
+    """objects.bin (docs/PLAN.md step 1): the dynamic objects of the baked cells, each with its persistent id
+    (plugin, FRMR), and their models once each (shared by every copy).
+
+      header  "MWO1", u32 nbase, nmodel, npart, nobj, baseofs, modelofs, partofs, objofs, strofs, strbytes
+      base    nbase x (u32 id string ofs, u32 name string ofs, u16 type (1 item, 2 door, 3 container), u16 model)
+      model   nmodel x (u16 first part, u16 parts, f32 quant (position = int16 x quant), f32 radius)
+      part    npart x (u16 texture, u8 flags (1 alpha, 2 two-sided), u8 0, u32 vofs, u32 vcount, u32 iofs, u32 icount)
+      object  nobj x (u32 frmr, u16 plugin, u16 base, s16 gx, s16 gy, f32 pos[3], f32 rot[3], f32 scale,
+              u32 destination string ofs: a load door's interior ("" = outside), 0xFFFFFFFF not a load door)  44 bytes
+      strings UTF-8, NUL-terminated
+      data    vertices (the cells' 16-byte format, model space, light baked as the model stands) and indices
+    The light is baked for the model unturned (good enough for the things lying round; a turned door is lit as if not)."""
+    bases, base_ix, mdl_ix = [], {}, {}
+    for ref, otype, gx, gy in dyn:
+        if ref["id"] not in base_ix:
+            mp = esm.models[ref["id"]].lower()
+            if mp not in mdl_ix: mdl_ix[mp] = len(mdl_ix)
+            base_ix[ref["id"]] = len(bases)
+            bases.append((ref["id"], esm.names.get(ref["id"], ref["id"]), otype, mdl_ix[mp]))
+    strs = bytearray(); sofs = {}
+    def S(t):
+        if t not in sofs:
+            sofs[t] = len(strs); strs.extend(t.encode("utf-8") + b"\0")
+        return sofs[t]
+    base_rec = b"".join(struct.pack("<IIHH", S(i), S(n), t, m) for i, n, t, m in bases)
+    blob = bytearray(); model_rec = []; part_rec = []
+    def put(b):
+        while len(blob) % 16: blob.append(0)
+        o = len(blob); blob.extend(b); return o
+    for mp, mi in sorted(mdl_ix.items(), key=lambda kv: kv[1]):
+        shapes = models.get(mp) or []
+        allv = np.concatenate([s["v"] for s in shapes]) if shapes else np.zeros((1, 3))
+        ext = float(np.abs(allv).max()) if len(allv) else 1.0
+        q = max(ext / 32000.0, 1.0 / 64.0)
+        rad = float(np.linalg.norm(allv, axis=1).max()) if len(allv) else 1.0
+        first = len(part_rec)
+        for s in shapes:
+            rgb = light(s["n"], s["base"], s["emi"])
+            col = np.clip(np.concatenate([rgb * 255, s["a"][:, None] * 255], axis=1), 0, 255).astype(np.uint8)
+            vtx = np.zeros(len(s["v"]), dtype=[("p", "<i2", 4), ("t", "<i2", 2), ("c", "u1", 4)])
+            vtx["p"][:, :3] = np.clip(np.round(s["v"] / q), -32767, 32767)
+            vtx["t"] = np.clip(np.round(s["uv"] * UV_SCALE), -32767, 32767)
+            vtx["c"] = col
+            tri = s["tri"].astype("<u2")
+            vo = put(vtx.tobytes()); io_ = put(tri.tobytes())
+            flags = (1 if s["alpha"] else 0) | (2 if s["double"] else 0)
+            part_rec.append(struct.pack("<HBBIIII", tex.get(s["tex"], s["alpha"]), flags, 0, vo, len(s["v"]), io_, tri.size))
+        model_rec.append(struct.pack("<HHff", first, len(part_rec) - first, q, rad))
+    obj_rec = []
+    for ref, otype, gx, gy in dyn:
+        px, py, pz, rx, ry, rz = ref["pos"]
+        dest = S(ref["dest"]) if "dest" in ref else 0xFFFFFFFF
+        obj_rec.append(struct.pack("<IHHhh7fI", ref["frmr"], 0, base_ix[ref["id"]], gx, gy, px, py, pz, rx, ry, rz, ref["scale"], dest))
+    hdr = struct.Struct("<4s10I")
+    o = hdr.size
+    def nxt(n):
+        nonlocal o
+        start = o; o += n; return start
+    baseofs = nxt(len(base_rec)); modelofs = nxt(12 * len(model_rec)); partofs = nxt(20 * len(part_rec))
+    objofs = nxt(44 * len(obj_rec)); strofs = nxt(len(strs))
+    o = (o + 15) & ~15
+    dataofs = o
+    # the parts' offsets are relative to the data block: made absolute here
+    fixed = []
+    for pr in part_rec:
+        t, fl, z, vo, vc, io_, ic = struct.unpack("<HBBIIII", pr)
+        fixed.append(struct.pack("<HBBIIII", t, fl, z, vo + dataofs, vc, io_ + dataofs, ic))
+    with open(path, "wb") as f:
+        f.write(hdr.pack(b"MWO2", len(bases), len(model_rec), len(part_rec), len(obj_rec),
+                         baseofs, modelofs, partofs, objofs, strofs, len(strs)))
+        f.write(base_rec); f.write(b"".join(model_rec)); f.write(b"".join(fixed)); f.write(b"".join(obj_rec)); f.write(strs)
+        f.write(b"\0" * (dataofs - f.tell()))
+        f.write(blob)
+    kinds = {}
+    for _, t, _, _ in dyn: kinds[t] = kinds.get(t, 0) + 1
+    print("load doors: %d of %d" % (sum(1 for r, t, _, _ in dyn if t == OT_DOOR and "dest" in r), kinds.get(OT_DOOR, 0)))
+    print("objects.bin: %d objects (items %d, doors %d, containers %d), %d kinds, %d models, %d parts, %.0f KB" % (
+        len(obj_rec), kinds.get(OT_ITEM, 0), kinds.get(OT_DOOR, 0), kinds.get(OT_CONT, 0), len(bases), len(model_rec),
+        len(part_rec), os.path.getsize(path) / 1024))
+
+
 def main():
     ap = argparse.ArgumentParser()
     here = os.path.dirname(os.path.abspath(__file__))
@@ -1125,6 +1235,7 @@ def main():
     ap.add_argument("--contrast", type=float, default=1.0, help="texture contrast boost (1 = none)")
     ap.add_argument("--terrain-tex", type=int, default=1024, help="composite terrain texture per cell")
     ap.add_argument("--no-char", action="store_true", help="no romfs/char.bin")
+    ap.add_argument("--no-objects", action="store_true", help="items, doors, containers merged into the statics (no objects.bin)")
     ap.add_argument("--no-lod", action="store_true", help="no LOD copies (docs/POMYSLY.md)")
     ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
     ap.add_argument("--out", default=os.path.join(here, "..", "romfs"))
@@ -1155,12 +1266,13 @@ def main():
     else:
         x0, y0, x1, y1 = a.rect
     sizes = {}
+    dyn = [] if not a.no_objects else None
     for gy in range(y0, y1 + 1):
         for gx in range(x0, x1 + 1):
             if (gx, gy) not in esm.lands and (gx, gy) not in esm.cells:
                 continue
             before = dict(stats)
-            batches, ttex, coll = bake_cell(esm, models, tex, gx, gy, stats)
+            batches, ttex, coll = bake_cell(esm, models, tex, gx, gy, stats, dyn)
             p = os.path.join(a.out, "cells", "%d_%d.bin" % (gx, gy))
             write_cell(p, gx, gy, batches, ttex, a.terrain_tex, coll)
             sz = os.path.getsize(p); total_bytes += sz; sizes[(gx, gy)] = sz
@@ -1181,6 +1293,11 @@ def main():
     except Exception as ex:   # (miniaudio missing: no sound)
         print("sounds not baked: %s" % ex)
     print("collision: %d floor triangles, %d blocked squares" % (stats.get("floors", 0), stats.get("blocked", 0)))
+    objp = os.path.join(a.out, "objects.bin")
+    if dyn is not None:
+        write_objects(objp, esm, models, tex, dyn)
+    elif os.path.exists(objp):
+        os.remove(objp)
     tex.write(os.path.join(a.out, "textures.bin"))
     # start: the centre cell, above the ground
     sx, sy = a.start

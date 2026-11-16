@@ -21,6 +21,10 @@ if (-not $nobake) {
     python (Join-Path $here "tools\mwbake.py") @bakeArgs
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 }
+# the scripts (MiniSharp2, docs/SKRYPTY.md) live in scripts/ (romfs/ is game data, not in git)
+New-Item -ItemType Directory -Force (Join-Path $here "romfs\scripts") | Out-Null
+Remove-Item -ErrorAction SilentlyContinue (Join-Path $here "romfs\scripts\*.cs")
+Copy-Item (Join-Path $here "scripts\*.cs") (Join-Path $here "romfs\scripts")
 # make does not see changes inside romfs/: drop the .3dsx so it is always packed anew
 Remove-Item -ErrorAction SilentlyContinue (Join-Path $here "mwcell3d.3dsx"), (Join-Path $here "mwcell3d.smdh")
 $title = "MW cell $tag " + (Get-Date -Format "MM-dd HH:mm")

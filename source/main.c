@@ -29,8 +29,11 @@
 #include "world_shbin.h"
 #include "water_shbin.h"
 #include "skin_shbin.h"
+#include "obj_shbin.h"
 #include "audio.h"
 #include "ui.h"
+#include "objects.h"
+#include "script.h"
 
 #define CELL 8192.0f
 #define HALF 4096.0f
@@ -846,6 +849,158 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 	}
 }
 
+// ------------------------------------------------------------------ dynamic objects (objects.c)
+
+static bool uiOn, uiDirty = true;
+
+// Items, doors, containers: each copy drawn with its own matrix (obj.v.pica), only in loaded cells, not
+// taken. Small things (radius < 40) only up to 2500 units. The shader's state as drawWorld left it.
+static DVLB_s* oDvlb;
+static shaderProgram_s oProg;
+static int oMvp, oModel, oFog, oTorch, oTorchCol;
+static bool objsOk, scriptsOk;
+static C3D_BufInfo* objBufs;     // per model part
+static int objTarget = -1;       // the object in reach (A uses it), -1 none
+static int statObjDraws;
+static char noteText[96];        // a script's / the game's message on the bottom screen
+static float noteTime;
+
+void gameMessage(const char* text)
+{
+	snprintf(noteText, sizeof noteText, "%s", text);
+	noteTime = 4.0f;
+	uiDirty = true;
+	logw("    msg: %s\n", text);
+}
+void gameLogLine(const char* text) { logw("    %s\n", text); }
+void gameFeet(float out[3]) { out[0] = chr[0]; out[1] = chr[1]; out[2] = chr[2]; }
+
+static void objInitGpu(void)
+{
+	oDvlb = DVLB_ParseFile((u32*)obj_shbin, obj_shbin_size);
+	shaderProgramInit(&oProg);
+	shaderProgramSetVsh(&oProg, &oDvlb->DVLE[0]);
+	oMvp = shaderInstanceGetUniformLocation(oProg.vertexShader, "mvp");
+	oModel = shaderInstanceGetUniformLocation(oProg.vertexShader, "model");
+	oFog = shaderInstanceGetUniformLocation(oProg.vertexShader, "fogRow");
+	oTorch = shaderInstanceGetUniformLocation(oProg.vertexShader, "torch");
+	oTorchCol = shaderInstanceGetUniformLocation(oProg.vertexShader, "torchCol");
+	objBufs = calloc(objNParts ? objNParts : 1, sizeof(C3D_BufInfo));
+	for (int i = 0; i < objNParts; i++) {
+		BufInfo_Init(&objBufs[i]);
+		BufInfo_Add(&objBufs[i], objData + objParts[i].vofs, 16, 3, 0x210);
+	}
+}
+
+static void drawObjects(const C3D_Mtx* mvp, const float fwd[3])
+{
+	statObjDraws = 0;
+	if (!objsOk || !nobj) return;
+	C3D_BindProgram(&oProg);
+	C3D_SetAttrInfo(&attr);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, oMvp, mvp);
+	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, oFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
+	if (torchOn && !swimming && rtsMode) {
+		float r = 520.0f * (0.94f + 0.06f * torchFlicker), f = torchFlicker;
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oTorch, torchPos[0] - eye[0], torchPos[1] - eye[1], torchPos[2] - eye[2], 1.0f / (r * r));
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oTorchCol, 0.75f * f, 0.48f * f, 0.22f * f, 0);
+	} else {
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oTorch, 0, 0, 0, 0);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oTorchCol, 0, 0, 0, 0);
+	}
+	float pl[4][4];
+	for (int i = 0; i < 4; i++) {
+		int row = i >> 1;
+		float sgn = (i & 1) ? -1.0f : 1.0f;
+		pl[i][0] = mvp->r[3].x + sgn * mvp->r[row].x;
+		pl[i][1] = mvp->r[3].y + sgn * mvp->r[row].y;
+		pl[i][2] = mvp->r[3].z + sgn * mvp->r[row].z;
+		pl[i][3] = mvp->r[3].w + sgn * mvp->r[row].w;
+		float l = sqrtf(pl[i][0] * pl[i][0] + pl[i][1] * pl[i][1] + pl[i][2] * pl[i][2]);
+		for (int j = 0; j < 4; j++) pl[i][j] /= l;
+	}
+	setupTexEnv(255, false);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+	int lastTex = -2, lastCull = -1, lastAlpha = -1;
+	for (int i = 0; i < nobj; i++) {
+		WObj* o = &objs[i];
+		if (o->flags & OF_TAKEN) continue;
+		const ObjModel* m = objModel(i);
+		if (!m || !m->nparts) continue;
+		float x = o->pos[0] - eye[0], y = o->pos[1] - eye[1], z = o->pos[2] - eye[2];
+		float r = m->radius * o->scale;
+		float d = sqrtf(x * x + y * y + z * z) - r;
+		if (d > farDist || (r < 40.0f && d > 2500.0f)) continue;
+		bool out = false;
+		for (int p = 0; p < 4 && !out; p++)
+			if (pl[p][0] * x + pl[p][1] * y + pl[p][2] * z + pl[p][3] < -r) out = true;
+		if (out || !findCell(o->gx, o->gy)) continue;
+		float M[12];
+		objMatrix(i, eye, M);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oModel, M[0], M[1], M[2], M[3]);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oModel + 1, M[4], M[5], M[6], M[7]);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, oModel + 2, M[8], M[9], M[10], M[11]);
+		for (int k2 = 0; k2 < m->nparts; k2++) {
+			int pi = m->first + k2;
+			if (pi >= objNParts) break;
+			const ObjPart* p = &objParts[pi];
+			int t = p->tex < ntex ? p->tex : 0;
+			if (t != lastTex) { C3D_TexBind(0, &texs[t]); lastTex = t; }
+			int alpha = p->flags & 1;
+			if (alpha != lastAlpha) { C3D_AlphaTest(alpha, GPU_GREATER, 127); lastAlpha = alpha; }
+			int cull = (p->flags & 2) ? 0 : 1;
+			if (cull != lastCull) { C3D_CullFace(cull ? GPU_CULL_BACK_CCW : GPU_CULL_NONE); lastCull = cull; }
+			C3D_SetBufInfo(&objBufs[pi]);
+			C3D_DrawElements(GPU_TRIANGLES, p->icount, C3D_UNSIGNED_SHORT, objData + p->iofs);
+			statObjDraws++;
+			statTris += p->icount / 3;
+		}
+	}
+	C3D_AlphaTest(false, GPU_ALWAYS, 0);
+	C3D_CullFace(GPU_CULL_BACK_CCW);
+}
+
+// A on the object in reach: the scripts first (OnActivate may stop it), then what the object does by
+// itself (an item is taken, a door / container opens or closes), then the scripts again (OnTake / OnOpen...).
+static void objActivate(int i)
+{
+	if (i < 0 || i >= nobj) return;
+	int type = objType(i);
+	if (!scriptActivate(i)) { uiDirty = true; return; }
+	WObj* o = &objs[i];
+	if (type == OT_ITEM) {
+		o->flags |= OF_TAKEN | OF_CHANGED;
+		audioPlay(SND_CLICK, 0.7f, 0);
+		char b[96];
+		snprintf(b, sizeof b, "Zabrano: %s", objName(i));
+		gameMessage(b);
+		scriptAfter(i, SE_TAKE);
+	} else if (type == OT_DOOR && objDest(i)) {
+		// a load door: it leads into an interior (there are none yet), it does not swing
+		char b[96];
+		snprintf(b, sizeof b, "Drzwi do: %s (wnętrz jeszcze nie ma)", objDest(i)[0] ? objDest(i) : "na zewnątrz");
+		gameMessage(b);
+		audioPlay(SND_CLICK, 0.5f, 0);
+	} else if (o->flags & OF_LOCKED) {
+		char b[96];
+		snprintf(b, sizeof b, "%s: zamknięte na klucz", objName(i));
+		gameMessage(b);
+	} else {
+		bool open = !(o->flags & OF_OPEN);
+		o->flags = (open ? o->flags | OF_OPEN : o->flags & ~OF_OPEN) | OF_CHANGED;
+		audioPlay(SND_CLICK, 0.6f, 0);
+		if (type == OT_CONT) {
+			char b[96];
+			snprintf(b, sizeof b, "%s: %s", objName(i), open ? "otwarte (pusto)" : "zamknięte");
+			gameMessage(b);
+		}
+		scriptAfter(i, open ? SE_OPEN : SE_CLOSE);
+	}
+	logw("    use #%d %s (%s, frmr %lu, cell %d,%d) -> flags %x\n", i, objId(i), objName(i), objs[i].frmr, objs[i].gx, objs[i].gy, objs[i].flags);
+}
+
 // ------------------------------------------------------------------ character (a stand-in)
 
 // A figure of boxes until the skinned characters come (skeleton + swappable parts): legs and
@@ -1574,7 +1729,6 @@ static bool fightUpdate(float dt)   // true: the window must be drawn again
 // The entries: the outfits, the helmet, bare hands, the weapons, the torch.
 static bool invOpen, invDirty;
 static bool useConsole;      // the benchmark's text console instead of the window
-static bool uiOn, uiDirty = true;
 static UiState uiState;
 static int uiSel = -1;
 
@@ -1609,6 +1763,15 @@ static void uiFill(void)
 	u->camName = rtsMode ? CAM_NAMES[camMode] : "wolna";
 	u->torch = torchOn;
 	u->combat = fight.on;
+	// what A does to the object in reach, or the last message (a script's, "taken: ...")
+	if (noteText[0]) snprintf(u->note, sizeof u->note, "%s", noteText);
+	else if (objTarget >= 0) {
+		int ty = objType(objTarget);
+		const char* verb = ty == OT_ITEM ? "Weź" : ty == OT_DOOR && objDest(objTarget) ? "Wejdź"
+		                 : ty == OT_DOOR ? ((objs[objTarget].flags & OF_OPEN) ? "Zamknij" : "Otwórz")
+		                 : ((objs[objTarget].flags & OF_OPEN) ? "Zamknij" : "Przeszukaj");
+		snprintf(u->note, sizeof u->note, "A: %s - %s", verb, objName(objTarget));
+	} else u->note[0] = 0;
 	if (fight.on) {
 		const Actor* e = &actors[fight.enemy];
 		u->hpP = PL->hp; u->maxP = PL->maxHp; u->hpE = e->hp; u->maxE = e->maxHp;
@@ -2478,7 +2641,7 @@ static void benchStartWalk(int stage)
 // screenshot (view_<n>.bmp) for looking at on the PC. Each step: where to put the character (x == 0:
 // where it is), the camera, the torch, the camera's turn, the circle pad (forward), run, dive, seconds.
 typedef struct { const char* name; float x, y, z; int cam; bool torch; float yaw, pad; bool run, dive; float secs, dist; int act; } View;
-enum { V_NONE, V_NPC10, V_NPC20, V_ATTACK, V_JUMP, V_NPC_CLEAR, V_FIGHT, V_FIGHT2 };
+enum { V_NONE, V_NPC10, V_NPC20, V_ATTACK, V_JUMP, V_NPC_CLEAR, V_FIGHT, V_FIGHT2, V_USE1, V_USE2 };
 static const View VIEWS[] = {
 	{ "start rts",       1, 0, 0, CAM_RTS, false, -1, 0, false, false, 2.0f },
 	{ "start tpp",       0, 0, 0, CAM_TPP, false, -1, 0, false, false, 1.5f },
@@ -2498,12 +2661,17 @@ static const View VIEWS[] = {
 	{ "jump",            0, 0, 0, CAM_TPP, true, -1, 0, false, false, 0.22f, 0, V_JUMP },
 	{ "fight: chop",     0, 0, 0, CAM_TPP, false, -1, 0, false, false, 1.0f, 260, V_FIGHT },
 	{ "fight: its turn", 0, 0, 0, CAM_TPP, false, -1, 0, false, false, 2.6f, 0, V_FIGHT2 },
+	// the objects (objects.bin) and their scripts: a door near the start used once (the script: knocking),
+	// then twice (open, swinging); a barrel searched (the script counts)
+	{ "door: knock",     -10468, -70688, 400, CAM_RTS, false, 2.83f, 0, false, false, 1.0f, 0, V_USE1 },
+	{ "door: open",      0, 0, 0, CAM_RTS, false, 2.83f, 0, false, false, 2.0f, 0, V_USE1 },
+	{ "barrel: search",  -10781, -71763, 300, CAM_RTS, false, 1.57f, 0, false, false, 1.0f, 0, V_USE2 },
 };
 #define NVIEWS (int)(sizeof VIEWS / sizeof VIEWS[0])
 static int vStep;
 static float vT;
 static bool vWait, vJump, vFight;
-static int vSpawn;
+static int vSpawn, vUse;
 
 static void viewsBegin(int k)
 {
@@ -2515,11 +2683,13 @@ static void viewsBegin(int k)
 	camPitch = camMode == CAM_TPP ? -0.22f : 0;
 	torchOn = v->torch;
 	if (v->dist > 0) tppDist = v->dist;
+	if (v->act == V_USE1 || v->act == V_USE2) { rtsDist = 900.0f; rtsPitch = -1.25f; }   // (the objects' views: from high up, over the roofs)
 	if (v->act == V_NPC10) { clearNpcs(); vSpawn = 10; }
 	if (v->act == V_NPC20) vSpawn = 20;
 	if (v->act == V_ATTACK && chOk) { PL->weapon = 0; PL->dirty = true; PL->act = A_CHOP1H; }
 	if (v->act == V_JUMP && chOk) { PL->weapon = -1; PL->dirty = true; vJump = true; }
 	if (v->act == V_FIGHT && chOk) { PL->weapon = 0; PL->dirty = true; clearNpcs(); vFight = true; }
+	vUse = v->act == V_USE1 ? 1 : v->act == V_USE2 ? 2 : 0;
 	if (v->yaw >= 0) rtsYaw = v->yaw; else rtsYaw = startYaw;
 	setCamLimits();
 }
@@ -2551,6 +2721,19 @@ static void benchCamera(float dt, float fwd[3])
 			if (vFight && !fight.on) fightStart();   // (once the player stands: the enemy at its height)
 			if (vFight && fight.on && vT > 0.3f) { fightAttack(2); vFight = false; }
 			vT += dt;
+			if (vUse && vT > 0.3f + (v->act == V_USE2 && vUse == 1 ? 0.3f : 0)) {   // A on the nearest object
+				{   // facing the nearest object (the camera looks from the side)
+					float bd = 1e9f;
+					for (int q = 0; q < nobj; q++) {
+						float dx = objs[q].pos[0] - chr[0], dy = objs[q].pos[1] - chr[1];
+						if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; chrYaw = atan2f(dx, dy); }
+					}
+				}
+				int o = objNearest(chr, chrYaw, 250.0f);
+				logw("    view use: #%d %s\n", o, o >= 0 ? objId(o) : "-");
+				objActivate(o);
+				vUse--;
+			}
 			chrUpdate(dt, 0, v->pad, v->run, v->dive, vJump);
 			vJump = false;
 		}
@@ -2661,9 +2844,9 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 		saveShotOf(GFX_BOTTOM, p);
 		float g = 0;
 		groundAt(chr[0], chr[1], &g);
-		logw("  view %d %-16s: anim %s speed %.0f, chr %.0f %.0f %.0f ground %.0f floor %.0f%s%s%s | npcs %d pose %.2f draw %.2f | eye z %.0f | fps-ish frame %.1f ms gpu %.2f cpu %.2f far %.0f\n",
+		logw("  view %d %-16s: anim %s speed %.0f, chr %.0f %.0f %.0f ground %.0f floor %.0f%s%s%s | npcs %d pose %.2f draw %.2f | eye z %.0f | fps-ish frame %.1f ms gpu %.2f cpu %.2f far %.0f | obj draws %d\n",
 		     vStep, VIEWS[vStep].name, chOk && PL->cur >= 0 ? chAnim[PL->cur].name : "-", PL->speed, chr[0], chr[1], chr[2], g, floorAt(chr[0], chr[1], chr[2], 45.0f),
-		     swimming ? " swimming" : "", underwater ? " underwater" : "", torchOn ? " torch" : "", nNpc, chAnimMs, chDrawMs, eye[2], rawMs, gpuMs, cpuMs, farDist);
+		     swimming ? " swimming" : "", underwater ? " underwater" : "", torchOn ? " torch" : "", nNpc, chAnimMs, chDrawMs, eye[2], rawMs, gpuMs, cpuMs, farDist, statObjDraws);
 		logFlush();
 		if (vStep + 1 < NVIEWS) viewsBegin(vStep + 1);
 		else { bPhase = B_DONE; *quit = true; }
@@ -2853,6 +3036,8 @@ int main(void)
 		bool ok = loadCharacter();
 		printf("character: %s (%d meshes, %d outfits) %.0f ms\n", ok ? "ok" : "none", chNMesh, chNOutfit, msSince(c0));
 	}
+	objsOk = objLoad();
+	if (objsOk) objInitGpu();
 	printf("%d textures %lu KB in %.0f ms\n", ntex, texBytes / 1024, texMs);
 
 	// the loader thread: above the main thread on its core (it mostly waits on the SD)
@@ -2890,6 +3075,9 @@ int main(void)
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
 		     navail, nroute, loaderThread ? "" : ", NO LOADER THREAD");
 		logw("    sound: %s\n", sound ? "on" : "OFF (no sdmc:/3ds/dspfirm.cdc: run DSP1.3dsx once)");
+		logw("    objects: %s, %d (%d models, %d parts, %lu KB)\n", objsOk ? "ok" : "NONE", nobj, objNModels, objNParts, objBytes / 1024);
+		scriptsOk = scriptInit();
+		if (!scriptsOk) { logw("    scripts: %s\n", scriptError()); if (scriptError()[0]) gameMessage(scriptError()); }
 		logFlush();
 		if (bPhase != B_OFF) printf("\x1b[33mBENCHMARK running (a few min),\nthis screen stays still meanwhile\x1b[0m\n");
 	}
@@ -2987,7 +3175,15 @@ int main(void)
 			bool combo = (held & KEY_L) != 0;
 			if (combo && (down & KEY_A)) { spawnNpcs(5); invDirty = true; uiDirty = true; }
 			else if (combo && (down & KEY_Y)) { fightEnd(); clearNpcs(); invDirty = true; uiDirty = true; }
+			else if (combo && (down & KEY_X)) {   // L+X: the scripts again (from the SD card: edited, uploaded, no build)
+				scriptsOk = scriptInit();
+				char m[96];
+				if (scriptsOk) snprintf(m, sizeof m, "Skrypty wczytane od nowa (%s)", strncmp(scriptSource, "sdmc", 4) ? "romfs" : "karta SD");
+				else snprintf(m, sizeof m, "%s", scriptError());
+				gameMessage(m);
+			}
 			else if (invOpen && (down & KEY_A)) invApply(invSel);
+			else if (!invOpen && !fight.on && (down & KEY_A) && objTarget >= 0) objActivate(objTarget);
 			else if (!invOpen && !swimming && !fight.on && (down & KEY_A) && chOk && PL->act < 0) {
 				PL->act = PL->weapon >= 0 ? A_SLASH1H : A_SLASHHH;
 				audioPlay((rand() & 1) ? SND_SWING1 : SND_SWING2, 0.8f, 0);
@@ -3026,6 +3222,14 @@ int main(void)
 		if (invOpen && invDirty && !bench) invDraw();
 		if (rtsMode && !bench) soundUpdate();
 		if (fightUpdate(dt)) uiDirty = true;
+		if (objsOk) {   // doors swing; the object in reach (RTS / TPP / FPP: the character's)
+			objUpdate(dt);
+			int t = rtsMode && !bench && !fight.on ? objNearest(chr, chrYaw, 70.0f) : -1;
+			if (t != objTarget) { objTarget = t; uiDirty = true; }
+		}
+		scriptMs = 0; scriptCalls = 0;
+		if (scriptsOk && !bench) scriptFrame();
+		if (noteTime > 0 && (noteTime -= dt) <= 0) { noteText[0] = 0; uiDirty = true; }
 		if (fight.on && rtsMode) {   // the camera over the player's shoulder, at the enemy
 			float want = chrYaw + 0.5f, d = want - rtsYaw;
 			while (d > (float)M_PI) d -= 2 * (float)M_PI;
@@ -3110,6 +3314,7 @@ int main(void)
 			C3D_FrameDrawOn(rt);
 			int d0 = statDraws; u32 t0s = statTris;
 			drawWorld(&mvp, fwd);   // (resets the stats: the second eye's adds to the first's below)
+			drawObjects(&mvp, fwd);
 			if (rtsMode) drawActors(&mvp, fwd);
 			if (rtsMode && fxMode != FX_PLAIN && !swimming) drawShadow(&mvp, fwd);
 			if (fxMode == 0) drawCaustics(&mvp, fwd);
@@ -3146,11 +3351,11 @@ int main(void)
 			for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) { loaded++; ltris += cells[i].tris; lbytes += cells[i].size; }
 			++playTick;
 			if (!bench && playTick % 4 == 0) {
-				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d | char %s %d verts | npcs %d anim %.2f draw %.2f ms | cam %s%s%s\n",
+				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d | char %s %d verts | npcs %d anim %.2f draw %.2f ms | obj draws %d script %.2f ms | cam %s%s%s\n",
 				     rtsMode ? "rts" : "free", fxMode, osGet3DSliderState() * 100, fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
 				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL),
-				     chOk ? "pieces" : "-", PL->verts, nNpc, chAnimMs, chDrawMs,
+				     chOk ? "pieces" : "-", PL->verts, nNpc, chAnimMs, chDrawMs, statObjDraws, scriptMs,
 				     CAM_NAMES[camMode], torchOn ? " torch" : "", underwater ? " underwater" : swimming ? " swim" : "");
 				if (playTick % 60 == 0) logFlush();   // every 30 s
 			}

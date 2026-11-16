@@ -37,6 +37,11 @@ APP_DESCRIPTION	:=	Morrowind cell streaming test
 APP_AUTHOR	:=	Mariusz
 BUILD		:=	build
 SOURCES		:=	source
+# MiniSharp2 (the scripting language, docs/SKRYPTY.md): its language and the platform-free part of its library,
+# built straight from its repository (MS2=<path> to point elsewhere)
+MS2		?=	/e/MiniSharp2
+MS2DIRS		:=	$(MS2)/lang $(MS2)/lib
+MS2LIBC		:=	console.c textgrid.c math.c random.c strings.c convert.c
 DATA		:=	data
 INCLUDES	:=	include
 GRAPHICS	:=	gfx
@@ -79,13 +84,13 @@ ifneq ($(BUILD),$(notdir $(CURDIR)))
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 export TOPDIR	:=	$(CURDIR)
 
-export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) $(MS2DIRS) \
 			$(foreach dir,$(GRAPHICS),$(CURDIR)/$(dir)) \
 			$(foreach dir,$(DATA),$(CURDIR)/$(dir))
 
 export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 
-CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c))) 			$(notdir $(wildcard $(MS2)/lang/*.c)) $(MS2LIBC)
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 PICAFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.v.pica)))
@@ -132,7 +137,7 @@ export HFILES	:=	$(PICAFILES:.v.pica=_shbin.h) $(SHLISTFILES:.shlist=_shbin.h) \
 			$(addsuffix .h,$(subst .,_,$(BINFILES))) \
 			$(GFXFILES:.t3s=.h)
 
-export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) $(foreach dir,$(MS2DIRS),-I$(dir)) \
 			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
 			-I$(CURDIR)/$(BUILD)
 

@@ -116,3 +116,17 @@ Proponowana kolejność (po teście stream1):
 3. Daleki teren low-poly poza 3×3.
 4. Impostory drzew w średniej odległości (np. 3000–8000 jednostek), pełne 3D bliżej.
 5. Upraszczanie siatek drzew i skał.
+
+## 5. Kamera z góry pod kątem, sterowanie jak w RTS (pomysł Mańka, 2026-11-16)
+
+**Werdykt: bardzo dobry pomysł dla 3DS, prawdopodobnie największy pojedynczy zysk ze wszystkich.**
+
+- Kamera pochylona w dół nie widzi horyzontu: kadr na ziemi to prostokąt rzędu kilku tysięcy jednostek. Zasięg
+  rysowania spada z ~10 000 do ~3000–4000, więc trójkątów w kadrze jest kilka razy mniej (szacunek: 15–30 tys.,
+  GPU ~3–5 ms zamiast ~15 ms przy 0,13 ms / 1000).
+- Znikają całe pozycje planu: daleki teren, impostory, część LOD. Mgła przestaje być potrzebna jako zasłona.
+- W pamięci wystarczy 2×2 najbliższe komórki zamiast 3×3 plus pierścień: mniej pamięci, mniej wczytywania.
+- Zwolniony budżet idzie na to, czego naprawdę chcemy: wiele animowanych postaci ze zmienną zbroją.
+- Ekran dotykowy 3DS pasuje do RTS: dotknij, żeby iść, zaznacz postać, menu na dolnym ekranie.
+- Uwagi: wysokie obiekty zasłaniają postać (trzeba przezroczystości / zdejmowania dachów i koron przy postaci);
+  traci się widoki na horyzont; kąt i wysokość kamery najlepiej ograniczyć, bo od nich zależy budżet.

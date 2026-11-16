@@ -181,9 +181,11 @@ static u8* readFile(const char* path, u32* size)
 
 static bool texFrom(C3D_Tex* t, int w, int h, int fmt, const u8* src, u32 bytes, bool repeat)
 {
-	GPU_TEXCOLOR f = fmt ? GPU_RGBA4 : GPU_RGB565;
-	if (!C3D_TexInitMipmap(t, w, h, f)) return false;
-	u32 total = C3D_TexCalcTotalSize(w * h * 2, C3D_TexCalcMaxLevel(w, h));
+	// the baker's formats: 0 RGB565, 1 RGBA4, 2 ETC1 (4 bpp), 3 ETC1A4 (8 bpp)
+	static const GPU_TEXCOLOR formats[4] = { GPU_RGB565, GPU_RGBA4, GPU_ETC1, GPU_ETC1A4 };
+	if (fmt < 0 || fmt > 3) return false;
+	if (!C3D_TexInitMipmap(t, w, h, formats[fmt])) return false;
+	u32 total = C3D_TexCalcTotalSize(t->size, C3D_TexCalcMaxLevel(w, h));
 	memcpy(t->data, src, bytes < total ? bytes : total);
 	C3D_TexFlush(t);
 	C3D_TexSetFilter(t, GPU_LINEAR, GPU_LINEAR);
@@ -310,9 +312,9 @@ static float finishJob(void)
 		BufInfo_Add(&c->bufs[i], job.data + c->b[i].vofs, 16, 3, 0x210);
 		c->tris += c->b[i].icount / 3;
 	}
-	if (h->tsize) {
-		u32 bytes = C3D_TexCalcTotalSize(h->tsize * h->tsize * 2, C3D_TexCalcMaxLevel(h->tsize, h->tsize));
-		c->hasT = texFrom(&c->ttex, h->tsize, h->tsize, 0, job.data + h->ttofs, bytes, false);
+	if (h->tsize) {   // the side in the low 12 bits, the format in the top 4
+		int ts = h->tsize & 0xFFF, tf = h->tsize >> 12;
+		c->hasT = texFrom(&c->ttex, ts, ts, tf, job.data + h->ttofs, 0xFFFFFFFFu, false);
 	}
 	GSPGPU_FlushDataCache(job.data, job.size);
 	return msSince(t0);

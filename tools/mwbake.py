@@ -17,7 +17,8 @@ relative to the cell centre, one draw call per material per sub-chunk.
 Usage: python mwbake.py [--data "<Data Files>"] [--center -2 -9] [--radius 2] [--tex 128]
                         [--terrain-tex 256] [--out ../romfs]
 """
-import argparse, math, os, struct, sys, time, io
+import argparse, math, os, struct, sys, time, io, subprocess, tempfile
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from PIL import Image
 
@@ -543,6 +544,70 @@ def pow2_floor(n):
     return p
 
 
+# Texture formats in textures.bin / the cell's terrain texture (the runtime maps them to GPU_TEXCOLOR)
+FMT_RGB565, FMT_RGBA4, FMT_ETC1, FMT_ETC1A4 = 0, 1, 2, 3
+ETC = True   # --rgb turns it off: 16-bit textures as before
+TEX3DS = r"C:\devkitPro\tools\bin\tex3ds.exe"
+
+
+def bleed(img):
+    """Gives the fully transparent texels the colour of the visible ones nearby (8 rounds of averaging the
+    neighbours, wrapping like a repeating texture; the rest: the average colour). Otherwise they are black
+    and filtering and mipmaps blend black into the edges of leaves. They get alpha 1, not 0: tex3ds blackens
+    alpha-0 texels, and 1 still encodes as 0 in ETC1A4's 4-bit alpha."""
+    a = np.asarray(img).astype(np.float32)
+    clear = a[..., 3] == 0
+    if not clear.any() or clear.all():
+        return img
+    rgb = a[..., :3].copy()
+    known = ~clear
+    for _ in range(8):
+        if known.all():
+            break
+        s = np.zeros_like(rgb); n = np.zeros(known.shape, np.float32)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                k = np.roll(known, (dy, dx), (0, 1))
+                s += np.roll(rgb, (dy, dx), (0, 1)) * k[..., None]
+                n += k
+        grow = ~known & (n > 0)
+        rgb[grow] = s[grow] / n[grow][:, None]
+        known |= grow
+    rgb[~known] = a[..., :3][~clear].mean(axis=0)
+    out = a.copy()
+    out[..., :3] = np.where(clear[..., None], rgb, a[..., :3])
+    out[..., 3] = np.where(clear, 1.0, a[..., 3])
+    return Image.fromarray(np.clip(np.rint(out), 0, 255).astype(np.uint8), "RGBA")
+
+
+def encode_etc(img, fmt):
+    """ETC1 (4 bpp) or ETC1A4 (8 bpp) with all mipmaps, by devkitPro's tex3ds. tex3ds keeps image row 0 at
+    t = 1, so it gets the image flipped: then its output is laid out like to_3ds's (checked byte for byte on
+    RGB565)."""
+    if fmt == FMT_ETC1A4:
+        img = bleed(img)
+    src = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    with tempfile.TemporaryDirectory(prefix="mwbake_") as tmp:
+        png = os.path.join(tmp, "in.png"); out = os.path.join(tmp, "out.bin")
+        (src if fmt == FMT_ETC1A4 else src.convert("RGB")).save(png)
+        r = subprocess.run([TEX3DS, "-f", "etc1a4" if fmt == FMT_ETC1A4 else "etc1", "-q", "medium", "-m", "box",
+                            "-z", "none", "-r", "-o", out, png], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError("tex3ds: " + r.stderr.strip())
+        blob = open(out, "rb").read()
+    data = blob[4:]   # -r still writes a 4-byte header (compression type 0, size)
+    w, h = img.size
+    levels = 0; expect = 0; bpp = 8 if fmt == FMT_ETC1A4 else 4
+    while True:
+        expect += w * h * bpp // 8; levels += 1
+        if w <= 8 or h <= 8:
+            break
+        w //= 2; h //= 2
+    if expect != len(data):
+        raise RuntimeError("tex3ds: %d bytes, expected %d" % (len(data), expect))
+    return data, levels
+
+
 class TexStore:
     def __init__(self, vfs, maxsize):
         self.vfs = vfs; self.max = maxsize
@@ -587,18 +652,30 @@ class TexStore:
             return 0
         w = min(pow2_floor(img.size[0]), self.max); h = min(pow2_floor(img.size[1]), self.max)
         im = img.resize((w, h), Image.LANCZOS)
-        fmt = 1 if alpha else 0
-        data, levels = to_3ds(im, fmt)
-        self.list.append((w, h, fmt, levels, data))
+        if ETC:
+            # encoded later, all at once (write): tex3ds runs in parallel
+            has_alpha = alpha and np.asarray(im)[..., 3].min() < 250
+            self.list.append([w, h, FMT_ETC1A4 if has_alpha else FMT_ETC1, None, im])
+        else:
+            fmt = 1 if alpha else 0
+            data, levels = to_3ds(im, fmt)
+            self.list.append((w, h, fmt, levels, data))
         self.index[key] = len(self.list) - 1
         return self.index[key]
 
     def write(self, path):
+        pending = [e for e in self.list if isinstance(e, list)]
+        with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as ex:
+            for e, (data, levels) in zip(pending, ex.map(lambda e: encode_etc(e[4], e[2]), pending)):
+                e[3] = levels; e[4] = data
         with open(path, "wb") as f:
             f.write(b"MWT1" + struct.pack("<I", len(self.list)))
             for w, h, fmt, levels, data in self.list:
                 f.write(struct.pack("<HHBBHI", w, h, fmt, levels, 0, len(data)))
                 f.write(data)
+
+    def bytes(self):
+        return sum(len(e[4]) for e in self.list)
 
 # --------------------------------------------------------------------------- baking
 
@@ -707,7 +784,11 @@ def terrain_texture(esm, tex, gx, gy, size):
         out += layer * w[..., None]
     # rows: south first -> image rows north first
     img = Image.fromarray(np.clip(out[::-1], 0, 255).astype(np.uint8), "RGB").convert("RGBA")
-    return to_3ds(img, 0)
+    if ETC:
+        data, levels = encode_etc(img, FMT_ETC1)
+        return data, levels, FMT_ETC1
+    data, levels = to_3ds(img, 0)
+    return data, levels, FMT_RGB565
 
 
 def bake_cell(esm, models, tex, gx, gy, stats):
@@ -852,7 +933,9 @@ def write_cell(path, gx, gy, batches, terrain_tex, tsize):
                                      c[0], c[1], c[2], rad))
         end = f.tell()
         f.seek(bofs); f.write(b"".join(recs))
-        f.seek(0); f.write(hdr.pack(b"MWC1", gx, gy, len(batches), tsize, ttofs, bofs, end))
+        # tsize: the terrain texture's side, its format in the top 4 bits
+        tword = tsize | (terrain_tex[2] << 12 if terrain_tex is not None else 0)
+        f.seek(0); f.write(hdr.pack(b"MWC1", gx, gy, len(batches), tword, ttofs, bofs, end))
 
 
 def main():
@@ -866,9 +949,14 @@ def main():
     ap.add_argument("--route-to", type=int, nargs=2, default=[0, -7],
                     help="the benchmark walks from --center's cell to this one (Pelagiad: 0 -7)")
     ap.add_argument("--tex", type=int, default=128, help="max object texture size")
-    ap.add_argument("--terrain-tex", type=int, default=256, help="composite terrain texture per cell")
+    ap.add_argument("--terrain-tex", type=int, default=512, help="composite terrain texture per cell")
+    ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
     ap.add_argument("--out", default=os.path.join(here, "..", "romfs"))
     a = ap.parse_args()
+    global ETC
+    ETC = not a.rgb
+    if a.rgb and a.terrain_tex > 256:
+        a.terrain_tex = 256
 
     t0 = time.time()
     vfs = VFS(a.data, ["Morrowind.bsa"])

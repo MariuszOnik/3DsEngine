@@ -197,6 +197,8 @@ enum { CAM_RTS, CAM_TPP, CAM_FPP, NCAM };
 static int camMode = CAM_RTS;
 static const char* const CAM_NAMES[NCAM] = { "RTS", "TPP", "FPP" };
 static float rtsDist = 420.0f;           // zoom (D-pad up/down), RTS
+static bool benchRtsFixed;               // the benchmark keeps the first test's angle
+static float rtsPitch = RTS_PITCH;       // its angle (X + D-pad up/down): -20 .. -85 degrees
 static float tppDist = 230.0f;           // ... and behind the back
 static float camPitch;                   // TPP / FPP: looking up / down (FPP: D-pad up/down)
 #define TPP_FAR 4500.0f
@@ -985,7 +987,9 @@ static int chA[NA];
 typedef struct {
 	bool used;
 	float pos[3], yaw, pitch;      // pitch: the body tipped forward (diving: head down)
-	int outfit, weapon;            // weapon: -1 none
+	int outfit, weapon;            // weapon: -1 none; outfit: NPCs (the player wears `worn`)
+	bool custom;                   // wears worn[] (single pieces) instead of an outfit
+	u8 worn[64];
 	bool helmet, torch;
 	int cur, prev;                 // animations
 	float t, prevT, fade;
@@ -1095,6 +1099,8 @@ static bool loadCharacter(void)
 	AttrInfo_AddLoader(&skinAttr, 4, GPU_UNSIGNED_BYTE, 4);
 	memset(PL, 0, sizeof *PL);
 	PL->used = true; PL->outfit = chNOutfit > 1 ? 1 : 0; PL->helmet = true; PL->weapon = -1;
+	PL->custom = true;   // starts in the commoner's clothes, piece by piece
+	for (int k = 0; k < chOutfit[PL->outfit].n; k++) if (chOutfit[PL->outfit].items[k] < 64) PL->worn[chOutfit[PL->outfit].items[k]] = 1;
 	PL->prev = -1; PL->dirty = true;
 	chOk = true;
 	return true;
@@ -1108,9 +1114,11 @@ static void chCompose(Actor* a)
 	memcpy(slot, chBody, sizeof slot);
 	bool hideHair = false;
 	const COutfit* o = &chOutfit[a->outfit];
-	for (int k = 0; k < o->n; k++) {
-		const CItem* it = &chItem[o->items[k]];
-		if (it->helmet && !a->helmet) continue;
+	int n = a->custom ? (chNItem < 64 ? chNItem : 64) : o->n;
+	for (int k = 0; k < n; k++) {
+		if (a->custom && !a->worn[k]) continue;
+		const CItem* it = &chItem[a->custom ? k : o->items[k]];
+		if (!a->custom && it->helmet && !a->helmet) continue;
 		if (it->helmet) hideHair = true;
 		for (int j = 0; j < it->n; j++) {
 			u8 sl = it->parts[j * 4];
@@ -1398,6 +1406,7 @@ static UiState uiState;
 static int uiSel = -1;
 
 static int invCount(void);
+static int invItems(void);
 static void invLabel(int i, char* out, int n, bool* on);
 
 // The window's contents from the player's state.
@@ -1406,47 +1415,71 @@ static void uiFill(void)
 	UiState* u = &uiState;
 	static char iconName[UI_MAXITEMS][24];
 	u->nitems = 0;
-	for (int i = 0; i < invCount() && i < UI_MAXITEMS; i++) {
+	int total = invCount(), ni = invItems();
+	u->npages = (total + UI_MAXITEMS - 1) / UI_MAXITEMS;
+	if (u->page >= u->npages) u->page = u->npages - 1;
+	if (u->page < 0) u->page = 0;
+	for (int j = 0; j < UI_MAXITEMS; j++) {
+		int i = u->page * UI_MAXITEMS + j;
+		if (i >= total) break;
 		bool on;
-		invLabel(i, u->item[i].label, sizeof u->item[i].label, &on);
-		u->item[i].on = on;
-		if (i < chNOutfit) snprintf(iconName[i], 24, "outfit%d", i);
-		else if (i == chNOutfit) snprintf(iconName[i], 24, "helmet");
-		else if (i == chNOutfit + 1) snprintf(iconName[i], 24, "hands");
-		else if (i < chNOutfit + 2 + chNWeapon) snprintf(iconName[i], 24, "weapon%d", i - chNOutfit - 2);
-		else snprintf(iconName[i], 24, "torch");
-		u->item[i].icon = iconName[i];
+		invLabel(i, u->item[j].label, sizeof u->item[j].label, &on);
+		u->item[j].on = on;
+		if (i < ni) snprintf(iconName[j], 24, "item%d", i);
+		else if (i == ni) snprintf(iconName[j], 24, "hands");
+		else if (i < ni + 1 + chNWeapon) snprintf(iconName[j], 24, "weapon%d", i - ni - 1);
+		else snprintf(iconName[j], 24, "torch");
+		u->item[j].icon = iconName[j];
 		u->nitems++;
 	}
-	u->selected = uiSel;
+	u->selected = uiSel - u->page * UI_MAXITEMS;
 	u->camName = rtsMode ? CAM_NAMES[camMode] : "wolna";
 	u->torch = torchOn;
 }
 static int invSel;
 
-static int invCount(void) { return chNOutfit + 2 + chNWeapon + 1; }
+static int invCount(void) { return (chNItem < 64 ? chNItem : 64) + 1 + chNWeapon + 1; }
+static int invItems(void) { return chNItem < 64 ? chNItem : 64; }
 
 static void invLabel(int i, char* out, int n, bool* on)
 {
 	*on = false;
-	if (i < chNOutfit) { snprintf(out, n, "clothes: %s", chOutfit[i].name); *on = PL->outfit == i; return; }
-	i -= chNOutfit;
-	if (i == 0) { snprintf(out, n, "helmet"); *on = PL->helmet; return; }
-	if (i == 1) { snprintf(out, n, "bare hands"); *on = PL->weapon < 0; return; }
-	i -= 2;
+	if (i < invItems()) {   // the id with spaces for underscores
+		snprintf(out, n, "%s", chItem[i].name);
+		for (char* c = out; *c; c++) if (*c == '_') *c = ' ';
+		*on = PL->worn[i];
+		return;
+	}
+	i -= invItems();
+	if (i == 0) { snprintf(out, n, "gole rece"); *on = PL->weapon < 0; return; }
+	i -= 1;
 	if (i < chNWeapon) { snprintf(out, n, "%s", chWeapon[i].name); *on = PL->weapon == i; return; }
 	snprintf(out, n, "torch"); *on = torchOn;
 }
 
 static void invApply(int i)
 {
-	int snd = i < chNOutfit ? (i <= 1 ? SND_CLOTHES : SND_ARMOUR) : i == chNOutfit ? SND_ARMOUR
-	        : i < chNOutfit + 2 + chNWeapon ? SND_BLADEOUT : SND_CLICK;
+	int ni = invItems();
+	int snd = i < ni ? (strstr(chItem[i].name, "common") ? SND_CLOTHES : SND_ARMOUR)
+	        : i < ni + 1 + chNWeapon ? SND_BLADEOUT : SND_CLICK;
 	audioPlay(snd, 0.7f, 0);
-	if (i < chNOutfit) PL->outfit = i;
-	else if (i == chNOutfit) PL->helmet = !PL->helmet;
-	else if (i == chNOutfit + 1) PL->weapon = -1;
-	else if (i < chNOutfit + 2 + chNWeapon) PL->weapon = i - chNOutfit - 2;
+	if (i < ni) {   // a piece on (off whatever covers the same slots) or off
+		if (PL->worn[i]) PL->worn[i] = 0;
+		else {
+			const CItem* it = &chItem[i];
+			for (int k = 0; k < ni; k++) {
+				if (!PL->worn[k] || k == i) continue;
+				const CItem* o = &chItem[k];
+				bool clash = false;
+				for (int a = 0; a < it->n && !clash; a++)
+					for (int b = 0; b < o->n; b++) if (it->parts[a * 4] == o->parts[b * 4]) { clash = true; break; }
+				if (clash) PL->worn[k] = 0;
+			}
+			PL->worn[i] = 1;
+		}
+	}
+	else if (i == ni) PL->weapon = -1;
+	else if (i < ni + 1 + chNWeapon) PL->weapon = i - ni - 1;
 	else torchOn = !torchOn;
 	PL->dirty = true;
 	invDirty = true;
@@ -2053,7 +2086,7 @@ static void rtsCamera(float fwd[3])
 		yaw = rtsYaw; pitch = p;
 		return;
 	}
-	float p = camMode == CAM_RTS ? RTS_PITCH : camPitch;
+	float p = camMode == CAM_RTS ? (benchRtsFixed ? RTS_PITCH : rtsPitch) : camPitch;
 	float dist = camMode == CAM_RTS ? rtsDist : tppDist;
 	float tz = camMode == CAM_RTS ? RTS_TARGET_Z : 105.0f;
 	fwd[0] = cosf(p) * sinf(rtsYaw); fwd[1] = cosf(p) * cosf(rtsYaw); fwd[2] = sinf(p);
@@ -2224,6 +2257,7 @@ static bool rtsWaiting;      // waiting for the cells round the start
 
 static void benchStartRts(void)
 {
+	benchRtsFixed = true;
 	bPhase = B_RTS;
 	wStage = 4;
 	benchResetStats();
@@ -2516,9 +2550,11 @@ static void soundUpdate(void)
 		if (swimming) audioPlay(left ? SND_SWIML : SND_SWIMR, 0.5f, left ? -0.3f : 0.3f);
 		else if (!chrAir) {
 			int w = 0;   // the weight by the outfit's name
-			if (chOk) {
-				const char* n = chOutfit[PL->outfit].name;
-				w = (!strcmp(n, "iron") || !strcmp(n, "glass")) ? 2 : !strcmp(n, "bonemold") ? 1 : 0;
+			for (int k = 0; chOk && k < invItems(); k++) {
+				if (!PL->worn[k]) continue;
+				const char* n = chItem[k].name;
+				if (strstr(n, "iron") || strstr(n, "glass")) w = 2;
+				else if (strstr(n, "bonemold") && w < 1) w = 1;
 			}
 			int base = w == 0 ? SND_WALKL_LT : w == 1 ? SND_WALKL_MD : SND_WALKL_HV;
 			audioPlay(base + (PL->run ? 2 : 0) + (left ? 0 : 1), 0.55f, left ? -0.25f : 0.25f);
@@ -2697,7 +2733,9 @@ int main(void)
 			touchPosition tp;
 			hidTouchRead(&tp);
 			int hit = uiTouch(&uiState, tp.px, tp.py);
-			if (hit >= UI_ITEM && hit < UI_ITEM + UI_MAXITEMS) { uiSel = hit - UI_ITEM; invApply(uiSel); }
+			if (hit >= UI_ITEM && hit < UI_ITEM + UI_MAXITEMS) { uiSel = uiState.page * UI_MAXITEMS + hit - UI_ITEM; invApply(uiSel); }
+			else if (hit == UI_PREV) { uiState.page--; audioPlay(SND_CLICK, 0.5f, 0); }
+			else if (hit == UI_NEXT) { uiState.page++; audioPlay(SND_CLICK, 0.5f, 0); }
 			else if (hit == UI_CAMERA) {
 				if (!rtsMode) setRts(true);
 				else { camMode = (camMode + 1) % NCAM; camPitch = camMode == CAM_TPP ? -0.22f : 0; setCamLimits(); }
@@ -2732,7 +2770,8 @@ int main(void)
 				held &= ~(KEY_DUP | KEY_DDOWN);
 			}
 			float zin = ((held & KEY_DDOWN) ? 1.0f : 0) - ((held & KEY_DUP) ? 1.0f : 0);
-			if (camMode == CAM_RTS) rtsDist = fminf(1300.0f, fmaxf(160.0f, rtsDist * (1.0f + zin * 1.2f * dt)));
+			if (camMode == CAM_RTS && (held & KEY_X)) rtsPitch = fminf(-0.35f, fmaxf(-1.48f, rtsPitch + zin * 0.9f * dt));
+			else if (camMode == CAM_RTS) rtsDist = fminf(1300.0f, fmaxf(160.0f, rtsDist * (1.0f + zin * 1.2f * dt)));
 			else if (camMode == CAM_TPP) tppDist = fminf(700.0f, fmaxf(90.0f, tppDist * (1.0f + zin * 1.2f * dt)));
 			else camPitch = fminf(1.3f, fmaxf(-1.3f, camPitch - zin * 1.2f * dt));
 		} else if (autoFar) {
@@ -2903,7 +2942,7 @@ int main(void)
 				     rtsMode ? "rts" : "free", fxMode, osGet3DSliderState() * 100, fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
 				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL),
-				     chOk ? chOutfit[PL->outfit].name : "-", PL->verts, nNpc, chAnimMs, chDrawMs,
+				     chOk ? "pieces" : "-", PL->verts, nNpc, chAnimMs, chDrawMs,
 				     CAM_NAMES[camMode], torchOn ? " torch" : "", underwater ? " underwater" : swimming ? " swim" : "");
 				if (playTick % 60 == 0) logFlush();   // every 30 s
 			}

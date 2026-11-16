@@ -5,13 +5,14 @@
 typedef struct { const char* icon; char label[32]; bool on; } UiItem;
 typedef struct {
 	UiItem item[UI_MAXITEMS];
-	int nitems, selected;
+	int nitems, selected;   // (on this page)
+	int page, npages;
 	const char* camName;
 	bool torch;
 	char status[64];
 } UiState;
 
-enum { UI_NONE = -1, UI_CAMERA = 1000, UI_TORCH, UI_NPC_ADD, UI_NPC_CLEAR, UI_ITEM = 0 };
+enum { UI_NONE = -1, UI_CAMERA = 1000, UI_TORCH, UI_NPC_ADD, UI_NPC_CLEAR, UI_PREV, UI_NEXT, UI_ITEM = 0 };
 
 bool uiInit(void);                              // after C3D_Init; false: no atlas (still draws text)
 void uiDraw(const UiState* s);                  // inside C3D_FrameBegin / End, after the 3D

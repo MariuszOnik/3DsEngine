@@ -90,6 +90,8 @@ def bake(vfs, esm_path, ch, out, log=print):
         if rid is None and lst: rid = ch.items[lst[0]][0]
         icon("outfit%d" % k, rid, None if rid else "icons\\default icon")
     icon("helmet", "iron_helmet")
+    for k, (iid, helmet, parts) in enumerate(ch.items):   # every piece on its own
+        icon("item%d" % k, iid)
     icon("hands", None, "icons\\handtohand")
     for k, (wid, g) in enumerate(ch.weapons):
         icon("weapon%d" % k, wid)

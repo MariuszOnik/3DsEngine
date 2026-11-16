@@ -1,4 +1,4 @@
-// The bottom screen: a Morrowind window (its own frame textures and item icons, tools/uibake.py)
+﻿// The bottom screen: a Morrowind window (its own frame textures and item icons, tools/uibake.py)
 // with the inventory as icons to touch, a line about the touched item, the frame's cost and a row
 // of buttons (camera, torch, NPCs). Drawn with citro2d, only when something changed (and twice a
 // second for the numbers): the bottom screen keeps its last picture in between.
@@ -105,6 +105,13 @@ void uiDraw(const UiState* s)
 	C2D_DrawRectSolid(4, 4, 0.4f, 312, 190, C2D_Color32(0x0C, 0x0A, 0x08, 0xFF));
 	frame("thick", 2, 2, 316, 194);
 	text("Ekwipunek", 160, 7, 0.55f, GOLD, true);
+	if (s->npages > 1) {   // the pages: < 1/3 >
+		char b[16];
+		snprintf(b, sizeof b, "%d/%d", s->page + 1, s->npages);
+		text(b, 262, 7, 0.45f, DIM, true);
+		text("<", 22, 4, 0.7f, s->page > 0 ? GOLD : DIM, true);
+		text(">", 298, 4, 0.7f, s->page + 1 < s->npages ? GOLD : DIM, true);
+	}
 	// the items
 	int eq = piece("menu_icon_equip");
 	for (int i = 0; i < s->nitems; i++) {
@@ -120,7 +127,7 @@ void uiDraw(const UiState* s)
 	// what was touched, the numbers
 	if (s->selected >= 0 && s->selected < s->nitems) {
 		char b[64];
-		snprintf(b, sizeof b, "%s%s", s->item[s->selected].label, s->item[s->selected].on ? "  (założone)" : "");
+		snprintf(b, sizeof b, "%s%s", s->item[s->selected].label, s->item[s->selected].on ? "  (zaĹ‚oĹĽone)" : "");
 		text(b, 14, 158, 0.5f, PALE, false);
 	}
 	text(s->status, 14, 176, 0.42f, DIM, false);
@@ -139,6 +146,10 @@ void uiDraw(const UiState* s)
 
 int uiTouch(const UiState* s, int px, int py)
 {
+	if (py < 26 && s->npages > 1) {
+		if (px < 50) return UI_PREV;
+		if (px > 270) return UI_NEXT;
+	}
 	if (py >= BY && py < BY + BH) {
 		int k = (px - 4) / (BW + 3);
 		if (k >= 0 && k < 4) return UI_CAMERA + k;

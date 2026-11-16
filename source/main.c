@@ -76,6 +76,8 @@ typedef struct {
 	Vtx* wv;      // the water grid (65 x 65, coloured by the depth), NULL without water
 	Vtx* cv;      // the same grid laid on the bottom: the caustics' strength in the colour
 	C3D_BufInfo cbuf;
+	Vtx* tv;      // the water grid again: what of the bottom's colour comes through (multiplied)
+	C3D_BufInfo tbuf;
 	u16* wi;
 	int wni;
 	C3D_BufInfo wbuf;
@@ -305,27 +307,33 @@ static void buildWater(Cell* c)
 		return;
 	}
 	c->cv = (Vtx*)linearAlloc(65 * 65 * sizeof(Vtx));   // (none: no caustics, the water still)
+	c->tv = (Vtx*)linearAlloc(65 * 65 * sizeof(Vtx));   // (none: one layer only)
 	float dep[65 * 65];
 	for (int y = 0; y <= 64; y++)
 		for (int x = 0; x <= 64; x++) {
 			int k = y * 65 + x;
 			float d = c->hgt ? -c->hgt[k] : 2000.0f;
 			dep[k] = d;
-			// clear like an aquarium: barely tinted at the shore, a deeper blue-green and still
-			// see-through far out (hardware test 8: the old water was murky)
-			float t = d / 1000.0f; if (t < 0) t = 0; if (t > 1) t = 1;
-			float r = 55 + (10 - 55) * t, g = 210 + (105 - 210) * t, b = 200 + (150 - 200) * t;   // (stronger for the 3DS screen)
-			float a = 45 + (170 - 45) * powf(t, 0.6f);
-			// foam: a thin band round the shore line, both sides (the grid's triangles cross it)
-			float f = d >= 0 ? 1 - d / 14.0f : 1 + d / 30.0f;
-			if (f > 0) {
-				r += (235 - r) * f * 0.8f; g += (240 - g) * f * 0.8f; b += (238 - b) * f * 0.8f;
-				if (a < 120 * f) a = 120 * f;
-			}
+			// Crystal water (the user, hardware test 9): not a see-through colour over the bottom (the
+			// dark mud showed as a puddle) but two layers, like real water: the bottom's colour
+			// filtered (tv, multiplied: red goes first, then green; almost nothing at the shore,
+			// a deep blue far out) and a little blue light scattered back (wv, added, with the
+			// ripples and the glints). No foam (the user: no white at the shores).
+			float t = d / 1400.0f; if (t < 0) t = 0; if (t > 1) t = 1;
+			float e = powf(t, 0.7f);
 			Vtx* v = &c->wv[k];
 			v->p[0] = x * 128 - 4096; v->p[1] = y * 128 - 4096; v->p[2] = 0; v->p[3] = 0;
 			v->t[0] = v->t[1] = 0;
-			v->c[0] = (u8)r; v->c[1] = (u8)g; v->c[2] = (u8)b; v->c[3] = (u8)a;
+			float sh = d <= 0 ? 0 : d < 40 ? d / 40.0f : 1;   // no hard edge where the water meets the shore
+			v->c[0] = (u8)((8 + (14 - 8) * e) * sh); v->c[1] = (u8)((34 + (70 - 34) * e) * sh);
+			v->c[2] = (u8)((40 + (105 - 40) * e) * sh);
+			v->c[3] = 255;
+			if (c->tv) {
+				Vtx* tv = &c->tv[k];
+				*tv = *v;
+				tv->c[0] = (u8)(235 + (25 - 235) * e); tv->c[1] = (u8)(255 + (85 - 255) * e); tv->c[2] = (u8)(255 + (125 - 255) * e);
+				tv->c[3] = 255;
+			}
 			// the caustics: on the bottom, strongest in the shallows (~40-150), gone by ~900
 			if (c->cv) {
 				float k = d <= 0 ? 0 : d < 40 ? d / 40.0f : d < 150 ? 1 : 1 - (d - 150) / 750.0f;
@@ -349,6 +357,11 @@ static void buildWater(Cell* c)
 	BufInfo_Init(&c->wbuf);
 	BufInfo_Add(&c->wbuf, c->wv, sizeof(Vtx), 3, 0x210);
 	GSPGPU_FlushDataCache(c->wv, 65 * 65 * sizeof(Vtx));
+	if (c->tv) {
+		BufInfo_Init(&c->tbuf);
+		BufInfo_Add(&c->tbuf, c->tv, sizeof(Vtx), 3, 0x210);
+		GSPGPU_FlushDataCache(c->tv, 65 * 65 * sizeof(Vtx));
+	}
 	if (c->cv) {
 		BufInfo_Init(&c->cbuf);
 		BufInfo_Add(&c->cbuf, c->cv, sizeof(Vtx), 3, 0x210);
@@ -385,6 +398,7 @@ static void unloadCell(Cell* c)
 	if (c->wv) linearFree(c->wv);
 	if (c->wi) linearFree(c->wi);
 	if (c->cv) linearFree(c->cv);
+	if (c->tv) linearFree(c->tv);
 	linearFree(c->data);
 	memset(c, 0, sizeof *c);
 }
@@ -880,7 +894,7 @@ static void makeRipples(void)
 		float r = noiseBuf[i];
 		float g = (r - 0.8f) / 0.2f;
 		g = g < 0 ? 0 : g * g;
-		noiseBuf2[i] = g * 0.8f;
+		noiseBuf2[i] = g * 0.45f;   // the glints: softer (hardware test 9: too white)
 		noiseBuf[i] = 0.5f + (r - mean) * 0.22f;
 	}
 	writeLevels(&rippleTex, N, noiseBuf, noiseBuf2);
@@ -993,12 +1007,40 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 {
 	if (!rippleOk) return;
 	waterProgram(mvp, fwd);
+	// 1: the bottom filtered: dst x lerp(1, colour, fog) (the colour premultiplied by the fog alpha)
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_DST_COLOR, GPU_ONE_MINUS_SRC_ALPHA, GPU_ZERO, GPU_ONE);
+	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, 0);
+	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_ALPHA, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	for (int i = 1; i <= 2; i++) {
+		env = C3D_GetTexEnv(i);
+		C3D_TexEnvInit(env);
+		C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	}
+	for (int ci = 0; ci < MAX_CELLS; ci++) {
+		Cell* c = &cells[ci];
+		if (!c->used || !c->tv || !c->wni) continue;
+		float ox = c->gx * CELL + HALF - eye[0], oy = c->gy * CELL + HALF - eye[1];
+		if (fabsf(ox) - HALF > farDist || fabsf(oy) - HALF > farDist) continue;
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, wOrigin, ox, oy, -eye[2], 0);
+		C3D_SetBufInfo(&c->tbuf);
+		C3D_DrawElements(GPU_TRIANGLES, c->wni, C3D_UNSIGNED_SHORT, c->wi);
+		statDraws++;
+		statTris += c->wni / 3;
+	}
+	// 2: the light scattered back, x the ripples, + the glints: added (x the fog alpha)
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_ZERO, GPU_ONE);
 	float t = fxTime;
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 8.0f / 8192.0f, 0);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 6.0f / 8192.0f, 0);
 	C3D_TexBind(0, &rippleTex);
 	C3D_TexBind(1, &rippleTex);
-	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	env = C3D_GetTexEnv(0);
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE0, GPU_TEXTURE1, 0);
 	C3D_TexEnvFunc(env, C3D_RGB, GPU_ADD_SIGNED);
@@ -1007,7 +1049,8 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	env = C3D_GetTexEnv(1);
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_PRIMARY_COLOR, 0);
-	C3D_TexEnvFunc(env, C3D_RGB, GPU_ADD_SIGNED);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
+	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_4);
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
 	// sun glints: where both layers' crest tops (alpha) meet, added white (and less see-through)

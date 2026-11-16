@@ -69,6 +69,7 @@ typedef struct {
 	C3D_Tex ttex;
 	bool hasT;
 	u32 tris;
+	float* hgt;   // 65 x 65 terrain heights (from the terrain batches), NULL without land
 } Cell;
 
 typedef struct { int gx, gy; u32 size; } Avail;
@@ -129,6 +130,22 @@ static float paceGpu;
 static int paceFrames, paceCooldown;
 
 static bool cap30 = true;
+static float fogStart = 0.45f;     // the fog starts at this share of the draw distance
+
+// RTS camera (after the Switch port's tactical camera: -55 degrees, 700 units). The pitch and
+// the distance are locked, because the ground the camera sees (and so the GPU cost) depends
+// only on them; turning round the character keeps that cost, so it stays free.
+#define RTS_PITCH (-55.0f * (float)M_PI / 180.0f)
+#define RTS_DIST 700.0f
+#define RTS_FAR 2600.0f     // the farthest corner of the view on flat ground is ~1800 away; the rest for tall things
+#define RTS_TARGET_Z 70.0f  // the camera looks at the character's chest
+#define WALK_SPEED 170.0f
+#define RUN_SPEED 420.0f
+static bool rtsMode = true;
+static float rtsYaw;                     // the camera's turn round the character
+static float chr[3];                     // the character's feet
+static float chrYaw, chrPhase, chrSwing; // facing; walk cycle phase and its strength (0 standing .. 1)
+static bool chrPlaced;                   // on the ground once its cell is in
 
 // stats
 static int statDraws, statCulled, statSmall, statLod;   // statSmall: batches of small / under-water things left out
@@ -249,10 +266,31 @@ static Cell* findCell(int gx, int gy)
 	return NULL;
 }
 
+// The terrain height at a world position (bilinear, like the baker's ground()). False while
+// that cell is not loaded; a cell without land is the sea (-10000).
+static bool groundAt(float x, float y, float* z)
+{
+	int gx = (int)floorf(x / CELL), gy = (int)floorf(y / CELL);
+	Cell* c = findCell(gx, gy);
+	if (!c) return false;
+	if (!c->hgt) { *z = -10000.0f; return true; }
+	float fx = (x - gx * CELL) / 128.0f, fy = (y - gy * CELL) / 128.0f;
+	int ix = (int)fx, iy = (int)fy;
+	if (ix > 63) ix = 63;
+	if (iy > 63) iy = 63;
+	if (ix < 0) ix = 0;
+	if (iy < 0) iy = 0;
+	float u = fx - ix, v = fy - iy;
+	const float* h = c->hgt + iy * 65 + ix;
+	*z = h[0] * (1 - u) * (1 - v) + h[1] * u * (1 - v) + h[65] * (1 - u) * v + h[66] * u * v;
+	return true;
+}
+
 static void unloadCell(Cell* c)
 {
 	if (c->hasT) C3D_TexDelete(&c->ttex);
 	free(c->bufs);
+	free(c->hgt);
 	linearFree(c->data);
 	memset(c, 0, sizeof *c);
 }
@@ -312,6 +350,14 @@ static float finishJob(void)
 		BufInfo_Init(&c->bufs[i]);
 		BufInfo_Add(&c->bufs[i], job.data + c->b[i].vofs, 16, 3, 0x210);
 		c->tris += c->b[i].icount / 3;
+		if (c->b[i].tex == 0xFFFF) {   // terrain: a 128-unit grid, x y z relative to the cell centre
+			if (!c->hgt) c->hgt = calloc(65 * 65, sizeof(float));
+			const s16* v = (const s16*)(job.data + c->b[i].vofs);
+			for (u32 k = 0; c->hgt && k < c->b[i].vcount; k++, v += 8) {
+				int ix = (v[0] + 4096) / 128, iy = (v[1] + 4096) / 128;
+				if (ix >= 0 && ix <= 64 && iy >= 0 && iy <= 64) c->hgt[iy * 65 + ix] = v[2];
+			}
+		}
 	}
 	if (h->tsize) {   // the side in the low 12 bits, the format in the top 4
 		int ts = h->tsize & 0xFFF, tf = h->tsize >> 12;
@@ -413,7 +459,7 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_BindProgram(&prog);
 	C3D_SetAttrInfo(&attr);
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, mvp);
-	float fs = farDist * 0.45f, fe = farDist, k = 1.0f / (fe - fs);
+	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
 
 	// frustum planes (camera-relative): left, right, bottom, top
@@ -490,6 +536,156 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 				statTris += b->icount / 3;
 			}
 		}
+	}
+}
+
+// ------------------------------------------------------------------ character (a stand-in)
+
+// A figure of boxes until the skinned characters come (skeleton + swappable parts): legs and
+// arms swing with the walk cycle. Rebuilt on the CPU each frame into one buffer (~250 vertices),
+// positions relative to the feet, drawn with the world shader (origin = feet - eye).
+#define CHR_MAXV 256
+#define CHR_MAXI 512
+typedef struct { s16 p[4]; s16 t[2]; u8 c[4]; } Vtx;
+static Vtx* chrV;
+static u16* chrI;
+static int chrNV, chrNI;
+static C3D_BufInfo chrBuf;
+
+// A box with half sizes h, hanging from a pivot (its top centre) at piv, swung by `swing` round
+// the figure's sideways axis; the whole figure turned by chrYaw. Shaded per face.
+static void chrBox(const float piv[3], const float h[3], float swing, u32 rgb)
+{
+	if (chrNV + 24 > CHR_MAXV || chrNI + 36 > CHR_MAXI) return;
+	static const float shade[6] = { 0.85f, 0.6f, 0.75f, 0.7f, 1.0f, 0.45f };   // +x -x +y -y +z -z
+	float cs = cosf(swing), sn = sinf(swing), cy = cosf(chrYaw), sy = sinf(chrYaw);
+	for (int f = 0; f < 6; f++) {
+		int ax = f >> 1, u = (ax + 1) % 3, v = (ax + 2) % 3;
+		float sg = (f & 1) ? -1.0f : 1.0f;
+		int base = chrNV;
+		for (int k = 0; k < 4; k++) {
+			float q[3];
+			q[ax] = sg * h[ax];
+			q[u] = (k == 1 || k == 2) ? h[u] : -h[u];
+			q[v] = (k >= 2) ? h[v] : -h[v];
+			q[2] -= h[2];   // the pivot is at the top
+			// swing round x (sideways): y forward, z up
+			float y = q[1] * cs - q[2] * sn, z = q[1] * sn + q[2] * cs;
+			float x = q[0] + piv[0];
+			y += piv[1]; z += piv[2];
+			// turned by the facing (yaw 0 = +y, like the camera)
+			float wx = x * cy + y * sy, wy = -x * sy + y * cy;
+			Vtx* o = &chrV[chrNV++];
+			o->p[0] = (s16)lrintf(wx); o->p[1] = (s16)lrintf(wy); o->p[2] = (s16)lrintf(z); o->p[3] = 0;
+			o->t[0] = o->t[1] = 0;
+			float l = shade[f];
+			o->c[0] = (u8)(((rgb >> 16) & 0xFF) * l); o->c[1] = (u8)(((rgb >> 8) & 0xFF) * l);
+			o->c[2] = (u8)((rgb & 0xFF) * l); o->c[3] = 255;
+		}
+		static const u16 idx[6] = { 0, 1, 2, 0, 2, 3 };
+		for (int k = 0; k < 6; k++) chrI[chrNI++] = base + idx[k];
+	}
+}
+
+static void chrBuild(void)
+{
+	chrNV = chrNI = 0;
+	float a = sinf(chrPhase) * 0.65f * chrSwing;   // the legs' swing
+	float bob = fabsf(cosf(chrPhase)) * 3.0f * chrSwing;
+	static const float leg[3] = { 7, 7, 31 }, arm[3] = { 5, 5, 26 }, body[3] = { 17, 10, 24 },
+	                   head[3] = { 9, 9, 11 }, hair[3] = { 10, 10, 4 }, foot[3] = { 7, 10, 3 };
+	float hip = 62 + bob, sh = 106 + bob;
+	float p[3];
+	p[0] = -9; p[1] = 0; p[2] = hip; chrBox(p, leg, a, 0x5A4632);
+	p[0] = 9;  chrBox(p, leg, -a, 0x5A4632);
+	// feet: at the ends of the swung legs, a little forward
+	p[0] = -9; p[1] = 62 * sinf(a) + 4;  p[2] = hip - 62 * cosf(a) + 6;  chrBox(p, foot, 0, 0x2E2620);
+	p[0] = 9;  p[1] = 62 * sinf(-a) + 4; p[2] = hip - 62 * cosf(-a) + 6; chrBox(p, foot, 0, 0x2E2620);
+	p[0] = 0;  p[1] = 0; p[2] = sh + 2; chrBox(p, body, 0, 0x8C2A22);   // tunic
+	p[2] = sh + 25; chrBox(p, head, 0, 0xD2A07A);
+	p[2] = sh + 27; chrBox(p, hair, 0, 0x3A2A1C);
+	p[0] = -23; p[2] = sh; chrBox(p, arm, -a * 0.8f, 0xC08E6A);
+	p[0] = 23;  chrBox(p, arm, a * 0.8f, 0xC08E6A);
+	GSPGPU_FlushDataCache(chrV, chrNV * sizeof(Vtx));
+	GSPGPU_FlushDataCache(chrI, chrNI * sizeof(u16));
+}
+
+static void drawCharacter(void)
+{
+	if (!chrV || !chrI || !chrPlaced) return;
+	chrBuild();
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, chr[0] - eye[0], chr[1] - eye[1], chr[2] - eye[2], 1.0f / 1024.0f);
+	C3D_AlphaTest(false, GPU_ALWAYS, 0);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+	C3D_CullFace(GPU_CULL_NONE);
+	setupTexEnv(255);                      // stage 1: the fog
+	C3D_TexEnv* env = C3D_GetTexEnv(0);    // stage 0: the vertex colour alone
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	C3D_SetBufInfo(&chrBuf);
+	C3D_DrawElements(GPU_TRIANGLES, chrNI, C3D_UNSIGNED_SHORT, chrI);
+	statDraws++;
+	statTris += chrNI / 3;
+}
+
+// Walking: the circle pad relative to the camera, the figure turns to where it goes. The sea
+// (ground below -64) stops it, unless it is already that deep (the start can be on a pier).
+static void chrUpdate(float dt, float mx, float my, bool run)
+{
+	float g;
+	if (!chrPlaced) {
+		if (groundAt(chr[0], chr[1], &g)) { chr[2] = g > -10000.0f ? g : 0; chrPlaced = true; }
+		return;
+	}
+	float len = sqrtf(mx * mx + my * my);
+	if (len > 1) { mx /= len; my /= len; len = 1; }
+	float fx = sinf(rtsYaw), fy = cosf(rtsYaw);   // the camera's forward on the ground; right = (fy, -fx)
+	float dx = fx * my + fy * mx, dy = fy * my - fx * mx;
+	float moved = 0;
+	if (len > 0.05f) {
+		float sp = (run ? RUN_SPEED : WALK_SPEED) * len;
+		float nx = chr[0] + dx / len * sp * dt, ny = chr[1] + dy / len * sp * dt;
+		if (groundAt(nx, ny, &g) && (g > -64.0f || g >= chr[2])) {
+			moved = sqrtf((nx - chr[0]) * (nx - chr[0]) + (ny - chr[1]) * (ny - chr[1]));
+			chr[0] = nx; chr[1] = ny;
+		}
+		// turn towards the way it goes (the shorter way round)
+		float want = atan2f(dx, dy), d = want - chrYaw;
+		while (d > (float)M_PI) d -= 2 * (float)M_PI;
+		while (d < -(float)M_PI) d += 2 * (float)M_PI;
+		float k = dt * 10.0f; if (k > 1) k = 1;
+		chrYaw += d * k;
+	}
+	if (groundAt(chr[0], chr[1], &g) && g > -10000.0f) chr[2] = g;
+	// the walk cycle follows the distance: a step per ~70 units walking, longer running
+	chrPhase += moved * (float)M_PI / (run ? 110.0f : 70.0f);
+	float want = moved > 0 ? 1.0f : 0.0f, k = dt * 6.0f; if (k > 1) k = 1;
+	chrSwing += (want - chrSwing) * k;
+	if (chrSwing < 0.02f && moved == 0) chrPhase = 0;
+}
+
+// The camera behind and above the character, looking down at RTS_PITCH from RTS_DIST.
+static void rtsCamera(float fwd[3])
+{
+	fwd[0] = cosf(RTS_PITCH) * sinf(rtsYaw); fwd[1] = cosf(RTS_PITCH) * cosf(rtsYaw); fwd[2] = sinf(RTS_PITCH);
+	eye[0] = chr[0] - fwd[0] * RTS_DIST;
+	eye[1] = chr[1] - fwd[1] * RTS_DIST;
+	eye[2] = chr[2] + RTS_TARGET_Z - fwd[2] * RTS_DIST;
+	yaw = rtsYaw; pitch = RTS_PITCH;
+}
+
+static void setRts(bool on)
+{
+	rtsMode = on;
+	if (on) {
+		autoFar = false; farDist = RTS_FAR; fogStart = 0.7f;
+		rtsYaw = yaw;
+		if (!chrPlaced) { chr[0] = eye[0]; chr[1] = eye[1]; chr[2] = eye[2] - 200.0f; }
+	} else {
+		autoFar = true; fogStart = 0.45f;
+		pitch = -0.3f;
 	}
 }
 
@@ -728,6 +924,10 @@ int main(void)
 	AttrInfo_AddLoader(&attr, 0, GPU_SHORT, 4);
 	AttrInfo_AddLoader(&attr, 1, GPU_SHORT, 2);
 	AttrInfo_AddLoader(&attr, 2, GPU_UNSIGNED_BYTE, 4);
+	chrV = (Vtx*)linearAlloc(CHR_MAXV * sizeof(Vtx));
+	chrI = (u16*)linearAlloc(CHR_MAXI * sizeof(u16));
+	BufInfo_Init(&chrBuf);
+	BufInfo_Add(&chrBuf, chrV, sizeof(Vtx), 3, 0x210);
 
 	printf("3dsOpenworld - Morrowind cell test\n");
 	u64 t0 = ticks();
@@ -755,10 +955,12 @@ int main(void)
 			fclose(bf);
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
 			bPhase = B_STATIC;
+			rtsMode = false;
 			radius = 0; farDist = 7000.0f; autoFar = false; setCap(false);
 		} else {
 			logFile = fopen("sdmc:/3ds/mwcell3d/play.log", "a");
 			setCap(true);
+			setRts(true);
 		}
 		logw("--- %s 3DS, heap %lu KB, linear %lu KB, textures %d (%lu KB) in %.0f ms, %d cells baked, route %d points%s\n",
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
@@ -785,19 +987,21 @@ int main(void)
 		bool bench = bPhase != B_OFF;
 		u32 down = bench ? 0 : hidKeysDown(), held = bench ? 0 : hidKeysHeld();
 		if (down & KEY_START) break;
-		if (down & KEY_SELECT) {
-			radius = (radius + 1) % 3;
-			if (!autoFar) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
-		}
+		if (down & KEY_SELECT) setRts(!rtsMode);
 		if (down & KEY_TOUCH) {
 			touchPosition tp;
 			hidTouchRead(&tp);
-			if (tp.px < 160) autoFar = !autoFar;
-			else setCap(!cap30);
+			if (tp.px >= 214) setCap(!cap30);
+			else if (tp.px >= 107) {
+				radius = (radius + 1) % 3;
+				if (!autoFar && !rtsMode) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
+			} else if (!rtsMode) autoFar = !autoFar;
 		}
 		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
 		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
-		if (autoFar) {
+		if (rtsMode) {
+			// the distance is locked in RTS mode
+		} else if (autoFar) {
 			if (held & KEY_DRIGHT) gpuBudget += 6.0f * dt;
 			if (held & KEY_DLEFT) gpuBudget -= 6.0f * dt;
 			if (gpuBudget < 6.0f) gpuBudget = 6.0f;
@@ -813,6 +1017,14 @@ int main(void)
 		hidCircleRead(&cp);
 		if (bench) cp.dx = cp.dy = 0;
 		float lookX = 0, lookY = 0;
+		if (rtsMode && !bench) {   // circle pad walks, B runs, L/R (or Y/A) turn the camera round the character
+			float pmx = abs(cp.dx) > 15 ? cp.dx / 156.0f : 0, pmy = abs(cp.dy) > 15 ? cp.dy / 156.0f : 0;
+			float turn = ((held & (KEY_R | KEY_A)) ? 1.0f : 0) - ((held & (KEY_L | KEY_Y)) ? 1.0f : 0);
+			rtsYaw += turn * 1.8f * dt;
+			chrUpdate(dt, pmx, pmy, (held & KEY_B) != 0);
+			held &= ~(KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R);
+			cp.dx = cp.dy = 0;
+		}
 		if (held & KEY_A) lookX += 1;
 		if (held & KEY_Y) lookX -= 1;
 		if (held & KEY_X) lookY += 1;
@@ -828,6 +1040,7 @@ int main(void)
 		if (held & KEY_R) eye[2] += speed * dt;
 		if (held & KEY_L) eye[2] -= speed * dt;
 		if (bench) benchCamera(dt, fwd);
+		else if (rtsMode) rtsCamera(fwd);
 		if (dt > 0) {   // smoothed velocity for the loader's prediction
 			float k = dt * 3.0f; if (k > 1) k = 1;
 			vel[0] += ((eye[0] - prevEye[0]) / dt - vel[0]) * k;
@@ -847,6 +1060,7 @@ int main(void)
 		C3D_RenderTargetClear(top, C3D_CLEAR_ALL, SKY_R << 24 | SKY_G << 16 | SKY_B << 8 | 0xFF, 0);
 		C3D_FrameDrawOn(top);
 		drawWorld(&mvp, fwd);
+		if (rtsMode) drawCharacter();
 		cpuMs = msSince(c0);
 		C3D_FrameEnd(0);
 		float gpuMs = C3D_GetDrawingTime();   // the previous frame's
@@ -868,8 +1082,8 @@ int main(void)
 			for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) { loaded++; ltris += cells[i].tris; lbytes += cells[i].size; }
 			++playTick;
 			if (!bench && playTick % 4 == 0) {
-				logw("fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d\n",
-				     fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
+				logw("%s fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d\n",
+				     rtsMode ? "rts" : "free", fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
 				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL));
 				if (playTick % 60 == 0) logFlush();   // every 30 s
@@ -894,7 +1108,10 @@ int main(void)
 			printf("cell %3d,%3d  speed %5.0f     \n", (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL), speed);
 			printf("pos %7.0f %7.0f %6.0f \n", eye[0], eye[1], eye[2]);
 			printf("%s\n", bench ? "\x1b[33mBENCHMARK running\x1b[0m        " : "                          ");
-			printf("\x1b[2mpad move  ABXY look  L/R down/up\nDpad U/D speed  L/R budget|far\nSELECT radius  START quit\ntouch left: auto/manual far\ntouch right: 30/60 fps\x1b[0m");
+			if (rtsMode)
+				printf("\x1b[2mRTS: pad walk  B run  L/R turn   \nSELECT free camera  START quit  \ntouch: [ -  ][radius][30/60]   \n                                \x1b[0m");
+			else
+				printf("\x1b[2mpad move  ABXY look  L/R down/up\nDpad U/D speed  L/R budget|far\nSELECT RTS camera  START quit  \ntouch: [auto][radius][30/60]   \x1b[0m");
 		}
 	}
 
@@ -918,6 +1135,8 @@ int main(void)
 done:
 	for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) unloadCell(&cells[i]);
 	for (int i = 0; i < ntex; i++) C3D_TexDelete(&texs[i]);
+	if (chrV) linearFree(chrV);
+	if (chrI) linearFree(chrI);
 	shaderProgramFree(&prog);
 	DVLB_Free(dvlb);
 	C3D_Fini();

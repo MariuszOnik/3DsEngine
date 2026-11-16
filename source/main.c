@@ -1094,13 +1094,20 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_4);
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
-	// sun glints: where both layers' crest tops (alpha) meet, added white (and less see-through)
+	// sun glints (where both layers' crest tops meet, added white): off, the user liked the
+	// water better without them (WATER_GLINTS 1 brings them back)
 	env = C3D_GetTexEnv(2);
 	C3D_TexEnvInit(env);
+#define WATER_GLINTS 0
+#if WATER_GLINTS
 	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_TEXTURE1, GPU_PREVIOUS);
 	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_ALPHA, GPU_TEVOP_RGB_SRC_ALPHA, GPU_TEVOP_RGB_SRC_COLOR);
 	C3D_TexEnvOpAlpha(env, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_MULTIPLY_ADD);
+#else
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+#endif
 	if (fxMode == FX_CALM) {   // the depth colour alone
 		env = C3D_GetTexEnv(0);
 		C3D_TexEnvInit(env);

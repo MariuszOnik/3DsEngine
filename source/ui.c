@@ -15,7 +15,7 @@ static C2D_SpriteSheet sheet;
 static char names[MAXP][32];
 static int npieces;
 static C3D_RenderTarget* bot;
-static C2D_TextBuf tbuf;
+static C2D_TextBuf tbuf, tbufTop;
 static bool ready;
 
 #define GOLD C2D_Color32(0xCA, 0xA5, 0x60, 0xFF)
@@ -42,6 +42,7 @@ bool uiInit(void)
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	bot = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 	tbuf = C2D_TextBufNew(1024);
+	tbufTop = C2D_TextBufNew(128);
 	ready = bot != NULL;
 	return ready && sheet != NULL;
 }
@@ -182,6 +183,39 @@ void uiDraw(const UiState* s)
 		if (k == 0) snprintf(b, sizeof b, "Kamera %s", s->camName);
 		text(k == 0 ? b : blabel[k], x + BW / 2, y + 10, 0.45f, lit ? PALE : GOLD, true);
 	}
+}
+
+void uiDrawTop(C3D_RenderTarget* rt, int kind, float x, float y, const char* label, bool walking)
+{
+	if (!ready || !rt) return;
+	C2D_TextBufClear(tbufTop);
+	C2D_Prepare();
+	C2D_SceneBegin(rt);
+	C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);   // over the world, whatever its depth
+	int p = piece(kind == 1 ? "target" : "tx_cursor");
+	if (p >= 0 && sheet) {
+		C2D_Image im = C2D_SpriteSheetGetImage(sheet, p);
+		float w = im.subtex->width, h = im.subtex->height;
+		if (kind == 1) C2D_DrawImageAt(im, x - w / 2, y - h / 2, 0.5f, NULL, 1, 1);
+		else C2D_DrawImageAt(im, x, y, 0.5f, NULL, 1, 1);
+	} else if (kind == 1) {   // no atlas: a plain cross
+		C2D_DrawRectSolid(x - 6, y, 0.5f, 13, 1, PALE); C2D_DrawRectSolid(x, y - 6, 0.5f, 1, 13, PALE);
+	} else C2D_DrawTriangle(x, y, PALE, x + 12, y + 6, PALE, x + 5, y + 13, PALE, 0.5f);
+	if (walking) C2D_DrawCircleSolid(x, y, 0.5f, 3, GOLD);
+	if (label && label[0]) {
+		C2D_Text t;
+		C2D_TextParse(&t, tbufTop, label);
+		C2D_TextOptimize(&t);
+		float w, h, sz = 0.5f;
+		C2D_TextGetDimensions(&t, sz, sz, &w, &h);
+		float tx = x - w / 2, ty = kind == 1 ? y + 14 : y + 24;
+		if (tx < 2) tx = 2;
+		if (tx + w > 398) tx = 398 - w;
+		if (ty + h > 238) ty = y - h - 6;
+		C2D_DrawRectSolid(tx - 4, ty - 1, 0.5f, w + 8, h + 2, C2D_Color32(0x0C, 0x0A, 0x08, 0xC0));
+		C2D_DrawText(&t, C2D_WithColor, tx, ty, 0.5f, sz, sz, GOLD);
+	}
+	C2D_Flush();
 }
 
 int uiTouch(const UiState* s, int px, int py)

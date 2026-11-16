@@ -20,4 +20,7 @@ enum { UI_NONE = -1, UI_CAMERA = 1000, UI_TORCH, UI_NPC_ADD, UI_NPC_CLEAR, UI_PR
 
 bool uiInit(void);                              // after C3D_Init; false: no atlas (still draws text)
 void uiDraw(const UiState* s);                  // inside C3D_FrameBegin / End, after the 3D
+// Over the 3D on the top screen: kind 1 Morrowind's crosshair at (x, y), 2 its mouse cursor (the tip
+// at (x, y)); the label under it (the name of what it points at).
+void uiDrawTop(C3D_RenderTarget* rt, int kind, float x, float y, const char* label, bool walking);
 int uiTouch(const UiState* s, int px, int py);  // what a touch hit: UI_ITEM + i, UI_CAMERA.., UI_NONE

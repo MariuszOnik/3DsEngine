@@ -94,3 +94,19 @@ odczucia z walki, most po wygładzeniu podłóg.
    krótki widok, a dach odcina sprzętowa płaszczyzna obcinania PICA200 nad głową (RTS +160, TPP +230).
    W Azaharze działa. Do sprawdzenia na konsoli: płaszczyzna obcinania, wyjście, światło lamp.
    Dalej: wszystkie wnętrza na trasie (tylko te, do których prowadzą drzwi z wypieczonych komórek), NPC.
+
+## Schody, dachy, kursor (2026-11-16, wieczór)
+
+- **Schody i dachy** (zgłoszenie: schody pod drzwiami w Balmorze, pomost latarni i podest łazika w Seyda Neen):
+  WALKABLE zna teraz `steps` i `skywalk` (schody `ex_de_docks_steps_01`, `ex_hlaalu_steps_*` / `dsteps` blokowały
+  jak ściana). Do tego baker robi „zalewanie”: płaska ściana dowolnego obiektu (do 44°) jest podłogą, gdy da się na
+  nią wejść z ziemi krokami ≤ 36 j. (OpenMW: sStepSizeUp 34) — schody w modelach budynków, płaskie dachy Balmory.
+  Dach bez schodów zostaje dachem. Druga mapa blokad (pole `ncol` w MWC3) obowiązuje, gdy postać stoi wyżej niż
+  teren (na schodach / dachu): tam ściany pod nią nie blokują, a na ulicy dalej tak.
+- **Kursor**: FPP — celownik Morrowinda (`target.dds`) na środku, napis z nazwą tego, w co celuje (w zasięgu),
+  A używa tego obiektu / rozmawia z NPC. RTS / TPP — SELECT pokazuje kursor Morrowinda (`tx_cursor.dds`),
+  circle pad go przesuwa (przy krawędzi ekranu obraca kamerę), promień z kamery: A na ziemi = idź tam
+  (pod kursorem odległość w metrach), A na obiekcie = podejdź i użyj, A na NPC = podejdź i porozmawiaj,
+  Y na NPC = podejdź i walcz (z tym NPC). B albo ręczny ruch zatrzymuje marsz. L+SELECT = wolna kamera (dawniej SELECT).
+- Dialogi: tematy i kwestie z warunkami z OpenMW-CS (baker → dialog/*.bin, wybór kwestii w C), skrypty MiniSharp2
+  tylko jako wynik kwestii (onDialogue, dziennik, przedmioty). Rozmowa dziś: tylko powitanie-zaślepka.

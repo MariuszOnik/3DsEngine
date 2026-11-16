@@ -911,6 +911,7 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None, inter=None):
     boxes = []
     solids = []    # (triangles (n, 3, 3) cell-relative) of the things that block the way
     floors = []    # wide upward triangles of the things walked on (bridges, docks, stairs)
+    steps = []     # wide upward triangles of everything else: floors only where reached from the ground
     for ref in (esm.cells.get((gx, gy), []) if inter is None else inter["refs"]):
         mpath = esm.models.get(ref["id"])
         if not mpath:
@@ -954,6 +955,7 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None, inter=None):
                 floors.append(tv[fl]); solids.append(tv[~fl])
             else:
                 solids.append(tv)
+                steps.append(tv[floor_mask(tv, 0.72)])   # gentler than 44 degrees (Morrowind's sMaxSlope: 46)
         stats["small_tris" if cls & 8 else "under_tris" if cls & 16 else "big_tris"] += sum(len(s["tri"]) for s in shapes)
         for s0 in shapes:
             # big things with a lighter LOD copy: the full part near (flag 32), the copy farther (flag 64)
@@ -991,10 +993,14 @@ def bake_cell(esm, models, tex, gx, gy, stats, dyn=None, inter=None):
         batches.append(bt)
     stats["refs"] += nrefs
     flo = np.concatenate(floors) if floors else np.zeros((0, 3, 3))
-    occ = occupancy(esm, gx, gy, solids, flo)
+    stp = np.concatenate(steps) if steps else np.zeros((0, 3, 3))
+    occ, occU, reached = occupancy(esm, gx, gy, solids, flo, stp)
+    stats["reached"] = stats.get("reached", 0) + len(reached)
+    flo = np.concatenate([flo, reached])
     stats["floors"] = stats.get("floors", 0) + len(flo)
     stats["blocked"] = stats.get("blocked", 0) + int(occ.sum())
-    return batches, terrain_tex, (flo, occ)
+    stats["upper"] = stats.get("upper", 0) + int((occU != occ).sum())
+    return batches, terrain_tex, (flo, occ, occU)
 
 
 def ground(esm, x, y):
@@ -1018,7 +1024,7 @@ def align(f, n=16):
 # Collision (docs/POMYSLY.md): per thing, its footprint where a body walks: the triangles that
 # reach into 30..140 units over the ground (a trunk, not the crown; walls, not the eaves), as a
 # box turned like the thing. Floors to walk on (docks, bridges, planks) have none.
-WALKABLE = ("dock", "bridge", "pier", "plank", "walkway", "_plat", "stair", "ramp", "rug", "_floor", "boardwalk")
+WALKABLE = ("dock", "bridge", "pier", "plank", "walkway", "skywalk", "_plat", "stair", "steps", "ramp", "rug", "_floor", "boardwalk")
 BAND = (30.0, 140.0)
 
 
@@ -1060,36 +1066,104 @@ FLOOR_NZ = 0.6     # floors slope less than ~53 degrees
 FLOOR_WIDTH = 12.0 # ... and are wider than this (twice the area / the longest side)
 
 
-def floor_mask(tv):
+def floor_mask(tv, min_nz=FLOOR_NZ):
     e0 = tv[:, 1] - tv[:, 0]; e1 = tv[:, 2] - tv[:, 0]
     n = np.cross(e0, e1); ln = np.linalg.norm(n, axis=1)
     nz = np.where(ln > 1e-9, n[:, 2] / np.maximum(ln, 1e-9), 0)
     longest = np.maximum(np.maximum(np.linalg.norm(e0, axis=1), np.linalg.norm(e1, axis=1)),
                          np.linalg.norm(tv[:, 2] - tv[:, 1], axis=1))
     width = ln / np.maximum(longest, 1e-9)
-    return (nz > FLOOR_NZ) & (width > FLOOR_WIDTH)
+    return (nz > min_nz) & (width > FLOOR_WIDTH)
 
 
-def sample_tris(tv, spacing=8.0):
-    """points over the triangles, at most `spacing` apart"""
+def sample_tris(tv, spacing=8.0, ids=False):
+    """points over the triangles, at most `spacing` apart (and with ids: each point's triangle)"""
     if not len(tv):
-        return np.zeros((0, 3))
+        return (np.zeros((0, 3)), np.zeros(0, int)) if ids else np.zeros((0, 3))
     longest = np.maximum(np.maximum(np.linalg.norm(tv[:, 1] - tv[:, 0], axis=1), np.linalg.norm(tv[:, 2] - tv[:, 0], axis=1)),
                          np.linalg.norm(tv[:, 2] - tv[:, 1], axis=1))
     k = np.clip(np.ceil(longest / spacing), 1, 96).astype(int)
-    out = []
+    out = []; oid = []
     for kk in np.unique(k):
-        sel = tv[k == kk]
+        tid = np.nonzero(k == kk)[0]
+        sel = tv[tid]
         a, b = np.meshgrid(np.arange(kk + 1), np.arange(kk + 1))
         m = (a + b) <= kk
         a = a[m] / kk; b = b[m] / kk
         p = sel[:, None, 0] + a[None, :, None] * (sel[:, None, 1] - sel[:, None, 0]) + b[None, :, None] * (sel[:, None, 2] - sel[:, None, 0])
-        out.append(p.reshape(-1, 3))
-    return np.concatenate(out)
+        out.append(p.reshape(-1, 3)); oid.append(np.repeat(tid, len(a)))
+    return (np.concatenate(out), np.concatenate(oid)) if ids else np.concatenate(out)
 
 
-def occupancy(esm, gx, gy, solids, flo):
-    """the blocked squares (OCC x OCC bools, row = y)"""
+# Stairs and flat roofs that are part of a building (Balmora: steps up to a door, roofs one walks on):
+# an upward face counts as a floor only where it is reached from the ground (or a floor) by steps of
+# at most STEP_UP between neighbouring squares, so a roof with no stairs to it stays a roof.
+STEP_UP = 36.0     # OpenMW's sStepSizeUp is 34 (apps/openmw/mwphysics/constants.hpp)
+STEP_LAYERS = 8
+
+
+def reach_floors(surf, stp, sq):
+    """surf raised where the steps' faces are reached; the reached triangles"""
+    if not len(stp):
+        return surf, np.zeros((0, 3, 3))
+    p, tid = sample_tris(stp, 6.0, ids=True)
+    sx = np.floor((p[:, 0] + HALF) / sq).astype(int); sy = np.floor((p[:, 1] + HALF) / sq).astype(int)
+    ok = (sx >= 0) & (sx < OCC) & (sy >= 0) & (sy < OCC)
+    p, tid, sx, sy = p[ok], tid[ok], sx[ok], sy[ok]
+    ok = p[:, 2] > surf[sy, sx] + 2.0
+    p, tid, sx, sy = p[ok], tid[ok], sx[ok], sy[ok]
+    if not len(p):
+        return surf, np.zeros((0, 3, 3))
+    # the candidate heights per square: the lowest STEP_LAYERS distinct ones (4-unit steps)
+    sqi = sy * OCC + sx
+    zi = np.clip(np.round(p[:, 2] / 4.0).astype(np.int64) + 32768, 0, 65535)
+    k1 = np.unique(sqi.astype(np.int64) * 65536 + zi)
+    key = np.stack([k1 // 65536, (k1 % 65536 - 32768) * 4.0], 1)
+    first = np.r_[0, np.nonzero(np.diff(key[:, 0]))[0] + 1]
+    start = np.repeat(first, np.diff(np.r_[first, len(key)]))
+    rank = np.arange(len(key)) - start
+    key = key[rank < STEP_LAYERS]; rank = rank[rank < STEP_LAYERS]
+    # only the region round the candidates
+    ki = key[:, 0].astype(int)
+    y0, y1 = max(ki.min() // OCC - 1, 0), min(ki.max() // OCC + 2, OCC)
+    xs = ki % OCC
+    x0, x1 = max(xs.min() - 1, 0), min(xs.max() + 2, OCC)
+    cand = np.full((y1 - y0, x1 - x0, STEP_LAYERS), np.nan)
+    cand[ki // OCC - y0, xs - x0, rank] = key[:, 1]
+    # a graph: the candidates are nodes, joined where neighbouring squares' heights differ by at most
+    # STEP_UP; a component is reached when one of its nodes is that near the ground (its own square's
+    # or a neighbour's)
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    H, W, L = cand.shape
+    nid = np.arange(H * W * L).reshape(H, W, L)
+    base = surf[y0:y1, x0:x1]
+    ea, eb = [], []
+    seed = np.abs(cand - base[:, :, None]) <= STEP_UP
+    for dy, dx in ((1, 0), (0, 1)):
+        A = cand[:H - dy, :W - dx]; B = cand[dy:, dx:]
+        ia = nid[:H - dy, :W - dx]; ib = nid[dy:, dx:]
+        for i in range(L):
+            for j in range(L):
+                m = np.abs(A[:, :, i] - B[:, :, j]) <= STEP_UP
+                ea.append(ia[:, :, i][m]); eb.append(ib[:, :, j][m])
+        # a node next to the ground (either way)
+        seed[:H - dy, :W - dx] |= np.abs(A - base[dy:, dx:, None]) <= STEP_UP
+        seed[dy:, dx:] |= np.abs(B - base[:H - dy, :W - dx, None]) <= STEP_UP
+    ea = np.concatenate(ea); eb = np.concatenate(eb)
+    g = coo_matrix((np.ones(len(ea), np.int8), (ea, eb)), shape=(H * W * L, H * W * L))
+    _, lab = connected_components(g, directed=False)
+    ok = np.zeros(lab.max() + 1, bool); ok[lab[seed.ravel()]] = True
+    reach = ok[lab].reshape(H, W, L) & ~np.isnan(cand)
+    s = np.maximum(base, np.where(reach, cand, -1e9).max(-1))
+    out = surf.copy(); out[y0:y1, x0:x1] = s
+    hit = np.abs(p[:, 2] - out[sy, sx]) <= 3.0
+    return out, stp[np.unique(tid[hit])]
+
+
+def occupancy(esm, gx, gy, solids, flo, stp=np.zeros((0, 3, 3))):
+    """the blocked squares (OCC x OCC bools, row = y) for one on the ground (or a walkable thing's floor),
+    the same for one on reached steps / roofs (None when no different), and the reached step triangles"""
     sq = 2 * HALF / OCC
     land = esm.lands.get((gx, gy))
     cs = (np.arange(OCC) + 0.5) * sq / 128.0     # square centres in the terrain's 128-unit grid
@@ -1108,6 +1182,13 @@ def occupancy(esm, gx, gy, solids, flo):
         fl = np.full((OCC, OCC), -1e9)
         np.maximum.at(fl, (sy[ok], sx[ok]), p[ok, 2])
         surf = np.maximum(surf, fl)
+    surfU, reached = reach_floors(surf, stp, sq)
+    occ = block(solids, surf, sq)
+    occU = block(solids, surfU, sq) if len(reached) else occ
+    return occ, occU, reached
+
+
+def block(solids, surf, sq):
     occ = np.zeros((OCC, OCC), bool)
     for tv in solids:
         if not len(tv): continue
@@ -1156,20 +1237,25 @@ def write_cell(path, gx, gy, batches, terrain_tex, tsize, coll=None):
             recs.append(bstruct.pack(b.tex, b.flags, b.opacity, vofs, len(pos), iofs, len(tris.ravel()),
                                      c[0], c[1], c[2], rad))
         colofs = f.tell()   # (MWC2's boxes: none now)
-        flofs, nflo, occofs = 0, 0, 0
+        flofs, nflo, occofs, occUofs = 0, 0, 0, 0
         if coll is not None:
-            flo, occ = coll
+            flo, occ, occU = coll
             align(f)
             flofs = f.tell(); nflo = len(flo)
             f.write(np.asarray(flo, "<f4").reshape(-1, 9).tobytes())
             align(f)
             occofs = f.tell()
             f.write(np.packbits(occ, axis=1, bitorder="little").tobytes())
+            if occU is not occ:
+                # for one on reached steps / roofs (the old ncol field, unused in MWC3)
+                align(f)
+                occUofs = f.tell()
+                f.write(np.packbits(occU, axis=1, bitorder="little").tobytes())
         end = f.tell()
         f.seek(bofs); f.write(b"".join(recs))
         # tsize: the terrain texture's side, its format in the top 4 bits
         tword = tsize | (terrain_tex[2] << 12 if terrain_tex is not None else 0)
-        f.seek(0); f.write(hdr.pack(b"MWC3", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, 0, flofs, nflo, occofs))
+        f.seek(0); f.write(hdr.pack(b"MWC3", gx, gy, len(batches), tword, ttofs, bofs, end, colofs, occUofs, flofs, nflo, occofs))
 
 
 def write_objects(path, esm, models, tex, dyn, shifts=None):
@@ -1373,7 +1459,8 @@ def main():
         sndbake.bake(a.data, a.out)
     except Exception as ex:   # (miniaudio missing: no sound)
         print("sounds not baked: %s" % ex)
-    print("collision: %d floor triangles, %d blocked squares" % (stats.get("floors", 0), stats.get("blocked", 0)))
+    print("collision: %d floor triangles (%d of them reached steps / roofs), %d blocked squares, %d other up there" % (
+        stats.get("floors", 0), stats.get("reached", 0), stats.get("blocked", 0), stats.get("upper", 0)))
     objp = os.path.join(a.out, "objects.bin")
     if dyn is not None:
         write_objects(objp, esm, models, tex, dyn, shifts)

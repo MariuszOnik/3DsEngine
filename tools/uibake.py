@@ -18,7 +18,7 @@ FRAMES = {
 }
 PARTS = ["top", "bottom", "left", "right", "top_left_corner", "top_right_corner",
          "bottom_left_corner", "bottom_right_corner"]
-EXTRA = ["menu_icon_equip", "menu_icon_none", "menu_icon_magic_mini", "menu_bar_red"]
+EXTRA = ["menu_icon_equip", "menu_icon_none", "menu_icon_magic_mini", "menu_bar_red", "tx_cursor", "target"]
 
 
 def icons_of(esm_path):

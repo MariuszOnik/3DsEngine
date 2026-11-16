@@ -57,7 +57,8 @@ typedef struct {
 	s32 gx, gy;
 	u16 nbatch, tsize;
 	u32 ttofs, bofs, end;
-	u32 colofs, ncol;   // MWC2: collision boxes (8 floats each: centre x y, axis cos sin, half sizes, z from, to)
+	u32 colofs, ncol;   // MWC2: collision boxes (8 floats each: centre x y, axis cos sin, half sizes, z from, to);
+	                    // MWC3: ncol = the offset of the blocked squares for one on stairs / roofs (0: as occ)
 	u32 flofs, nfloor;  // MWC3: floors to walk on (bridges, docks, stairs): triangles, 9 floats each
 	u32 occofs;         // MWC3: what blocks the way, 512 x 512 bits (16 units each, row by row), 0 none
 } __attribute__((packed)) CellHdr;
@@ -89,6 +90,7 @@ typedef struct {
 	int nflo;
 	u16* floB[8][8];    // per 1024-unit square: the floor triangles over it (n, then the indices)
 	const u8* occ;      // the blocked 16-unit squares (bits), NULL: the boxes instead
+	const u8* occU;     // the same for one up on a building's stairs or roof (the walls under it do not block)
 	Vtx* wv;      // the water grid (65 x 65, coloured by the depth), NULL without water
 	Vtx* cv;      // the same grid laid on the bottom: the caustics' strength in the colour
 	C3D_BufInfo cbuf;
@@ -604,10 +606,12 @@ static float finishJob(void)
 		c->col = (const float*)(job.data + h->colofs);
 		c->ncol = h->ncol;
 	}
-	c->flo = NULL; c->nflo = 0; c->occ = NULL;
+	c->flo = NULL; c->nflo = 0; c->occ = NULL; c->occU = NULL;
 	if (!memcmp(h->magic, "MWC3", 4)) {
 		if (h->nfloor && h->flofs + h->nfloor * 36 <= job.size) { c->flo = (const float*)(job.data + h->flofs); c->nflo = h->nfloor; }
 		if (h->occofs && h->occofs + 512 * 512 / 8 <= job.size) c->occ = job.data + h->occofs;
+		c->occU = c->occ;
+		if (h->ncol && h->ncol + 512 * 512 / 8 <= job.size) c->occU = job.data + h->ncol;
 		buildFloorBuckets(c);
 	}
 	c->bufs = calloc(h->nbatch, sizeof(C3D_BufInfo));
@@ -1678,11 +1682,12 @@ static void faceEach(void)
 	e->yaw = atan2f(chr[0] - e->pos[0], chr[1] - e->pos[1]);
 }
 
-static void fightStart(void)
+static void fightStartAt(int want)
 {
 	if (!chOk || swimming) return;
 	int best = -1; float bd = 600.0f * 600.0f;
-	for (int i = 1; i < MAX_ACTORS; i++) {
+	if (want > 0 && want < MAX_ACTORS && actors[want].used && !actors[want].dead) { best = want; bd = 0; }
+	for (int i = 1; i < MAX_ACTORS && best != want; i++) {
 		Actor* a = &actors[i];
 		if (!a->used || a->dead) continue;
 		float dx = a->pos[0] - chr[0], dy = a->pos[1] - chr[1];
@@ -1711,6 +1716,8 @@ static void fightStart(void)
 	if (camMode == CAM_FPP) camMode = CAM_TPP;
 	setCamLimits();
 }
+
+static void fightStart(void) { fightStartAt(-1); }
 
 static void fightEnd(void)
 {
@@ -2342,7 +2349,7 @@ static bool inBox(const float* b, float x, float y, float z)
 
 // How much of the character's circle at (x, y) is in blocked squares (MWC3 cells: the baker's
 // 16-unit grid of what stands in the body's height band over the ground): the number of them.
-static int occOverlap(float x, float y)
+static int occOverlap(float x, float y, bool up)
 {
 	int n = 0;
 	int x0 = (int)floorf((x - CHR_R) / 16.0f), x1 = (int)floorf((x + CHR_R) / 16.0f);
@@ -2353,7 +2360,7 @@ static int occOverlap(float x, float y)
 			Cell* c = findCell(gx, gy);
 			if (!c || !c->occ) continue;
 			int lx = sx - gx * 512, ly = sy - gy * 512;
-			if (!(c->occ[(ly * 512 + lx) >> 3] & (1 << (lx & 7)))) continue;
+			if (!((up ? c->occU : c->occ)[(ly * 512 + lx) >> 3] & (1 << (lx & 7)))) continue;
 			// the circle's distance to that square
 			float qx = fmaxf(sx * 16.0f, fminf(x, sx * 16.0f + 16.0f)), qy = fmaxf(sy * 16.0f, fminf(y, sy * 16.0f + 16.0f));
 			if ((qx - x) * (qx - x) + (qy - y) * (qy - y) < CHR_R * CHR_R) n++;
@@ -2363,12 +2370,19 @@ static int occOverlap(float x, float y)
 
 // Would the character at (x, y, z) stand in a thing? Where it is caught already (px, py) it may
 // move as long as it gets no deeper in (so it can always walk out).
-static bool collides(float x, float y, float z, float px, float py)
+// Up on stairs or a roof (standing higher than the terrain there): the other blocked squares.
+static bool upAt(float x, float y, float z)
+{
+	float t;
+	return groundAt(x, y, &t) && z > t + 8.0f;
+}
+
+static bool collides(float x, float y, float z, float px, float py, float pz)
 {
 	if (!collideOn) return false;
-	int nNew = occOverlap(x, y);
+	int nNew = occOverlap(x, y, upAt(x, y, z));
 	if (nNew > 0) {
-		int nOld = occOverlap(px, py);
+		int nOld = occOverlap(px, py, upAt(px, py, pz));
 		if (nOld == 0 || nNew > nOld) return true;
 	}
 	for (int i = 0; i < MAX_CELLS; i++) {
@@ -2386,6 +2400,180 @@ static bool collides(float x, float y, float z, float px, float py)
 		}
 	}
 	return false;
+}
+
+// The world cursor (docs/PLAN.md, the user's design). FPP: a crosshair in the middle, the ray from the
+// eyes; the name of what it hits is written under it (as Morrowind does), A uses that. RTS / TPP:
+// SELECT shows Morrowind's mouse cursor, moved by the circle pad (at the screen's edge it turns the
+// camera); the ray from the camera through it. A on the ground: the character walks there; on an
+// object: walks up to it and uses it; on an NPC: walks up and talks (Y: walks up and fights).
+// B or the circle pad (with the cursor off) stops the walk.
+enum { CK_NONE, CK_GROUND, CK_OBJ, CK_NPC };
+static bool curOn;                        // the cursor shown (RTS / TPP)
+static float curX = 200.0f, curY = 150.0f;   // on the top screen (400 x 240)
+static int curKind, curIdx;               // what the ray hits
+static float curP[3], curDist;            // where, how far from the character
+static char curLabel[80];
+static struct {
+	bool on;
+	int kind, idx;                        // CK_GROUND: walk; CK_OBJ: use it; CK_NPC: talk (fight: true)
+	bool fight;
+	float p[3];
+	float best, stuckT;                   // the nearest it got, how long without getting nearer
+} walkTo;
+
+static float rayClosest(const float o[3], const float d[3], const float c[3], float* along)
+{
+	float v[3] = { c[0] - o[0], c[1] - o[1], c[2] - o[2] };
+	float t = v[0] * d[0] + v[1] * d[1] + v[2] * d[2];
+	*along = t;
+	float q[3] = { o[0] + d[0] * t - c[0], o[1] + d[1] * t - c[1], o[2] + d[2] * t - c[2] };
+	return sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+}
+
+// The surface (terrain, or a floor not over the point) under (x, y) seen from height z.
+static float surfaceAt(float x, float y, float z, bool* ok)
+{
+	float g;
+	*ok = groundAt(x, y, &g);
+	if (!*ok) return -1e9f;
+	float f = floorAt(x, y, z, 0);
+	return f > g ? f : g;
+}
+
+// The ray from the camera (eye, its forward fwd) through the screen point (sx, sy): what it hits first.
+static void cursorPick(const float fwd[3], float sx, float sy, float fov)
+{
+	float up0[3] = { 0, 0, 1 };
+	float r[3] = { fwd[1] * up0[2] - fwd[2] * up0[1], fwd[2] * up0[0] - fwd[0] * up0[2], fwd[0] * up0[1] - fwd[1] * up0[0] };
+	float rl = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+	if (rl < 1e-4f) { r[0] = 1; r[1] = 0; r[2] = 0; rl = 1; }
+	for (int i = 0; i < 3; i++) r[i] /= rl;
+	float u[3] = { r[1] * fwd[2] - r[2] * fwd[1], r[2] * fwd[0] - r[0] * fwd[2], r[0] * fwd[1] - r[1] * fwd[0] };
+	float th = tanf(fov * (float)M_PI / 360.0f);
+	float nx = (sx - 200.0f) / 200.0f * th * (400.0f / 240.0f), ny = (120.0f - sy) / 120.0f * th;
+	float d[3];
+	for (int i = 0; i < 3; i++) d[i] = fwd[i] + r[i] * nx + u[i] * ny;
+	float dl = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+	for (int i = 0; i < 3; i++) d[i] /= dl;
+	const float MAXT = camMode == CAM_FPP ? 2500.0f : 4000.0f;
+	// the ground: steps along the ray, then halving the last one
+	float tg = 1e9f;
+	{
+		float prev = 0;
+		for (float t = 16.0f; t < MAXT; t += 24.0f) {
+			bool ok;
+			float px = eye[0] + d[0] * t, py = eye[1] + d[1] * t, pz = eye[2] + d[2] * t;
+			float s = surfaceAt(px, py, pz, &ok);
+			if (!ok) break;
+			if (pz <= s) {
+				float a = prev, b = t;
+				for (int k = 0; k < 6; k++) {
+					float m = (a + b) / 2;
+					float s2 = surfaceAt(eye[0] + d[0] * m, eye[1] + d[1] * m, eye[2] + d[2] * m, &ok);
+					if (eye[2] + d[2] * m <= s2) b = m; else a = m;
+				}
+				tg = b;
+				break;
+			}
+			prev = t;
+		}
+	}
+	int kind = tg < 1e8f ? CK_GROUND : CK_NONE, idx = -1;
+	float best = tg;
+	// the NPCs: a sphere round the middle of the body (lying dead: low)
+	for (int i = 1; i < MAX_ACTORS; i++) {
+		Actor* a = &actors[i];
+		if (!a->used) continue;
+		float c[3] = { a->pos[0], a->pos[1], a->pos[2] + (a->dead ? 20.0f : 70.0f) };
+		float t, m = rayClosest(eye, d, c, &t);
+		if (t > 8.0f && m < (a->dead ? 40.0f : 48.0f) && t - 20.0f < best) { best = t - 20.0f; kind = CK_NPC; idx = i; }
+	}
+	// the objects: a sphere a bit smaller than the model's (a door is reached at its middle)
+	if (objsOk)
+		for (int i = 0; i < nobj; i++) {
+			WObj* o = &objs[i];
+			if (o->flags & OF_TAKEN) continue;
+			float dx = o->pos[0] - eye[0], dy = o->pos[1] - eye[1];
+			if (dx * dx + dy * dy > MAXT * MAXT) continue;
+			const ObjModel* mo = objModel(i);
+			float rad = mo ? mo->radius * o->scale : 20.0f;
+			float hit = fmaxf(16.0f, fminf(rad * 0.6f, 90.0f));
+			float c[3] = { o->pos[0], o->pos[1], o->pos[2] + fminf(rad * 0.4f, 60.0f) };
+			float t, m = rayClosest(eye, d, c, &t);
+			if (t > 8.0f && m < hit && t - hit < best + 10.0f) { best = t - hit; kind = CK_OBJ; idx = i; }
+		}
+	curKind = kind; curIdx = idx;
+	if (kind == CK_GROUND) for (int i = 0; i < 3; i++) curP[i] = eye[i] + d[i] * tg;
+	else if (kind == CK_NPC) memcpy(curP, actors[idx].pos, sizeof curP);
+	else if (kind == CK_OBJ) memcpy(curP, objs[idx].pos, sizeof curP);
+	curDist = sqrtf((curP[0] - chr[0]) * (curP[0] - chr[0]) + (curP[1] - chr[1]) * (curP[1] - chr[1]));
+	// the name shown under the cursor (FPP: only what is in reach, as in Morrowind)
+	curLabel[0] = 0;
+	float metres = curDist / 70.0f;   // (Morrowind: ~70 units to a metre)
+	if (kind == CK_OBJ) {
+		const char* n = objName(idx);
+		if (!n[0]) n = objId(idx);
+		int ty = objType(idx);
+		if (ty == OT_DOOR && objDest(idx)) snprintf(curLabel, sizeof curLabel, "%s", objDest(idx)[0] ? objDest(idx) : "Na zewnątrz");
+		else snprintf(curLabel, sizeof curLabel, "%s", n);
+	} else if (kind == CK_NPC) snprintf(curLabel, sizeof curLabel, actors[idx].dead ? "Zwłoki" : "Mieszkaniec  (A: rozmowa, Y: walka)");
+	else if (kind == CK_GROUND && camMode != CAM_FPP) snprintf(curLabel, sizeof curLabel, "%.0f m", metres);
+	if (camMode == CAM_FPP && kind != CK_GROUND && curDist > 260.0f) curLabel[0] = 0;
+}
+
+static void walkStart(int kind, int idx, const float p[3], bool fightIt)
+{
+	walkTo.on = true; walkTo.kind = kind; walkTo.idx = idx; walkTo.fight = fightIt;
+	memcpy(walkTo.p, p, sizeof walkTo.p);
+	walkTo.best = 1e9f; walkTo.stuckT = 0;
+}
+
+static void fightStartAt(int want);
+
+// What the walk wants from the circle pad this frame (mx, my relative to the camera as chrUpdate
+// takes them); false when it is over. At the end: the object used, the NPC talked to / fought.
+static bool walkStep(float dt, float* mx, float* my, bool* run)
+{
+	if (!walkTo.on) return false;
+	if (walkTo.kind == CK_NPC) {   // it may move
+		Actor* a = &actors[walkTo.idx];
+		if (!a->used) { walkTo.on = false; return false; }
+		memcpy(walkTo.p, a->pos, sizeof walkTo.p);
+	}
+	float dx = walkTo.p[0] - chr[0], dy = walkTo.p[1] - chr[1];
+	float d = sqrtf(dx * dx + dy * dy);
+	float reach = walkTo.kind == CK_GROUND ? 20.0f : walkTo.kind == CK_NPC ? 100.0f : 0;
+	if (walkTo.kind == CK_OBJ) {
+		const ObjModel* mo = objModel(walkTo.idx);
+		float rad = mo ? mo->radius * objs[walkTo.idx].scale : 20.0f;
+		reach = 90.0f + (rad < 80.0f ? rad * 0.5f : 40.0f);
+	}
+	if (d <= reach) {
+		walkTo.on = false;
+		if (walkTo.kind == CK_OBJ) {
+			chrYaw = atan2f(dx, dy);
+			objActivate(walkTo.idx);
+		} else if (walkTo.kind == CK_NPC && !actors[walkTo.idx].dead) {
+			chrYaw = atan2f(dx, dy);
+			if (walkTo.fight) fightStartAt(walkTo.idx);
+			else {
+				Actor* a = &actors[walkTo.idx];
+				a->yaw = atan2f(chr[0] - a->pos[0], chr[1] - a->pos[1]);
+				gameMessage("Mieszkaniec: \"Tak, obcy?\"  (dialogi wkrótce)");
+			}
+		}
+		return false;
+	}
+	// stuck (a wall in the way): given up after a second without getting nearer
+	if (d < walkTo.best - 2.0f) { walkTo.best = d; walkTo.stuckT = 0; }
+	else if ((walkTo.stuckT += dt) > 1.0f) { walkTo.on = false; gameMessage("Nie da się tam przejść"); return false; }
+	float ux = dx / d, uy = dy / d;
+	float fx = sinf(rtsYaw), fy = cosf(rtsYaw);
+	*my = ux * fx + uy * fy;
+	*mx = ux * fy - uy * fx;
+	*run = d > 500.0f;
+	return true;
 }
 
 // Walking: the circle pad relative to the camera (FPP: forward is where it looks), the figure
@@ -2424,7 +2612,7 @@ static void chrUpdate(float dt, float mx, float my, bool run, bool dive, bool ju
 			if (!standAt(tx, ty, base, STEP, &g)) continue;   // that cell is not in yet
 			if (g < -9000.0f) g = -2000.0f;                    // the open sea
 			if (g > base + STEP) continue;                     // a wall of ground (a cliff), too high a floor
-			if (collides(tx, ty, fmaxf(g, chr[2] - 60.0f), chr[0], chr[1])) continue;
+			if (collides(tx, ty, fmaxf(g, chr[2] - 60.0f), chr[0], chr[1], chr[2])) continue;
 			moved = sqrtf((tx - chr[0]) * (tx - chr[0]) + (ty - chr[1]) * (ty - chr[1]));
 			chr[0] = tx; chr[1] = ty;
 			break;
@@ -3175,7 +3363,8 @@ int main(void)
 		bool bench = bPhase != B_OFF;
 		u32 down = bench ? 0 : hidKeysDown(), held = bench ? 0 : hidKeysHeld();
 		if (down & KEY_START) break;
-		if (down & KEY_SELECT) setRts(!rtsMode);
+		if ((down & KEY_SELECT) && (!rtsMode || (held & KEY_L))) setRts(!rtsMode);
+		else if ((down & KEY_SELECT) && camMode != CAM_FPP) { curOn = !curOn; audioPlay(SND_CLICK, 0.5f, 0); }
 		if ((down & KEY_TOUCH) && uiOn && chOk) {
 			touchPosition tp;
 			hidTouchRead(&tp);
@@ -3246,6 +3435,29 @@ int main(void)
 			// water), Y jumps; L+A: five NPCs more, L+Y: all of them gone
 			if (chOk && useConsole && (down & KEY_X)) { invOpen = !invOpen; invDirty = true; consoleClear(); }
 			bool combo = (held & KEY_L) != 0;
+			if (camMode == CAM_FPP) curOn = false;
+			if (curOn && !fight.on && !invOpen) {   // the cursor: the pad moves it, at the edge the camera turns
+				curX += pmx * 260.0f * dt; curY -= pmy * 200.0f * dt;
+				if (curX < 2) { curX = 2; if (pmx < 0) turn += pmx; }
+				if (curX > 398) { curX = 398; if (pmx > 0) turn += pmx; }
+				if (curY < 2) curY = 2;
+				if (curY > 238) curY = 238;
+				pmx = pmy = 0;
+				if (!combo && (down & (KEY_A | KEY_Y)) && curKind != CK_NONE) {
+					bool y = (down & KEY_Y) != 0;
+					if (curKind == CK_NPC && actors[curIdx].dead) { if (!y) gameMessage("Zwłoki"); }
+					else if (curKind == CK_GROUND && y) { }
+					else { walkStart(curKind, curIdx, curP, y); audioPlay(SND_CLICK, 0.4f, 0); }
+					down &= ~(KEY_A | KEY_Y);
+				}
+				if (down & KEY_B) walkTo.on = false;
+			} else if (pmx != 0 || pmy != 0) walkTo.on = false;   // walking by hand stops the walk to a point
+			if (camMode == CAM_FPP && !combo && !fight.on && !invOpen && (down & KEY_A) && curKind == CK_NPC && curDist < 160.0f && !actors[curIdx].dead) {
+				walkStart(CK_NPC, curIdx, curP, false);   // (in reach: talks at once)
+				down &= ~KEY_A;
+			}
+			bool walkRun = false;
+			if (!fight.on && walkStep(dt, &pmx, &pmy, &walkRun)) { if (walkRun) held |= KEY_B; }
 			if (combo && (down & KEY_A)) { spawnNpcs(5); invDirty = true; uiDirty = true; }
 			else if (combo && (down & KEY_Y)) { fightEnd(); clearNpcs(); invDirty = true; uiDirty = true; }
 			else if (combo && (down & KEY_X)) {   // L+X: the scripts again (from the SD card: edited, uploaded, no build)
@@ -3292,12 +3504,19 @@ int main(void)
 		if (held & KEY_L) eye[2] -= speed * dt;
 		if (bench) benchCamera(dt, fwd);
 		else if (rtsMode) rtsCamera(fwd);
+		curKind = CK_NONE; curLabel[0] = 0;
+		if (rtsMode && !bench && !fight.on && (camMode == CAM_FPP || curOn)) {
+			if (camMode == CAM_FPP) cursorPick(fwd, 200.0f, 120.0f, 60.0f);
+			else cursorPick(fwd, curX, curY, 60.0f);
+		}
 		if (invOpen && invDirty && !bench) invDraw();
 		if (rtsMode && !bench) soundUpdate();
 		if (fightUpdate(dt)) uiDirty = true;
 		if (objsOk) {   // doors swing; the object in reach (RTS / TPP / FPP: the character's)
 			objUpdate(dt);
 			int t = rtsMode && !bench && !fight.on ? objNearest(chr, chrYaw, 130.0f) : -1;
+			if (camMode == CAM_FPP && curKind == CK_OBJ && curDist < 220.0f) t = curIdx;
+			else if (camMode == CAM_FPP && curKind != CK_NONE && curDist < 220.0f) t = -1;   // looking at something else
 			if (t != objTarget) { objTarget = t; uiDirty = true; }
 		}
 		scriptMs = 0; scriptCalls = 0;
@@ -3406,6 +3625,14 @@ int main(void)
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
 		clipOff();
+		if (uiOn && rtsMode && !bench && !fight.on && (camMode == CAM_FPP || curOn)) {
+			for (int i = 1; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+			bool fpp = camMode == CAM_FPP;
+			for (int e = 0; e < (stereo ? 2 : 1); e++)
+				uiDrawTop(e == 0 ? left : topR, fpp ? 1 : 2, fpp ? 200.0f : curX, fpp ? 120.0f : curY, curLabel,
+				          !fpp && walkTo.on && walkTo.kind == CK_GROUND);
+			for (int i = 3; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));
+		}
 		if (uiOn && uiDirty) {
 			for (int i = 1; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));   // (the 3D's fog stage off: it tinted the window)
 			uiFill();

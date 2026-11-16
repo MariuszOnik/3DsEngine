@@ -16,6 +16,7 @@ TESTS = [
     ("hw4-etc1-old3ds.log", "T4", "Tekstury ETC1 (3,6× mniej pamięci), teren 512² zamiast 256²"),
     ("hw5-lod1-old3ds.log", "T5", "LOD: od 3500 jednostek lżejsze kopie dużych obiektów (skały uproszczone, liście przerzedzone)"),
     ("hw6-rts-old3ds.log", "T6", "kamera RTS: -55°, 700 jednostek, zasięg 2600, postać biegnie trasą"),
+    ("hw7-fx-old3ds.log", "T7", "kamera RTS + woda wg głębokości i cień postaci"),
 ]
 
 num = r"([-\d.]+)"

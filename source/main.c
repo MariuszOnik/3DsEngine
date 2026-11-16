@@ -144,8 +144,9 @@ static float fogStart = 0.45f;     // the fog starts at this share of the draw d
 // in the tests T1-T6). The stereo 3D follows the 3D slider (each eye drawn: twice the GPU).
 static int fxMode = 0;
 static float fxTime;               // seconds, for the ripples
-static C3D_Tex rippleTex;
-static bool rippleOk;
+static C3D_Tex rippleTex, detailTex;
+static bool rippleOk, detailOk;
+static int uDetail;
 static DVLB_s* wDvlb;
 static shaderProgram_s wProg;
 static int wMvp, wOrigin, wFog, wUvA, wUvB;
@@ -157,6 +158,8 @@ static int wMvp, wOrigin, wFog, wUvA, wUvB;
 #define RTS_DIST 700.0f
 #define RTS_FAR 2600.0f     // the farthest corner of the view on flat ground is ~1800 away; the rest for tall things
 #define RTS_TARGET_Z 70.0f  // the camera looks at the character's chest
+#define RTS_LOAD 3500.0f    // RTS: cells nearer the character than this are loaded,
+#define RTS_DROP 6500.0f    // ... farther than this unloaded (instead of the 3 x 3 rings)
 #define WALK_SPEED 170.0f
 #define RUN_SPEED 420.0f
 static bool rtsMode = true;
@@ -442,9 +445,18 @@ static float finishJob(void)
 // camera will be in 2 s first.
 static int cellsMissing;   // wanted cells within radius not loaded yet (the world is incomplete)
 
+// The distance from a point to a cell's square (0 inside).
+static float rectDist(int gx, int gy, float x, float y)
+{
+	float dx = fmaxf(fmaxf(gx * CELL - x, x - (gx + 1) * CELL), 0);
+	float dy = fmaxf(fmaxf(gy * CELL - y, y - (gy + 1) * CELL), 0);
+	return sqrtf(dx * dx + dy * dy);
+}
+
 static void pickJob(void)
 {
-	int cgx = (int)floorf(eye[0] / CELL), cgy = (int)floorf(eye[1] / CELL);
+	const float* at = rtsMode ? chr : eye;
+	int cgx = (int)floorf(at[0] / CELL), cgy = (int)floorf(at[1] / CELL);
 	float px = eye[0] + vel[0] * 2.0f, py = eye[1] + vel[1] * 2.0f;
 	float sp = sqrtf(vel[0] * vel[0] + vel[1] * vel[1]);
 	float best = 1e30f;
@@ -453,7 +465,12 @@ static void pickJob(void)
 	for (int dy = -radius - 1; dy <= radius + 1; dy++)
 		for (int dx = -radius - 1; dx <= radius + 1; dx++) {
 			int gx = cgx + dx, gy = cgy + dy;
-			bool inner = abs(dx) <= radius && abs(dy) <= radius;
+			bool inner;
+			if (rtsMode) {   // the camera sees ~1800 round the character: no need for the whole 3 x 3
+				float rd = rectDist(gx, gy, chr[0], chr[1]);
+				if (rd > RTS_LOAD + 2500.0f) continue;
+				inner = rd < RTS_LOAD;
+			} else inner = abs(dx) <= radius && abs(dy) <= radius;
 			const Avail* a = findAvail(gx, gy);
 			if (!a || findCell(gx, gy)) continue;
 			if (job.state != JOB_IDLE && job.gx == gx && job.gy == gy) { if (inner) cellsMissing++; continue; }
@@ -482,7 +499,9 @@ static float streamCells(void)
 	int cgx = (int)floorf(eye[0] / CELL), cgy = (int)floorf(eye[1] / CELL);
 	for (int i = 0; i < MAX_CELLS; i++) {
 		Cell* c = &cells[i];
-		if (c->used && (abs(c->gx - cgx) > radius + 1 || abs(c->gy - cgy) > radius + 1)) unloadCell(c);
+		if (!c->used) continue;
+		if (rtsMode ? rectDist(c->gx, c->gy, chr[0], chr[1]) > RTS_DROP
+		            : (abs(c->gx - cgx) > radius + 1 || abs(c->gy - cgy) > radius + 1)) unloadCell(c);
 	}
 	float setup = 0;
 	if (job.state == JOB_DONE) {
@@ -504,7 +523,7 @@ static float streamCells(void)
 
 // ------------------------------------------------------------------ drawing
 
-static void setupTexEnv(u8 opacity)
+static void setupTexEnv(u8 opacity, bool terrain)
 {
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
 	C3D_TexEnvInit(env);
@@ -513,8 +532,21 @@ static void setupTexEnv(u8 opacity)
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_TEXTURE0, GPU_CONSTANT, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_MODULATE);
 	C3D_TexEnvColor(env, (u32)opacity << 24 | 0xFFFFFF);
-	// fog: lerp towards the sky by the vertex alpha (1 = clear)
+	// the terrain: x the detail texture x2 (unit 1, texcoord 1); the rest: as it is
 	env = C3D_GetTexEnv(1);
+	C3D_TexEnvInit(env);
+	if (terrain && detailOk) {
+		C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_TEXTURE1, 0);
+		C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
+		C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_2);
+	} else {
+		C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, 0, 0);
+		C3D_TexEnvFunc(env, C3D_RGB, GPU_REPLACE);
+	}
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	// fog: lerp towards the sky by the vertex alpha (1 = clear)
+	env = C3D_GetTexEnv(2);
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_CONSTANT, GPU_PRIMARY_COLOR);
 	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_ALPHA);
@@ -531,6 +563,8 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, mvp);
 	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uDetail, 0, 0, 1.0f / 256.0f, 0);
+	if (detailOk) C3D_TexBind(1, &detailTex);
 
 	// frustum planes (camera-relative): left, right, bottom, top
 	float pl[4][4];
@@ -561,7 +595,7 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 			               GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
 			C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
 		}
-		int lastTex = -2, lastCull = -1, lastOpacity = -1;
+		int lastTex = -2, lastCull = -1, lastOpacity = -1, lastTerr = -1;
 		for (int ci = 0; ci < MAX_CELLS; ci++) {
 			Cell* c = &cells[ci];
 			if (!c->used) continue;
@@ -600,7 +634,11 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 					C3D_CullFace(cull ? GPU_CULL_BACK_CCW : GPU_CULL_NONE);
 					lastCull = cull;
 				}
-				if (b->opacity != lastOpacity) { setupTexEnv(b->opacity); lastOpacity = b->opacity; }
+				int terr = t < 0;
+				if (b->opacity != lastOpacity || terr != lastTerr) {
+					setupTexEnv(b->opacity, terr);
+					lastOpacity = b->opacity; lastTerr = terr;
+				}
 				C3D_SetBufInfo(&c->bufs[i]);
 				C3D_DrawElements(GPU_TRIANGLES, b->icount, C3D_UNSIGNED_SHORT, c->data + b->iofs);
 				statDraws++;
@@ -689,7 +727,7 @@ static void drawCharacter(void)
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
 	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
 	C3D_CullFace(GPU_CULL_NONE);
-	setupTexEnv(255);                      // stage 1: the fog
+	setupTexEnv(255, false);               // stage 2: the fog
 	C3D_TexEnv* env = C3D_GetTexEnv(0);    // stage 0: the vertex colour alone
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
@@ -702,54 +740,127 @@ static void drawCharacter(void)
 
 // ------------------------------------------------------------------ water, shadow
 
-// The ripple texture (L8, 128 x 128, tiling, mipmapped): a few sine waves of whole periods and
-// a little noise round mid grey. Drawn twice over the water, scrolled apart, added signed.
+// Tiling value noise: a lattice of gx x gy random values (powers of 2) over the texture,
+// smoothly interpolated; whole lattices, so the texture repeats without a seam.
+static float lattice(int x, int y, int gx, int gy, u32 seed)
+{
+	x &= gx - 1; y &= gy - 1;
+	u32 h = (u32)x * 374761393u + (u32)y * 668265263u + seed * 2246822519u;
+	h = (h ^ (h >> 13)) * 1274126177u;
+	h ^= h >> 16;
+	return (h & 0xFFFF) / 65535.0f;
+}
+
+static float vnoise(float x, float y, int gx, int gy, u32 seed)
+{
+	int ix = (int)floorf(x), iy = (int)floorf(y);
+	float fx = x - ix, fy = y - iy;
+	fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+	float a = lattice(ix, iy, gx, gy, seed), b = lattice(ix + 1, iy, gx, gy, seed);
+	float c = lattice(ix, iy + 1, gx, gy, seed), d = lattice(ix + 1, iy + 1, gx, gy, seed);
+	return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+}
+
+// octaves: lattice sizes from (gx0, gy0) doubling, amplitudes from 1 by `gain`; result 0..1
+static void fbm(float* out, int N, int gx0, int gy0, int octaves, float gain, u32 seed)
+{
+	float lo = 1e9f, hi = -1e9f;
+	for (int y = 0; y < N; y++)
+		for (int x = 0; x < N; x++) {
+			float v = 0, amp = 1;
+			int gx = gx0, gy = gy0;
+			for (int o = 0; o < octaves; o++) {
+				v += amp * vnoise(x * (float)gx / N, y * (float)gy / N, gx, gy, seed + o * 101);
+				amp *= gain; gx *= 2; gy *= 2;
+			}
+			out[y * N + x] = v;
+			if (v < lo) lo = v;
+			if (v > hi) hi = v;
+		}
+	for (int i = 0; i < N * N; i++) out[i] = (out[i] - lo) / (hi - lo);
+}
+
+// Writes the levels of a mipmapped L8 (A == NULL) or LA8 texture from linear 0..1 arrays
+// (they are averaged down in place), into the GPU's 8 x 8 tiled order.
 static u32 morton8(int x, int y)
 {
 	return (x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3);
 }
 
-static void makeRipples(void)
+static void writeLevels(C3D_Tex* t, int N, float* L, float* A)
 {
-	const int N = 128;
-	if (!C3D_TexInitMipmap(&rippleTex, N, N, GPU_L8)) return;
-	static float lv[128 * 128];
-	u32 seed = 12345;
-	for (int y = 0; y < N; y++)
-		for (int x = 0; x < N; x++) {
-			float u = x * 2.0f * (float)M_PI / N, v = y * 2.0f * (float)M_PI / N;
-			float h = 0.45f * sinf(3 * u + 2 * v) + 0.35f * sinf(-2 * u + 5 * v + 1.3f) +
-			          0.25f * sinf(7 * u - 3 * v + 0.4f) + 0.18f * sinf(5 * u + 9 * v + 2.1f) +
-			          0.12f * sinf(13 * u + 4 * v);
-			seed = seed * 1664525u + 1013904223u;
-			h += ((seed >> 24) / 255.0f - 0.5f) * 0.25f;
-			lv[y * N + x] = h;
-		}
-	int levels = C3D_TexCalcMaxLevel(N, N);
-	u8* dst = (u8*)rippleTex.data;
-	int w = N;
-	for (int l = 0; l <= levels; l++) {
+	u8* dst = (u8*)t->data;
+	int bpp = A ? 2 : 1, w = N;
+	while (true) {
 		for (int y = 0; y < w; y++)
 			for (int x = 0; x < w; x++) {
-				float h = lv[y * w + x];
-				int val = 128 + (int)(h * 34.0f);
-				if (val < 0) val = 0;
-				if (val > 255) val = 255;
-				dst[((y >> 3) * (w >> 3) + (x >> 3)) * 64 + morton8(x & 7, y & 7)] = (u8)val;
+				int o = ((y >> 3) * (w >> 3) + (x >> 3)) * 64 + morton8(x & 7, y & 7);
+				int l = (int)(L[y * w + x] * 255.0f + 0.5f);
+				l = l < 0 ? 0 : l > 255 ? 255 : l;
+				if (!A) dst[o] = (u8)l;
+				else {
+					int a = (int)(A[y * w + x] * 255.0f + 0.5f);
+					a = a < 0 ? 0 : a > 255 ? 255 : a;
+					dst[o * 2] = (u8)a; dst[o * 2 + 1] = (u8)l;   // LA8: alpha first, then luminance
+				}
 			}
-		dst += w * w;
+		dst += w * w * bpp;
 		if (w <= 8) break;
-		int h2 = w / 2;   // the next level: 2 x 2 averages
-		for (int y = 0; y < h2; y++)
-			for (int x = 0; x < h2; x++)
-				lv[y * h2 + x] = (lv[2 * y * w + 2 * x] + lv[2 * y * w + 2 * x + 1] + lv[(2 * y + 1) * w + 2 * x] +
-				                  lv[(2 * y + 1) * w + 2 * x + 1]) * 0.25f;
-		w = h2;
+		int h = w / 2;
+		for (int y = 0; y < h; y++)
+			for (int x = 0; x < h; x++) {
+				int i0 = 2 * y * w + 2 * x;
+				L[y * h + x] = (L[i0] + L[i0 + 1] + L[i0 + w] + L[i0 + w + 1]) * 0.25f;
+				if (A) A[y * h + x] = (A[i0] + A[i0 + 1] + A[i0 + w] + A[i0 + w + 1]) * 0.25f;
+			}
+		w = h;
 	}
-	C3D_TexFlush(&rippleTex);
-	C3D_TexSetFilter(&rippleTex, GPU_LINEAR, GPU_LINEAR);
-	C3D_TexSetFilterMipmap(&rippleTex, GPU_LINEAR);
-	C3D_TexSetWrap(&rippleTex, GPU_REPEAT, GPU_REPEAT);
+	C3D_TexFlush(t);
+	C3D_TexSetFilter(t, GPU_LINEAR, GPU_LINEAR);
+	C3D_TexSetFilterMipmap(t, GPU_LINEAR);
+	C3D_TexSetWrap(t, GPU_REPEAT, GPU_REPEAT);
+}
+
+static float noiseBuf[256 * 256], noiseBuf2[256 * 256];
+
+// The terrain's detail (L8 128, repeated every 256 units, x2 over the colour): a fine grain
+// round mid grey, its mean exactly mid grey so that the far mip levels leave the colour as it is.
+static void makeDetail(void)
+{
+	const int N = 128;
+	if (!C3D_TexInitMipmap(&detailTex, N, N, GPU_L8)) return;
+	fbm(noiseBuf, N, 8, 8, 4, 0.6f, 777);
+	float mean = 0;
+	for (int i = 0; i < N * N; i++) mean += noiseBuf[i];
+	mean /= N * N;
+	for (int i = 0; i < N * N; i++) noiseBuf[i] = 0.5f + (noiseBuf[i] - mean) * 0.30f;
+	writeLevels(&detailTex, N, noiseBuf, NULL);
+	detailOk = true;
+}
+
+// The ripples (LA8 256, tiling): crests of stretched noise (1 - |2n - 1|: lines where the noise
+// crosses its middle), low contrast round mid grey; the alpha marks the tops of the crests, and
+// where the two scrolled layers' tops meet the sun glints.
+static void makeRipples(void)
+{
+	const int N = 256;
+	if (!C3D_TexInitMipmap(&rippleTex, N, N, GPU_LA8)) return;
+	fbm(noiseBuf, N, 8, 4, 4, 0.55f, 4242);
+	float mean = 0;
+	for (int i = 0; i < N * N; i++) {
+		float r = 1 - fabsf(2 * noiseBuf[i] - 1);
+		noiseBuf[i] = r;
+		mean += r;
+	}
+	mean /= N * N;
+	for (int i = 0; i < N * N; i++) {
+		float r = noiseBuf[i];
+		float g = (r - 0.8f) / 0.2f;
+		g = g < 0 ? 0 : g * g;
+		noiseBuf2[i] = g * 0.8f;
+		noiseBuf[i] = 0.5f + (r - mean) * 0.42f;
+	}
+	writeLevels(&rippleTex, N, noiseBuf, noiseBuf2);
 	rippleOk = true;
 }
 
@@ -804,6 +915,10 @@ static void drawShadow(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	env = C3D_GetTexEnv(2);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
 	C3D_SetBufInfo(&shBuf);
 	C3D_DrawElements(GPU_TRIANGLES, SH_SEG * 3, C3D_UNSIGNED_SHORT, shI);
 	statDraws++;
@@ -817,8 +932,8 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	if (!rippleOk) return;
 	waterProgram(mvp, fwd);
 	float t = fxTime;
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 16.0f / 8192.0f, 0);
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 20.0f / 8192.0f, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 8.0f / 8192.0f, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 6.0f / 8192.0f, 0);
 	C3D_TexBind(0, &rippleTex);
 	C3D_TexBind(1, &rippleTex);
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
@@ -834,6 +949,13 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_2);
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	// sun glints: where both layers' crest tops (alpha) meet, added white (and less see-through)
+	env = C3D_GetTexEnv(2);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_TEXTURE1, GPU_PREVIOUS);
+	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_ALPHA, GPU_TEVOP_RGB_SRC_ALPHA, GPU_TEVOP_RGB_SRC_COLOR);
+	C3D_TexEnvOpAlpha(env, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA, GPU_TEVOP_A_SRC_ALPHA);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_MULTIPLY_ADD);
 	for (int ci = 0; ci < MAX_CELLS; ci++) {
 		Cell* c = &cells[ci];
 		if (!c->used || !c->wv || !c->wni) continue;
@@ -1218,7 +1340,8 @@ int main(void)
 	C3D_RenderTarget* topR = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	if (topR) C3D_RenderTargetSetOutput(topR, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
 	// anti-aliasing: 2 x 2 the pixels, scaled down by the display transfer (4 x the fill)
-	C3D_RenderTarget* topAA = C3D_RenderTargetCreate(480, 800, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	// (anti-aliasing, 2 x 2 the pixels: 9 ms more GPU for little to see, hardware test 7: off)
+	C3D_RenderTarget* topAA = NULL;
 	C3D_RenderTarget* curLeft = top;
 	const u32 AA_FLAGS = (DISPLAY_TRANSFER_FLAGS & ~GX_TRANSFER_SCALING(3)) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_XY);
 
@@ -1228,6 +1351,7 @@ int main(void)
 	uMvp = shaderInstanceGetUniformLocation(prog.vertexShader, "mvp");
 	uOrigin = shaderInstanceGetUniformLocation(prog.vertexShader, "origin");
 	uFog = shaderInstanceGetUniformLocation(prog.vertexShader, "fogRow");
+	uDetail = shaderInstanceGetUniformLocation(prog.vertexShader, "detail");
 	AttrInfo_Init(&attr);
 	AttrInfo_AddLoader(&attr, 0, GPU_SHORT, 4);
 	AttrInfo_AddLoader(&attr, 1, GPU_SHORT, 2);
@@ -1241,6 +1365,7 @@ int main(void)
 	wUvA = shaderInstanceGetUniformLocation(wProg.vertexShader, "uvA");
 	wUvB = shaderInstanceGetUniformLocation(wProg.vertexShader, "uvB");
 	makeRipples();
+	makeDetail();
 	shV = (Vtx*)linearAlloc((SH_SEG + 1) * sizeof(Vtx));
 	shI = (u16*)linearAlloc(SH_SEG * 3 * sizeof(u16));
 	if (shV && shI) {
@@ -1326,7 +1451,7 @@ int main(void)
 				radius = (radius + 1) % 3;
 				if (!autoFar && !rtsMode) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
 			} else if (!rtsMode) autoFar = !autoFar;
-			else fxMode = (fxMode + 1) % 3;
+			else fxMode = fxMode == 0 ? 2 : 0;
 		}
 		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
 		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
@@ -1496,6 +1621,7 @@ done:
 	if (shV) linearFree(shV);
 	if (shI) linearFree(shI);
 	if (rippleOk) C3D_TexDelete(&rippleTex);
+	if (detailOk) C3D_TexDelete(&detailTex);
 	shaderProgramFree(&wProg);
 	DVLB_Free(wDvlb);
 	if (chrV) linearFree(chrV);

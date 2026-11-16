@@ -1,0 +1,99 @@
+--- Old 3DS, heap 12288 KB, linear 52760 KB, textures 333 (2528 KB) in 309 ms, 49 cells baked, route 91 points
+rts camera (pitch -55 deg, distance 700, far 2600), radius 1, 30 fps cap: 12 s standing (the camera once round), then running the route at 420 units/s:
+    load -2,-9: 2279 KB, read 574 ms (posted 609 ms ago), setup 7.4 ms
+    load -2,-10: 1300 KB, read 333 ms (posted 368 ms ago), setup 7.5 ms
+    load -3,-9: 1187 KB, read 301 ms (posted 334 ms ago), setup 7.5 ms
+    load -1,-9: 1281 KB, read 345 ms (posted 367 ms ago), setup 7.3 ms
+    load -2,-8: 1324 KB, read 337 ms (posted 368 ms ago), setup 7.5 ms
+    load -3,-10: 921 KB, read 239 ms (posted 267 ms ago), setup 7.1 ms
+    load -1,-10: 869 KB, read 226 ms (posted 234 ms ago), setup 7.2 ms
+    load -3,-8: 1342 KB, read 338 ms (posted 367 ms ago), setup 7.2 ms
+    load -1,-8: 1345 KB, read 355 ms (posted 367 ms ago), setup 7.1 ms
+  t= 1.1s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.5), cpu 2.79, gpu 9.65, far 2600, draws 81, tris 56394, cells 9, missing 0, free 33676 KB
+  t= 2.1s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.88, gpu 8.91, far 2600, draws 86, tris 56416, cells 9, missing 0, free 33676 KB
+  t= 3.1s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.84, gpu 9.16, far 2600, draws 84, tris 56320, cells 9, missing 0, free 33676 KB
+  t= 4.1s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.78, gpu 9.29, far 2600, draws 82, tris 55116, cells 9, missing 0, free 33676 KB
+  t= 5.1s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.83, gpu 8.76, far 2600, draws 84, tris 54643, cells 9, missing 0, free 33676 KB
+  t= 6.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.75, gpu 8.51, far 2600, draws 81, tris 52451, cells 9, missing 0, free 33676 KB
+  t= 7.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.65, gpu 8.46, far 2600, draws 74, tris 46070, cells 9, missing 0, free 33676 KB
+  t= 8.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.9), cpu 2.65, gpu 9.66, far 2600, draws 75, tris 48944, cells 9, missing 0, free 33676 KB
+  t= 9.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.9), cpu 2.73, gpu 9.19, far 2600, draws 78, tris 51596, cells 9, missing 0, free 33676 KB
+  t=10.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.71, gpu 9.11, far 2600, draws 80, tris 52812, cells 9, missing 0, free 33676 KB
+  t=11.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.70, gpu 10.37, far 2600, draws 80, tris 53414, cells 9, missing 0, free 33676 KB
+  -- running
+  t=12.2s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.73, gpu 10.31, far 2600, draws 79, tris 55211, cells 9, missing 0, free 32775 KB
+    load -2,-7: 900 KB, read 231 ms (posted 241 ms ago), setup 7.4 ms
+    load 0,-9: 1395 KB, read 353 ms (posted 368 ms ago), setup 7.6 ms
+    load -1,-7: 1369 KB, read 345 ms (posted 363 ms ago), setup 3.2 ms
+  t=13.3s cell -2,-9: fps 29.9, frame 33.4 ms (max 41.5), cpu 3.38, gpu 9.79, far 2600, draws 74, tris 53913, cells 12, missing 0, free 28017 KB
+    load 0,-8: 1252 KB, read 318 ms (posted 339 ms ago), setup 7.7 ms
+    load 0,-7: 1700 KB, read 427 ms (posted 468 ms ago), setup 7.5 ms
+  t=14.3s cell -2,-9: fps 29.9, frame 33.4 ms (max 41.2), cpu 3.27, gpu 8.92, far 2600, draws 76, tris 52334, cells 14, missing 0, free 25746 KB
+  t=15.3s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.64, gpu 8.49, far 2600, draws 74, tris 49545, cells 14, missing 0, free 25746 KB
+  t=16.3s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.55, gpu 8.36, far 2600, draws 69, tris 47724, cells 14, missing 0, free 25746 KB
+  t=17.3s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.6), cpu 2.39, gpu 8.23, far 2600, draws 61, tris 41368, cells 14, missing 0, free 25746 KB
+  t=18.3s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.44, gpu 8.32, far 2600, draws 53, tris 36623, cells 14, missing 0, free 25746 KB
+  t=19.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.71, gpu 8.40, far 2600, draws 52, tris 38428, cells 14, missing 0, free 25746 KB
+  t=20.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.40, gpu 6.12, far 2600, draws 34, tris 30086, cells 14, missing 0, free 25746 KB
+  t=21.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.27, gpu 7.83, far 2600, draws 28, tris 29123, cells 14, missing 0, free 25746 KB
+  t=22.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.9), cpu 2.26, gpu 7.41, far 2600, draws 27, tris 27820, cells 14, missing 0, free 25746 KB
+  t=23.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.25, gpu 5.51, far 2600, draws 27, tris 27877, cells 14, missing 0, free 25746 KB
+  t=24.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.23, gpu 4.71, far 2600, draws 26, tris 27851, cells 14, missing 0, free 25746 KB
+  t=25.4s cell -2,-9: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.44, gpu 5.12, far 2600, draws 37, tris 30697, cells 14, missing 0, free 25746 KB
+    load -3,-7: 994 KB, read 253 ms (posted 271 ms ago), setup 3.3 ms
+  t=26.4s cell -2,-8: fps 29.9, frame 33.4 ms (max 36.9), cpu 2.52, gpu 5.47, far 2600, draws 32, tris 28502, cells 15, missing 1, free 23326 KB
+    load -1,-6: 1254 KB, read 326 ms (posted 338 ms ago), setup 7.2 ms
+    load -2,-6: 1394 KB, read 354 ms (posted 363 ms ago), setup 3.2 ms
+    load 0,-6: 1205 KB, read 307 ms (posted 338 ms ago), setup 7.2 ms
+  t=27.4s cell -1,-8: fps 29.9, frame 33.4 ms (max 41.1), cpu 2.92, gpu 6.42, far 2600, draws 25, tris 26383, cells 18, missing 0, free 18799 KB
+    load 1,-8: 1186 KB, read 303 ms (posted 334 ms ago), setup 7.2 ms
+    load 1,-9: 1320 KB, read 336 ms (posted 367 ms ago), setup 7.2 ms
+    load 1,-7: 1393 KB, read 349 ms (posted 367 ms ago), setup 7.1 ms
+  t=28.4s cell -1,-8: fps 29.9, frame 33.4 ms (max 41.2), cpu 2.99, gpu 6.16, far 2600, draws 21, tris 24677, cells 21, missing 0, free 14004 KB
+    load 1,-6: 1225 KB, read 317 ms (posted 334 ms ago), setup 7.1 ms
+  t=29.4s cell -1,-8: fps 29.9, frame 33.4 ms (max 41.3), cpu 2.29, gpu 7.17, far 2600, draws 16, tris 21759, cells 22, missing 0, free 13719 KB
+  t=30.4s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.6), cpu 1.99, gpu 6.53, far 2600, draws 14, tris 20655, cells 22, missing 0, free 13719 KB
+  t=31.4s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.01, gpu 5.24, far 2600, draws 15, tris 24340, cells 22, missing 0, free 13719 KB
+  t=32.4s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.01, gpu 5.49, far 2600, draws 16, tris 22910, cells 22, missing 0, free 13719 KB
+  t=33.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.04, gpu 6.61, far 2600, draws 18, tris 25356, cells 22, missing 0, free 13719 KB
+  t=34.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.00, gpu 7.69, far 2600, draws 20, tris 26041, cells 22, missing 0, free 13719 KB
+  t=35.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.65, gpu 6.71, far 2600, draws 23, tris 26281, cells 22, missing 0, free 13719 KB
+  t=36.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.48, gpu 5.16, far 2600, draws 22, tris 26063, cells 22, missing 0, free 13719 KB
+  t=37.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.6), cpu 1.49, gpu 6.31, far 2600, draws 24, tris 28960, cells 22, missing 0, free 13719 KB
+  t=38.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.55, gpu 5.87, far 2600, draws 27, tris 31439, cells 22, missing 0, free 13719 KB
+  t=39.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.53, gpu 7.21, far 2600, draws 26, tris 31576, cells 22, missing 0, free 13719 KB
+  t=40.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.5), cpu 1.67, gpu 8.56, far 2600, draws 33, tris 36687, cells 22, missing 0, free 13719 KB
+  t=41.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.79, gpu 9.95, far 2600, draws 39, tris 38485, cells 22, missing 0, free 13719 KB
+  t=42.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.82, gpu 6.61, far 2600, draws 40, tris 37833, cells 22, missing 0, free 13719 KB
+  t=43.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.6), cpu 1.64, gpu 5.63, far 2600, draws 31, tris 31490, cells 22, missing 0, free 13719 KB
+  t=44.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.55, gpu 6.38, far 2600, draws 26, tris 28364, cells 22, missing 0, free 13719 KB
+  t=45.6s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 1.71, gpu 10.55, far 2600, draws 27, tris 27373, cells 22, missing 0, free 13719 KB
+  t=46.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 34.0), cpu 2.28, gpu 6.17, far 2600, draws 39, tris 37218, cells 22, missing 0, free 13719 KB
+  t=47.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.38, gpu 6.58, far 2600, draws 42, tris 39582, cells 22, missing 0, free 13719 KB
+  t=48.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.63, gpu 7.60, far 2600, draws 56, tris 46979, cells 22, missing 0, free 13719 KB
+  t=49.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.91, gpu 8.47, far 2600, draws 70, tris 55406, cells 22, missing 0, free 13719 KB
+  t=50.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.91, gpu 8.13, far 2600, draws 69, tris 56111, cells 22, missing 0, free 13719 KB
+  t=51.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.6), cpu 2.98, gpu 7.87, far 2600, draws 73, tris 57441, cells 22, missing 0, free 13719 KB
+  t=52.8s cell -1,-8: fps 29.9, frame 33.4 ms (max 33.7), cpu 3.12, gpu 8.58, far 2600, draws 80, tris 58924, cells 22, missing 0, free 13719 KB
+    load 0,-5: 1186 KB, read 300 ms (posted 308 ms ago), setup 7.2 ms
+    load -1,-5: 1298 KB, read 330 ms (posted 368 ms ago), setup 7.4 ms
+  t=53.8s cell -1,-7: fps 29.9, frame 33.4 ms (max 41.1), cpu 3.72, gpu 8.65, far 2600, draws 81, tris 58112, cells 21, missing 0, free 13383 KB
+    load 1,-5: 1226 KB, read 319 ms (posted 334 ms ago), setup 7.2 ms
+  t=54.8s cell 0,-7: fps 29.9, frame 33.4 ms (max 41.5), cpu 3.60, gpu 8.07, far 2600, draws 85, tris 56781, cells 19, missing 0, free 15604 KB
+    load 2,-7: 1760 KB, read 443 ms (posted 471 ms ago), setup 3.6 ms
+    load 2,-8: 1154 KB, read 302 ms (posted 338 ms ago), setup 7.2 ms
+    load 2,-6: 1516 KB, read 379 ms (posted 401 ms ago), setup 7.5 ms
+  t=55.8s cell 0,-7: fps 29.9, frame 33.4 ms (max 41.2), cpu 4.01, gpu 8.02, far 2600, draws 87, tris 46457, cells 22, missing 0, free 10859 KB
+    load 2,-5: 1333 KB, read 336 ms (posted 367 ms ago), setup 7.2 ms
+  t=56.8s cell 0,-7: fps 29.9, frame 33.4 ms (max 40.9), cpu 3.83, gpu 9.10, far 2600, draws 102, tris 54670, cells 23, missing 0, free 10574 KB
+  t=57.8s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.7), cpu 3.13, gpu 8.73, far 2600, draws 81, tris 46675, cells 23, missing 0, free 10574 KB
+  t=58.8s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.98, gpu 8.49, far 2600, draws 72, tris 42080, cells 23, missing 0, free 10574 KB
+  t=59.8s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.7), cpu 3.03, gpu 8.77, far 2600, draws 75, tris 41001, cells 23, missing 0, free 10574 KB
+  t=61.0s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.8), cpu 3.06, gpu 7.54, far 2600, draws 76, tris 40068, cells 23, missing 0, free 10574 KB
+  t=62.0s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.8), cpu 3.06, gpu 6.88, far 2600, draws 75, tris 45175, cells 23, missing 0, free 10574 KB
+  t=63.0s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.81, gpu 7.12, far 2600, draws 67, tris 44967, cells 23, missing 0, free 10574 KB
+  t=64.0s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.43, gpu 7.78, far 2600, draws 65, tris 41422, cells 23, missing 0, free 10574 KB
+  t=65.0s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.8), cpu 2.31, gpu 6.52, far 2600, draws 60, tris 39611, cells 23, missing 0, free 10574 KB
+  t=66.0s cell 0,-7: fps 29.9, frame 33.4 ms (max 33.7), cpu 2.14, gpu 6.15, far 2600, draws 52, tris 37959, cells 23, missing 0, free 10574 KB
+  => 1975 frames, avg fps 29.9, missed frames (>34.5 ms) 20, stops (>50 ms) 0, worst 41.5 ms, loads 20 (setup max 7.7 ms), load failures 0
+done

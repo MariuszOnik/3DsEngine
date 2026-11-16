@@ -962,7 +962,7 @@ def main():
     ap.add_argument("--route-to", type=int, nargs=2, default=[0, -7],
                     help="the benchmark walks from --center's cell to this one (Pelagiad: 0 -7)")
     ap.add_argument("--tex", type=int, default=128, help="max object texture size")
-    ap.add_argument("--terrain-tex", type=int, default=512, help="composite terrain texture per cell")
+    ap.add_argument("--terrain-tex", type=int, default=1024, help="composite terrain texture per cell")
     ap.add_argument("--no-lod", action="store_true", help="no LOD copies (docs/POMYSLY.md)")
     ap.add_argument("--rgb", action="store_true", help="16-bit textures (RGB565 / RGBA4) instead of ETC1 / ETC1A4")
     ap.add_argument("--out", default=os.path.join(here, "..", "romfs"))

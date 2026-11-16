@@ -45,3 +45,18 @@ Stan obiektu jest oddzielony od jego obecności w pamięci:
   starcie).
 - Dwa identyczne przedmioty: zabrany jeden, drugi zostaje.
 - Zapis: zabrany miecz i otwarta skrzynia po wyjściu z komórki, po powrocie i po restarcie konsoli.
+
+## Stan na koniec sesji 2026-11-16 (build na konsoli = commit z walką)
+
+Zrobione i sprawdzone na Old 3DS:
+- kamery RTS (zoom, kąt: X + D-pad) / TPP / FPP, pływanie, nurkowanie, efekt podwodny, pochodnia;
+- kolizja v2 (siatka 16 j., podłogi mostów i pomostów, rośliny bez kolizji), skok i grawitacja;
+- GPU skinning: ok. 15 widocznych NPC przy 30 fps (1,3 ms CPU na widocznego), dalecy NPC bez animacji;
+- dźwięk (po DSP1): kroki zależne od zbroi, pływanie, ciosy, pętle pochodni i wody, muzyka;
+- dolny ekran: okno Morrowinda, ekwipunek z pojedynczych części (3 strony ikon), przyciski;
+- walka turowa 1:1 (cięcie / pchnięcie / rąbanie, trafienia, zbroja, śmierć).
+
+Do sprawdzenia na konsoli: kolory dolnego okna (w emulatorze paski HP wychodzą jasnołososiowe),
+odczucia z walki, most po wygładzeniu podłóg.
+
+Następny krok: punkt 1 planu: obiekty z FRMR.

@@ -1036,7 +1036,9 @@ static void objActivate(int i)
 		// back outside), else it only says where it leads
 		const float* d = o->dest;
 		char b[96];
-		if (findAvail((int)floorf(d[0] / CELL), (int)floorf(d[1] / CELL))) {
+		// (outside: "" ; an interior only when baked: an unbaked one's mark is in its own coordinates, which may fall on a baked cell outside: Census Office -> cell -1,-1 on the console)
+		int dgx = (int)floorf(d[0] / CELL), dgy = (int)floorf(d[1] / CELL);
+		if (findAvail(dgx, dgy) && (objDest(i)[0] == 0 ? dgx < 100 : dgx >= 100)) {
 			chr[0] = d[0]; chr[1] = d[1]; chr[2] = d[2];
 			chrYaw = rtsYaw = d[3];
 			chrPlaced = false;          // stood on the floor once the cell is in: the one at the door's mark,

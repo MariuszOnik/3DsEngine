@@ -2667,6 +2667,7 @@ int main(void)
 		logw("--- %s 3DS, heap %lu KB, linear %lu KB, textures %d (%lu KB) in %.0f ms, %d cells baked, route %d points%s\n",
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
 		     navail, nroute, loaderThread ? "" : ", NO LOADER THREAD");
+		logw("    sound: %s\n", sound ? "on" : "OFF (no sdmc:/3ds/dspfirm.cdc: run DSP1.3dsx once)");
 		logFlush();
 		if (bPhase != B_OFF) printf("\x1b[33mBENCHMARK running (a few min),\nthis screen stays still meanwhile\x1b[0m\n");
 	}
@@ -2909,7 +2910,8 @@ int main(void)
 			// The console's text costs ~7 ms of CPU on the Old 3DS (hardware test 2: a 40 ms frame at each
 			// refresh): not during the benchmark, and once a second otherwise.
 			if (uiOn) {
-				snprintf(uiState.status, sizeof uiState.status, "%.0f fps   CPU %.1f   GPU %.1f ms   NPC %d", fps, cpuAvg, gpuMs, nNpc);
+				if (!audioOk()) snprintf(uiState.status, sizeof uiState.status, "Brak dzwieku: uruchom raz DSP1 (3ds/DSP1)");
+				else snprintf(uiState.status, sizeof uiState.status, "%.0f fps   CPU %.1f   GPU %.1f ms   NPC %d", fps, cpuAvg, gpuMs, nNpc);
 				uiDirty = true;
 			}
 			if (!useConsole || bench || (playTick & 1) || invOpen) continue;

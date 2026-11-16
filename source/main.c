@@ -29,6 +29,8 @@
 #include "world_shbin.h"
 #include "water_shbin.h"
 #include "skin_shbin.h"
+#include "audio.h"
+#include "ui.h"
 
 #define CELL 8192.0f
 #define HALF 4096.0f
@@ -517,7 +519,12 @@ static bool standAt(float x, float y, float z, float step, float* out)
 {
 	float g;
 	if (!groundAt(x, y, &g)) return false;
+	// the floors under the feet's circle, not just its centre: planks with gaps between them (a bridge)
+	// stay one floor (the user: the character bounced from board to board)
 	float f = floorAt(x, y, z, step);
+	const float R = 14.0f;
+	const float o[4][2] = { { R, 0 }, { -R, 0 }, { 0, R }, { 0, -R } };
+	for (int i = 0; i < 4; i++) { float q = floorAt(x + o[i][0], y + o[i][1], z, step); if (q > f) f = q; }
 	*out = f > g ? f : g;
 	return true;
 }
@@ -1385,6 +1392,36 @@ static void clearNpcs(void)
 // The inventory (X): on the bottom screen, the D-pad's up / down choose, A takes / puts on.
 // The entries: the outfits, the helmet, bare hands, the weapons, the torch.
 static bool invOpen, invDirty;
+static bool useConsole;      // the benchmark's text console instead of the window
+static bool uiOn, uiDirty = true;
+static UiState uiState;
+static int uiSel = -1;
+
+static int invCount(void);
+static void invLabel(int i, char* out, int n, bool* on);
+
+// The window's contents from the player's state.
+static void uiFill(void)
+{
+	UiState* u = &uiState;
+	static char iconName[UI_MAXITEMS][24];
+	u->nitems = 0;
+	for (int i = 0; i < invCount() && i < UI_MAXITEMS; i++) {
+		bool on;
+		invLabel(i, u->item[i].label, sizeof u->item[i].label, &on);
+		u->item[i].on = on;
+		if (i < chNOutfit) snprintf(iconName[i], 24, "outfit%d", i);
+		else if (i == chNOutfit) snprintf(iconName[i], 24, "helmet");
+		else if (i == chNOutfit + 1) snprintf(iconName[i], 24, "hands");
+		else if (i < chNOutfit + 2 + chNWeapon) snprintf(iconName[i], 24, "weapon%d", i - chNOutfit - 2);
+		else snprintf(iconName[i], 24, "torch");
+		u->item[i].icon = iconName[i];
+		u->nitems++;
+	}
+	u->selected = uiSel;
+	u->camName = rtsMode ? CAM_NAMES[camMode] : "wolna";
+	u->torch = torchOn;
+}
 static int invSel;
 
 static int invCount(void) { return chNOutfit + 2 + chNWeapon + 1; }
@@ -1403,6 +1440,9 @@ static void invLabel(int i, char* out, int n, bool* on)
 
 static void invApply(int i)
 {
+	int snd = i < chNOutfit ? (i <= 1 ? SND_CLOTHES : SND_ARMOUR) : i == chNOutfit ? SND_ARMOUR
+	        : i < chNOutfit + 2 + chNWeapon ? SND_BLADEOUT : SND_CLICK;
+	audioPlay(snd, 0.7f, 0);
 	if (i < chNOutfit) PL->outfit = i;
 	else if (i == chNOutfit) PL->helmet = !PL->helmet;
 	else if (i == chNOutfit + 1) PL->weapon = -1;
@@ -1967,13 +2007,22 @@ static void chrUpdate(float dt, float mx, float my, bool run, bool dive, bool ju
 		} else {
 			swimming = false;
 			if (jump && chr[2] <= g + 1.0f && !chrAir) { chrVz = 400.0f; chr[2] = g + 2.0f; }   // a jump (~60 high)
-			if (chr[2] > g + 1.0f) {   // in the air: rising or falling
+			if (!chrAir && chrVz <= 0 && chr[2] > g + 1.0f && chr[2] < g + 30.0f) {   // a small step down: follow it smoothly
+				float k = dt * 14.0f; if (k > 1) k = 1;
+				chr[2] += (g - chr[2]) * k;
+				if (chr[2] < g + 1.5f) chr[2] = g;
+			} else if (chr[2] > g + 1.0f) {   // in the air: rising or falling
 				chrAir = true;
 				chrVz -= 1300.0f * dt;
 				chr[2] += chrVz * dt;
 				if (chr[2] <= g) { chr[2] = g; chrVz = 0; chrAir = false; }
 				if (g < -SWIM_DEPTH && chr[2] < SWIM_Z) { chr[2] = SWIM_Z; chrVz = 0; chrAir = false; }   // into the water
-			} else { chr[2] = g; chrVz = 0; chrAir = false; }
+			} else {   // on the ground; a step up eased in (stairs, planks)
+				float k = dt * 16.0f; if (k > 1) k = 1;
+				chr[2] = g - chr[2] > 2.0f ? chr[2] + (g - chr[2]) * k : g;
+				if (chr[2] < g) chr[2] = fmaxf(chr[2], g - 25.0f);
+				chrVz = 0; chrAir = false;
+			}
 		}
 	}
 	if (swimming) chrAir = false;
@@ -2087,10 +2136,11 @@ static void setCap(bool on)
 
 // The top screen as it was shown last, into a 400x240 BMP (the framebuffer is BGR, 240
 // pixels per column, bottom to top).
-static void saveShot(const char* path)
+static void saveShotOf(gfxScreen_t scr, const char* path)
 {
 	u16 w, h;
-	u8* fb = gfxGetFramebuffer(GFX_TOP, GFX_LEFT, &w, &h);
+	u8* fb = gfxGetFramebuffer(scr, GFX_LEFT, &w, &h);
+	if (gfxGetScreenFormat(scr) != GSP_BGR8_OES) return;
 	FILE* f = fopen(path, "wb");
 	if (!f || !fb) { if (f) fclose(f); return; }
 	int W = h, H = w;   // 400 x 240
@@ -2110,6 +2160,8 @@ static void saveShot(const char* path)
 	free(line);
 	fclose(f);
 }
+
+static void saveShot(const char* path) { saveShotOf(GFX_TOP, path); }
 
 // ------------------------------------------------------------------ benchmark
 
@@ -2385,6 +2437,8 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 		char p[64];
 		snprintf(p, sizeof p, "sdmc:/3ds/mwcell3d/view_%d.bmp", vStep);
 		saveShot(p);
+		snprintf(p, sizeof p, "sdmc:/3ds/mwcell3d/view_%d_b.bmp", vStep);
+		saveShotOf(GFX_BOTTOM, p);
 		float g = 0;
 		groundAt(chr[0], chr[1], &g);
 		logw("  view %d %-16s: anim %s speed %.0f, chr %.0f %.0f %.0f ground %.0f floor %.0f%s%s%s | npcs %d pose %.2f draw %.2f | eye z %.0f | fps-ish frame %.1f ms gpu %.2f cpu %.2f far %.0f\n",
@@ -2446,15 +2500,61 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 	}
 }
 
+// ------------------------------------------------------------------ sound
+
+// The player's sounds from what it does: a footstep at each step of the walk cycle (left and right
+// in turn; light, medium or heavy by the clothes), strokes swimming, a splash going in, landing
+// after a fall; the torch's crackle and the sea's hum under the water as loops; the music lower
+// under the water.
+static void soundUpdate(void)
+{
+	static int lastStep;
+	static bool wasAir, wasSwim;
+	int step = (int)floorf(chrPhase / (float)M_PI);
+	if (step != lastStep && chrSwing > 0.3f) {
+		bool left = step & 1;
+		if (swimming) audioPlay(left ? SND_SWIML : SND_SWIMR, 0.5f, left ? -0.3f : 0.3f);
+		else if (!chrAir) {
+			int w = 0;   // the weight by the outfit's name
+			if (chOk) {
+				const char* n = chOutfit[PL->outfit].name;
+				w = (!strcmp(n, "iron") || !strcmp(n, "glass")) ? 2 : !strcmp(n, "bonemold") ? 1 : 0;
+			}
+			int base = w == 0 ? SND_WALKL_LT : w == 1 ? SND_WALKL_MD : SND_WALKL_HV;
+			audioPlay(base + (PL->run ? 2 : 0) + (left ? 0 : 1), 0.55f, left ? -0.25f : 0.25f);
+		}
+	}
+	lastStep = step;
+	if (wasAir && !chrAir && !swimming) audioPlay(SND_LAND, 0.7f, 0);
+	if (!wasSwim && swimming) audioPlay(SND_SPLASH, 0.8f, 0);
+	wasAir = chrAir; wasSwim = swimming;
+	audioLoop(6, SND_TORCH, torchOn && !swimming ? 0.35f : 0);
+	audioLoop(7, SND_UNDERWATER, underwater ? 0.7f : 0);
+	audioMusicVolume(underwater ? 0.15f : 0.55f);
+}
+
 // ------------------------------------------------------------------ main
 
 int main(void)
 {
 	osSetSpeedupEnable(true);
 	gfxInitDefault();
-	consoleInit(GFX_BOTTOM, NULL);
+	// the bottom screen: the text console while benchmarking, else the inventory window (ui.c)
+	{
+		FILE* bf = fopen("sdmc:/3ds/mwcell3d/bench.txt", "rb");
+		useConsole = bf != NULL;
+		if (bf) {   // ("views" shows the window: its screenshots have the bottom screen too)
+			char what[16] = { 0 };
+			fread(what, 1, sizeof what - 1, bf);
+			if (strstr(what, "views")) useConsole = false;
+			fclose(bf);
+		}
+	}
+	if (useConsole) consoleInit(GFX_BOTTOM, NULL);
 	romfsInit();
+	bool sound = audioInit();
 	C3D_Init(0x180000);   // 1.5 MB: each skinned mesh sends its bone palette (~14 KB per character)
+	if (!useConsole) { uiInit(); uiOn = true; }
 
 	gfxSet3D(true);
 	C3D_RenderTarget* top = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
@@ -2518,6 +2618,7 @@ int main(void)
 	BufInfo_Add(&chrBuf, chrV, sizeof(Vtx), 3, 0x210);
 
 	printf("3dsOpenworld - Morrowind cell test\n");
+	if (!sound) printf("\x1b[33mno sound: run DSP1 once (it makes\nsdmc:/3ds/dspfirm.cdc)\x1b[0m\n");
 	u64 t0 = ticks();
 	if (!loadIndex() || !loadTextures()) {
 		printf("\x1b[31mromfs data missing (tools/mwbake.py)\x1b[0m\nSTART to quit\n");
@@ -2591,6 +2692,21 @@ int main(void)
 		u32 down = bench ? 0 : hidKeysDown(), held = bench ? 0 : hidKeysHeld();
 		if (down & KEY_START) break;
 		if (down & KEY_SELECT) setRts(!rtsMode);
+		if ((down & KEY_TOUCH) && uiOn && chOk) {
+			touchPosition tp;
+			hidTouchRead(&tp);
+			int hit = uiTouch(&uiState, tp.px, tp.py);
+			if (hit >= UI_ITEM && hit < UI_ITEM + UI_MAXITEMS) { uiSel = hit - UI_ITEM; invApply(uiSel); }
+			else if (hit == UI_CAMERA) {
+				if (!rtsMode) setRts(true);
+				else { camMode = (camMode + 1) % NCAM; camPitch = camMode == CAM_TPP ? -0.22f : 0; setCamLimits(); }
+				audioPlay(SND_CLICK, 0.6f, 0);
+			} else if (hit == UI_TORCH) { torchOn = !torchOn; audioPlay(torchOn ? SND_CLICK : SND_TORCHOUT, 0.6f, 0); }
+			else if (hit == UI_NPC_ADD) { spawnNpcs(5); audioPlay(SND_CLICK, 0.6f, 0); }
+			else if (hit == UI_NPC_CLEAR) { clearNpcs(); audioPlay(SND_CLICK, 0.6f, 0); }
+			uiDirty = true;
+			down &= ~KEY_TOUCH;
+		}
 		if (down & KEY_TOUCH) {
 			touchPosition tp;
 			hidTouchRead(&tp);
@@ -2606,7 +2722,8 @@ int main(void)
 		if (!rtsMode && (held & KEY_DDOWN)) speed /= 1.0f + dt * 1.5f;
 		if (rtsMode) {   // D-pad left: the camera (RTS / TPP / FPP), right: the torch; up/down: zoom (FPP: look)
 			if (down & KEY_DLEFT) { camMode = (camMode + 1) % NCAM; camPitch = camMode == CAM_TPP ? -0.22f : 0; setCamLimits(); }
-			if (down & KEY_DRIGHT) { torchOn = !torchOn; invDirty = true; }
+			if (down & (KEY_DLEFT | KEY_DRIGHT)) uiDirty = true;
+			if (down & KEY_DRIGHT) { torchOn = !torchOn; invDirty = true; if (!torchOn) audioPlay(SND_TORCHOUT, 0.7f, 0); }
 			if (invOpen) {   // the inventory takes the D-pad's up / down
 				int n = invCount();
 				if (down & KEY_DDOWN) { invSel = (invSel + 1) % n; invDirty = true; }
@@ -2638,12 +2755,15 @@ int main(void)
 			float turn = ((held & KEY_R) ? 1.0f : 0) - ((held & KEY_L) ? 1.0f : 0);
 			// X: the inventory; A there: take / put on; else A attacks (on land) or dives (held, in the
 			// water), Y jumps; L+A: five NPCs more, L+Y: all of them gone
-			if (chOk && (down & KEY_X)) { invOpen = !invOpen; invDirty = true; consoleClear(); }
+			if (chOk && useConsole && (down & KEY_X)) { invOpen = !invOpen; invDirty = true; consoleClear(); }
 			bool combo = (held & KEY_L) != 0;
-			if (combo && (down & KEY_A)) { spawnNpcs(5); invDirty = true; }
-			else if (combo && (down & KEY_Y)) { clearNpcs(); invDirty = true; }
+			if (combo && (down & KEY_A)) { spawnNpcs(5); invDirty = true; uiDirty = true; }
+			else if (combo && (down & KEY_Y)) { clearNpcs(); invDirty = true; uiDirty = true; }
 			else if (invOpen && (down & KEY_A)) invApply(invSel);
-			else if (!invOpen && !swimming && (down & KEY_A) && chOk && !PL->attack) { PL->attack = true; }
+			else if (!invOpen && !swimming && (down & KEY_A) && chOk && !PL->attack) {
+				PL->attack = true;
+				audioPlay((rand() & 1) ? SND_SWING1 : SND_SWING2, 0.8f, 0);
+			}
 			bool dive = !combo && !invOpen && swimming && (held & KEY_A);
 			bool jump = !combo && (down & KEY_Y);
 			rtsYaw += turn * 1.8f * dt;
@@ -2668,13 +2788,22 @@ int main(void)
 		if (bench) benchCamera(dt, fwd);
 		else if (rtsMode) rtsCamera(fwd);
 		if (invOpen && invDirty && !bench) invDraw();
+		if (rtsMode && !bench) soundUpdate();
 		if (chOk && rtsMode) {   // the player's state into its actor, then every actor's pose
 			u64 a0 = ticks();
 			PL->pos[0] = chr[0]; PL->pos[1] = chr[1]; PL->pos[2] = chr[2];
 			PL->yaw = chrYaw; PL->pitch = chrPitch;
 			if (PL->swim != swimming || PL->torch != torchOn) PL->dirty = true;
 			PL->swim = swimming; PL->air = chrAir; PL->torch = torchOn;
-			for (int i = 0; i < MAX_ACTORS; i++) if (actors[i].used) chAnimate(&actors[i], dt);
+			for (int i = 0; i < MAX_ACTORS; i++) {   // far NPCs (not drawn) are not posed (hardware: 0.09 ms each)
+				Actor* a = &actors[i];
+				if (!a->used) continue;
+				if (i > 0) {
+					float dx = a->pos[0] - eye[0], dy = a->pos[1] - eye[1];
+					if (dx * dx + dy * dy > (farDist + 200.0f) * (farDist + 200.0f)) { a->t += dt; continue; }
+				}
+				chAnimate(a, dt);
+			}
 			if (chTorchGroup >= 0) chFlamePos(PL, torchPos);
 			chAnimMs = msSince(a0);
 		}
@@ -2742,6 +2871,12 @@ int main(void)
 			if (rtsMode && torchOn && !swimming && camMode != CAM_FPP) drawFlame(&mvp, fwd);
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
+		if (uiOn && uiDirty) {
+			uiFill();
+			uiDraw(&uiState);
+			uiDirty = false;
+			for (int i = 3; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));   // (citro2d's stages off for the 3D)
+		}
 		cpuMs = msSince(c0);
 		C3D_FrameEnd(0);
 		float gpuMs = C3D_GetDrawingTime();   // the previous frame's
@@ -2773,7 +2908,11 @@ int main(void)
 			}
 			// The console's text costs ~7 ms of CPU on the Old 3DS (hardware test 2: a 40 ms frame at each
 			// refresh): not during the benchmark, and once a second otherwise.
-			if (bench || (playTick & 1) || invOpen) continue;
+			if (uiOn) {
+				snprintf(uiState.status, sizeof uiState.status, "%.0f fps   CPU %.1f   GPU %.1f ms   NPC %d", fps, cpuAvg, gpuMs, nNpc);
+				uiDirty = true;
+			}
+			if (!useConsole || bench || (playTick & 1) || invOpen) continue;
 			printf("\x1b[3;0H");
 			printf("FPS        %5.1f  (cap %d)       \n", fps, cap30 ? 30 : 60);
 			printf("CPU frame  %5.2f ms (max %5.2f)  \n", cpuAvg, cpuMaxShown);
@@ -2836,6 +2975,7 @@ done:
 	shaderProgramFree(&prog);
 	DVLB_Free(dvlb);
 	C3D_Fini();
+	audioExit();
 	romfsExit();
 	gfxExit();
 	return 0;

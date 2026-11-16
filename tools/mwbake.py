@@ -1171,6 +1171,13 @@ def main():
         ch = chrbake.Character(vfs, os.path.join(a.data, "Morrowind.esm"), tex)
         ch.write(os.path.join(a.out, "char.bin"))
         print("char.bin: %.0f KB" % (os.path.getsize(os.path.join(a.out, "char.bin")) / 1024))
+        import uibake
+        uibake.bake(vfs, os.path.join(a.data, "Morrowind.esm"), ch, a.out)
+    try:
+        import sndbake
+        sndbake.bake(a.data, a.out)
+    except Exception as ex:   # (miniaudio missing: no sound)
+        print("sounds not baked: %s" % ex)
     print("collision: %d floor triangles, %d blocked squares" % (stats.get("floors", 0), stats.get("blocked", 0)))
     tex.write(os.path.join(a.out, "textures.bin"))
     # start: the centre cell, above the ground

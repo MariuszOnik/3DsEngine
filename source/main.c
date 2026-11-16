@@ -149,6 +149,13 @@ static float fogStart = 0.45f;     // the fog starts at this share of the draw d
 #define FX_CALM 2    // the clear water without ripples, glints or caustics
 #define FX_PLAIN 3
 static int fxMode = 0;
+// The water's tint (bench.txt "blue": the delicate blue one, else colourless): the bottom's
+// filter deep, the mirrored colour, the scattered light (all 0..255)
+static int waterTint = 0;
+static const u8 TINTS[2][3][3] = {
+	{ { 52, 58, 62 }, { 36, 40, 44 }, { 5, 6, 7 } },     // colourless (a hint of cool)
+	{ { 38, 60, 80 }, { 28, 40, 56 }, { 4, 7, 10 } },    // delicate blue
+};
 static float fxTime;               // seconds, for the ripples
 static C3D_Tex rippleTex, detailTex;
 static bool rippleOk, detailOk;
@@ -328,13 +335,15 @@ static void buildWater(Cell* c)
 			// (crystal, not blue: the user) a faint, nearly neutral shimmer
 			// (natural mountain water, the user's reference: a faint olive-grey, darker green-grey deep)
 			// the shore fade in the alpha: it scales the whole added layer, the sky's reflection too
-			v->c[0] = (u8)(5 + (6 - 5) * e); v->c[1] = (u8)(8 + (11 - 8) * e); v->c[2] = (u8)(6 + (8 - 6) * e);
+			const u8 (*T)[3] = TINTS[waterTint];
+			v->c[0] = T[2][0]; v->c[1] = T[2][1]; v->c[2] = T[2][2];
 			v->c[3] = (u8)(255 * sh);
 			if (c->tv) {
 				Vtx* tv = &c->tv[k];
 				*tv = *v;
 				tv->c[3] = 255;
-				tv->c[0] = (u8)(240 + (40 - 240) * e); tv->c[1] = (u8)(255 + (66 - 255) * e); tv->c[2] = (u8)(238 + (50 - 238) * e);
+				tv->c[0] = (u8)(250 + (T[0][0] - 250) * e); tv->c[1] = (u8)(252 + (T[0][1] - 252) * e);
+				tv->c[2] = (u8)(255 + (T[0][2] - 255) * e);
 				tv->c[3] = 255;
 			}
 			// the caustics: on the bottom, strongest in the shallows (~40-150), gone by ~900
@@ -1045,7 +1054,8 @@ static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFres, 0, 0, 0, 0);
 	// what it mirrors: the shores' dark greens, not the sky (= the fog's colour: the water looked
 	// like haze, the user)
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, wRefl, 34 / 255.0f, 50 / 255.0f, 40 / 255.0f, 0);
+	const u8* R = TINTS[waterTint][1];
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wRefl, R[0] / 255.0f, R[1] / 255.0f, R[2] / 255.0f, 0);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_ZERO, GPU_ONE);
 	float t = fxTime;
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 14.0f / 8192.0f, 0);
@@ -1539,6 +1549,7 @@ int main(void)
 			fread(what, 1, sizeof what - 1, bf);
 			fclose(bf);
 			benchOnlyRts = strstr(what, "rts") != NULL;
+			waterTint = strstr(what, "blue") ? 1 : 0;
 			benchFx = strstr(what, "calm") ? FX_CALM : strstr(what, "nocaus") ? 1 : 0;
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
 			bPhase = B_STATIC;

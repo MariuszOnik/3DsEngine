@@ -27,6 +27,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "world_shbin.h"
+#include "water_shbin.h"
 
 #define CELL 8192.0f
 #define HALF 4096.0f
@@ -58,6 +59,8 @@ typedef struct {
 	float c[3], r;
 } __attribute__((packed)) BatchRec;
 
+typedef struct { s16 p[4]; s16 t[2]; u8 c[4]; } Vtx;   // the baker's vertex (16 bytes)
+
 typedef struct {
 	bool used;
 	int gx, gy;
@@ -70,6 +73,10 @@ typedef struct {
 	bool hasT;
 	u32 tris;
 	float* hgt;   // 65 x 65 terrain heights (from the terrain batches), NULL without land
+	Vtx* wv;      // the water grid (65 x 65, coloured by the depth), NULL without water
+	u16* wi;
+	int wni;
+	C3D_BufInfo wbuf;
 } Cell;
 
 typedef struct { int gx, gy; u32 size; } Avail;
@@ -131,6 +138,17 @@ static int paceFrames, paceCooldown;
 
 static bool cap30 = true;
 static float fogStart = 0.45f;     // the fog starts at this share of the draw distance
+
+// Looks (touch, bottom left in RTS mode): 0 effects (depth water, soft shadow), 1 the same with
+// anti-aliasing (drawn at 2 x 2 the size and scaled down), 2 plain (the baker's flat water, as
+// in the tests T1-T6). The stereo 3D follows the 3D slider (each eye drawn: twice the GPU).
+static int fxMode = 0;
+static float fxTime;               // seconds, for the ripples
+static C3D_Tex rippleTex;
+static bool rippleOk;
+static DVLB_s* wDvlb;
+static shaderProgram_s wProg;
+static int wMvp, wOrigin, wFog, wUvA, wUvB;
 
 // RTS camera (after the Switch port's tactical camera: -55 degrees, 700 units). The pitch and
 // the distance are locked, because the ground the camera sees (and so the GPU cost) depends
@@ -266,6 +284,54 @@ static Cell* findCell(int gx, int gy)
 	return NULL;
 }
 
+// The water of a cell as a 65 x 65 grid over the terrain's: the colour and the transparency
+// from the depth (clear and green-blue at the shore with a band of foam, dark and opaque in
+// the deep), the squares wholly on land left out. Replaces the baker's flat quad (flag 4).
+static void buildWater(Cell* c)
+{
+	c->wv = (Vtx*)linearAlloc(65 * 65 * sizeof(Vtx));
+	c->wi = (u16*)linearAlloc(64 * 64 * 6 * sizeof(u16));
+	if (!c->wv || !c->wi) {
+		if (c->wv) linearFree(c->wv);
+		if (c->wi) linearFree(c->wi);
+		c->wv = NULL; c->wi = NULL;
+		return;
+	}
+	float dep[65 * 65];
+	for (int y = 0; y <= 64; y++)
+		for (int x = 0; x <= 64; x++) {
+			int k = y * 65 + x;
+			float d = c->hgt ? -c->hgt[k] : 2000.0f;
+			dep[k] = d;
+			float t = d / 500.0f; if (t < 0) t = 0; if (t > 1) t = 1;
+			float r = 80 + (18 - 80) * t, g = 140 + (52 - 140) * t, b = 128 + (78 - 128) * t;
+			float a = 60 + (228 - 60) * sqrtf(t);
+			// foam: a band round the shore line, both sides (the grid's triangles cross it)
+			float f = d >= 0 ? 1 - d / 28.0f : 1 + d / 45.0f;
+			if (f > 0) {
+				r += (218 - r) * f * 0.85f; g += (228 - g) * f * 0.85f; b += (226 - b) * f * 0.85f;
+				if (a < 175 * f) a = 175 * f;
+			}
+			Vtx* v = &c->wv[k];
+			v->p[0] = x * 128 - 4096; v->p[1] = y * 128 - 4096; v->p[2] = 0; v->p[3] = 0;
+			v->t[0] = v->t[1] = 0;
+			v->c[0] = (u8)r; v->c[1] = (u8)g; v->c[2] = (u8)b; v->c[3] = (u8)a;
+		}
+	int n = 0;
+	for (int y = 0; y < 64; y++)
+		for (int x = 0; x < 64; x++) {
+			int a = y * 65 + x, b = a + 1, cc = a + 65, d = cc + 1;
+			if (dep[a] < -60 && dep[b] < -60 && dep[cc] < -60 && dep[d] < -60) continue;   // land
+			c->wi[n++] = a; c->wi[n++] = b; c->wi[n++] = d;
+			c->wi[n++] = a; c->wi[n++] = d; c->wi[n++] = cc;
+		}
+	c->wni = n;
+	BufInfo_Init(&c->wbuf);
+	BufInfo_Add(&c->wbuf, c->wv, sizeof(Vtx), 3, 0x210);
+	GSPGPU_FlushDataCache(c->wv, 65 * 65 * sizeof(Vtx));
+	GSPGPU_FlushDataCache(c->wi, n * sizeof(u16));
+}
+
 // The terrain height at a world position (bilinear, like the baker's ground()). False while
 // that cell is not loaded; a cell without land is the sea (-10000).
 static bool groundAt(float x, float y, float* z)
@@ -291,6 +357,8 @@ static void unloadCell(Cell* c)
 	if (c->hasT) C3D_TexDelete(&c->ttex);
 	free(c->bufs);
 	free(c->hgt);
+	if (c->wv) linearFree(c->wv);
+	if (c->wi) linearFree(c->wi);
 	linearFree(c->data);
 	memset(c, 0, sizeof *c);
 }
@@ -363,6 +431,8 @@ static float finishJob(void)
 		int ts = h->tsize & 0xFFF, tf = h->tsize >> 12;
 		c->hasT = texFrom(&c->ttex, ts, ts, tf, job.data + h->ttofs, 0xFFFFFFFFu, false);
 	}
+	for (int i = 0; i < h->nbatch; i++)
+		if (c->b[i].flags & 4) { buildWater(c); break; }
 	GSPGPU_FlushDataCache(job.data, job.size);
 	return msSince(t0);
 }
@@ -510,7 +580,8 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 				// small things (flag 8) only near; things wholly under the water (16) never while the camera is
 				// above it (the water is opaque enough to hide them: Maniek, hardware test 2)
 				if ((b->flags & 8) && d > smallDist) { statSmall++; out = true; }
-				else if ((b->flags & 16) && eye[2] > 0) { statSmall++; out = true; }
+				else if ((b->flags & 16) && eye[2] > 0 && (fxMode == 2 || d > 2000.0f)) { statSmall++; out = true; }
+				else if ((b->flags & 4) && fxMode != 2 && c->wv) out = true;   // drawn by drawWater
 				// LOD: big things whole up to LOD_DIST (flag 32), their lighter copy beyond it (flag 64)
 				else if ((b->flags & 32) && d > LOD_DIST) out = true;
 				else if ((b->flags & 64) && d <= LOD_DIST) out = true;
@@ -546,7 +617,6 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 // positions relative to the feet, drawn with the world shader (origin = feet - eye).
 #define CHR_MAXV 256
 #define CHR_MAXI 512
-typedef struct { s16 p[4]; s16 t[2]; u8 c[4]; } Vtx;
 static Vtx* chrV;
 static u16* chrI;
 static int chrNV, chrNI;
@@ -628,6 +698,154 @@ static void drawCharacter(void)
 	C3D_DrawElements(GPU_TRIANGLES, chrNI, C3D_UNSIGNED_SHORT, chrI);
 	statDraws++;
 	statTris += chrNI / 3;
+}
+
+// ------------------------------------------------------------------ water, shadow
+
+// The ripple texture (L8, 128 x 128, tiling, mipmapped): a few sine waves of whole periods and
+// a little noise round mid grey. Drawn twice over the water, scrolled apart, added signed.
+static u32 morton8(int x, int y)
+{
+	return (x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3);
+}
+
+static void makeRipples(void)
+{
+	const int N = 128;
+	if (!C3D_TexInitMipmap(&rippleTex, N, N, GPU_L8)) return;
+	static float lv[128 * 128];
+	u32 seed = 12345;
+	for (int y = 0; y < N; y++)
+		for (int x = 0; x < N; x++) {
+			float u = x * 2.0f * (float)M_PI / N, v = y * 2.0f * (float)M_PI / N;
+			float h = 0.45f * sinf(3 * u + 2 * v) + 0.35f * sinf(-2 * u + 5 * v + 1.3f) +
+			          0.25f * sinf(7 * u - 3 * v + 0.4f) + 0.18f * sinf(5 * u + 9 * v + 2.1f) +
+			          0.12f * sinf(13 * u + 4 * v);
+			seed = seed * 1664525u + 1013904223u;
+			h += ((seed >> 24) / 255.0f - 0.5f) * 0.25f;
+			lv[y * N + x] = h;
+		}
+	int levels = C3D_TexCalcMaxLevel(N, N);
+	u8* dst = (u8*)rippleTex.data;
+	int w = N;
+	for (int l = 0; l <= levels; l++) {
+		for (int y = 0; y < w; y++)
+			for (int x = 0; x < w; x++) {
+				float h = lv[y * w + x];
+				int val = 128 + (int)(h * 34.0f);
+				if (val < 0) val = 0;
+				if (val > 255) val = 255;
+				dst[((y >> 3) * (w >> 3) + (x >> 3)) * 64 + morton8(x & 7, y & 7)] = (u8)val;
+			}
+		dst += w * w;
+		if (w <= 8) break;
+		int h2 = w / 2;   // the next level: 2 x 2 averages
+		for (int y = 0; y < h2; y++)
+			for (int x = 0; x < h2; x++)
+				lv[y * h2 + x] = (lv[2 * y * w + 2 * x] + lv[2 * y * w + 2 * x + 1] + lv[(2 * y + 1) * w + 2 * x] +
+				                  lv[(2 * y + 1) * w + 2 * x + 1]) * 0.25f;
+		w = h2;
+	}
+	C3D_TexFlush(&rippleTex);
+	C3D_TexSetFilter(&rippleTex, GPU_LINEAR, GPU_LINEAR);
+	C3D_TexSetFilterMipmap(&rippleTex, GPU_LINEAR);
+	C3D_TexSetWrap(&rippleTex, GPU_REPEAT, GPU_REPEAT);
+	rippleOk = true;
+}
+
+static void waterProgram(const C3D_Mtx* mvp, const float fwd[3])
+{
+	C3D_BindProgram(&wProg);
+	C3D_SetAttrInfo(&attr);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, wMvp, mvp);
+	float fs = farDist * fogStart, fe = farDist, k = 1.0f / (fe - fs);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wFog, -fwd[0] * k, -fwd[1] * k, -fwd[2] * k, fe * k);
+	C3D_AlphaTest(false, GPU_ALWAYS, 0);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA,
+	               GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
+	C3D_CullFace(GPU_CULL_NONE);
+}
+
+// A soft round shadow under the character: a fan laid on the ground, dark in the middle.
+static Vtx* shV;
+static u16* shI;
+static C3D_BufInfo shBuf;
+#define SH_SEG 16
+
+static void drawShadow(const C3D_Mtx* mvp, const float fwd[3])
+{
+	if (!shV || !chrPlaced) return;
+	waterProgram(mvp, fwd);
+	for (int i = 0; i <= SH_SEG; i++) {
+		float x = 0, y = 0, a = 120;
+		if (i > 0) {
+			float ang = (i - 1) * 2.0f * (float)M_PI / SH_SEG;
+			x = cosf(ang) * 42.0f; y = sinf(ang) * 34.0f;
+			float cy = cosf(chrYaw), sy = sinf(chrYaw);   // a little longer along the facing
+			float rx = x * cy + y * sy, ry = -x * sy + y * cy;
+			x = rx; y = ry; a = 0;
+		}
+		float g = chr[2];
+		groundAt(chr[0] + x, chr[1] + y, &g);
+		if (g < -9000.0f) g = chr[2];
+		Vtx* v = &shV[i];
+		v->p[0] = (s16)lrintf(x); v->p[1] = (s16)lrintf(y); v->p[2] = (s16)lrintf(g - chr[2] + 3.0f); v->p[3] = 0;
+		v->t[0] = v->t[1] = 0;
+		v->c[0] = v->c[1] = v->c[2] = 0; v->c[3] = (u8)a;
+	}
+	GSPGPU_FlushDataCache(shV, (SH_SEG + 1) * sizeof(Vtx));
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wOrigin, chr[0] - eye[0], chr[1] - eye[1], chr[2] - eye[2], 0);
+	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	env = C3D_GetTexEnv(1);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	C3D_SetBufInfo(&shBuf);
+	C3D_DrawElements(GPU_TRIANGLES, SH_SEG * 3, C3D_UNSIGNED_SHORT, shI);
+	statDraws++;
+	statTris += SH_SEG;
+}
+
+// The water grids: the depth colour x the two ripple layers (added signed, x2: mid grey leaves
+// the colour as it is), the transparency from the depth, faded out by the fog.
+static void drawWater(const C3D_Mtx* mvp, const float fwd[3])
+{
+	if (!rippleOk) return;
+	waterProgram(mvp, fwd);
+	float t = fxTime;
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 16.0f / 8192.0f, 0);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, wUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 20.0f / 8192.0f, 0);
+	C3D_TexBind(0, &rippleTex);
+	C3D_TexBind(1, &rippleTex);
+	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE0, GPU_TEXTURE1, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_ADD_SIGNED);
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	env = C3D_GetTexEnv(1);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_PRIMARY_COLOR, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
+	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_2);
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	for (int ci = 0; ci < MAX_CELLS; ci++) {
+		Cell* c = &cells[ci];
+		if (!c->used || !c->wv || !c->wni) continue;
+		float ox = c->gx * CELL + HALF - eye[0], oy = c->gy * CELL + HALF - eye[1];
+		if (fabsf(ox) - HALF > farDist || fabsf(oy) - HALF > farDist) continue;
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, wOrigin, ox, oy, -eye[2], 0);
+		C3D_SetBufInfo(&c->wbuf);
+		C3D_DrawElements(GPU_TRIANGLES, c->wni, C3D_UNSIGNED_SHORT, c->wi);
+		statDraws++;
+		statTris += c->wni / 3;
+	}
+	C3D_TexBind(1, NULL);
 }
 
 // Walking: the circle pad relative to the camera, the figure turns to where it goes. The sea
@@ -816,6 +1034,7 @@ static void benchStartRts(void)
 	wDist = 0;
 	rtsShot = 0;
 	rtsWaiting = true;
+	fxMode = 0;
 	radius = 1; setCap(true);
 	yaw = startYaw;
 	chrPlaced = false;
@@ -994,8 +1213,15 @@ int main(void)
 	romfsInit();
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 2);
 
+	gfxSet3D(true);
 	C3D_RenderTarget* top = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	C3D_RenderTargetSetOutput(top, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
+	C3D_RenderTarget* topR = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	if (topR) C3D_RenderTargetSetOutput(topR, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
+	// anti-aliasing: 2 x 2 the pixels, scaled down by the display transfer (4 x the fill)
+	C3D_RenderTarget* topAA = C3D_RenderTargetCreate(480, 800, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	C3D_RenderTarget* curLeft = top;
+	const u32 AA_FLAGS = (DISPLAY_TRANSFER_FLAGS & ~GX_TRANSFER_SCALING(3)) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_XY);
 
 	dvlb = DVLB_ParseFile((u32*)world_shbin, world_shbin_size);
 	shaderProgramInit(&prog);
@@ -1007,6 +1233,23 @@ int main(void)
 	AttrInfo_AddLoader(&attr, 0, GPU_SHORT, 4);
 	AttrInfo_AddLoader(&attr, 1, GPU_SHORT, 2);
 	AttrInfo_AddLoader(&attr, 2, GPU_UNSIGNED_BYTE, 4);
+	wDvlb = DVLB_ParseFile((u32*)water_shbin, water_shbin_size);
+	shaderProgramInit(&wProg);
+	shaderProgramSetVsh(&wProg, &wDvlb->DVLE[0]);
+	wMvp = shaderInstanceGetUniformLocation(wProg.vertexShader, "mvp");
+	wOrigin = shaderInstanceGetUniformLocation(wProg.vertexShader, "origin");
+	wFog = shaderInstanceGetUniformLocation(wProg.vertexShader, "fogRow");
+	wUvA = shaderInstanceGetUniformLocation(wProg.vertexShader, "uvA");
+	wUvB = shaderInstanceGetUniformLocation(wProg.vertexShader, "uvB");
+	makeRipples();
+	shV = (Vtx*)linearAlloc((SH_SEG + 1) * sizeof(Vtx));
+	shI = (u16*)linearAlloc(SH_SEG * 3 * sizeof(u16));
+	if (shV && shI) {
+		for (int i = 0; i < SH_SEG; i++) { shI[i * 3] = 0; shI[i * 3 + 1] = 1 + i; shI[i * 3 + 2] = 1 + (i + 1) % SH_SEG; }
+		GSPGPU_FlushDataCache(shI, SH_SEG * 3 * sizeof(u16));
+		BufInfo_Init(&shBuf);
+		BufInfo_Add(&shBuf, shV, sizeof(Vtx), 3, 0x210);
+	}
 	chrV = (Vtx*)linearAlloc(CHR_MAXV * sizeof(Vtx));
 	chrI = (u16*)linearAlloc(CHR_MAXI * sizeof(u16));
 	BufInfo_Init(&chrBuf);
@@ -1042,6 +1285,7 @@ int main(void)
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
 			bPhase = B_STATIC;
 			rtsMode = false;
+			fxMode = 2;   // the tests T1-T5 had the plain water
 			radius = 0; farDist = 7000.0f; autoFar = false; setCap(false);
 		} else {
 			logFile = fopen("sdmc:/3ds/mwcell3d/play.log", "a");
@@ -1083,6 +1327,7 @@ int main(void)
 				radius = (radius + 1) % 3;
 				if (!autoFar && !rtsMode) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
 			} else if (!rtsMode) autoFar = !autoFar;
+			else fxMode = (fxMode + 1) % 3;
 		}
 		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
 		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
@@ -1142,15 +1387,37 @@ int main(void)
 		u64 c0 = ticks();
 		float setupMs = streamCells();   // after FrameBegin: the GPU is done with the last frame's buffers
 
-		C3D_Mtx proj, view, mvp;
-		Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f, false);
+		fxTime += dt;
+		float slider = bench ? 0 : osGet3DSliderState();
+		bool stereo = slider > 0.02f && topR;
+		bool aa = fxMode == 1 && !stereo && topAA && !bench;
+		C3D_RenderTarget* left = aa ? topAA : top;
+		if (left != curLeft) {
+			C3D_RenderTargetSetOutput(left, GFX_TOP, GFX_LEFT, aa ? AA_FLAGS : DISPLAY_TRANSFER_FLAGS);
+			curLeft = left;
+		}
+		// the focal plane: the character in RTS mode (it stands on the screen, the world round it)
+		float screenD = rtsMode ? RTS_DIST : 600.0f, iod = slider * screenD / 10.0f;
+		C3D_Mtx view;
 		Mtx_LookAt(&view, FVec3_New(0, 0, 0), FVec3_New(fwd[0], fwd[1], fwd[2]), FVec3_New(0, 0, 1), false);
-		Mtx_Multiply(&mvp, &proj, &view);
-
-		C3D_RenderTargetClear(top, C3D_CLEAR_ALL, SKY_R << 24 | SKY_G << 16 | SKY_B << 8 | 0xFF, 0);
-		C3D_FrameDrawOn(top);
-		drawWorld(&mvp, fwd);
-		if (rtsMode) drawCharacter();
+		for (int e = 0; e < (stereo ? 2 : 1); e++) {
+			C3D_Mtx proj, mvp;
+			if (stereo)
+				Mtx_PerspStereoTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f,
+				                    e == 0 ? -iod : iod, screenD, false);
+			else
+				Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, farDist + 1000.0f, false);
+			Mtx_Multiply(&mvp, &proj, &view);
+			C3D_RenderTarget* rt = e == 0 ? left : topR;
+			C3D_RenderTargetClear(rt, C3D_CLEAR_ALL, SKY_R << 24 | SKY_G << 16 | SKY_B << 8 | 0xFF, 0);
+			C3D_FrameDrawOn(rt);
+			int d0 = statDraws; u32 t0s = statTris;
+			drawWorld(&mvp, fwd);   // (resets the stats: the second eye's adds to the first's below)
+			if (rtsMode) drawCharacter();
+			if (rtsMode && fxMode != 2) drawShadow(&mvp, fwd);
+			if (fxMode != 2) drawWater(&mvp, fwd);
+			if (e == 1) { statDraws += d0; statTris += t0s; }
+		}
 		cpuMs = msSince(c0);
 		C3D_FrameEnd(0);
 		float gpuMs = C3D_GetDrawingTime();   // the previous frame's
@@ -1172,8 +1439,8 @@ int main(void)
 			for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) { loaded++; ltris += cells[i].tris; lbytes += cells[i].size; }
 			++playTick;
 			if (!bench && playTick % 4 == 0) {
-				logw("%s fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d\n",
-				     rtsMode ? "rts" : "free", fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
+				logw("%s fx%d 3d%.0f fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d\n",
+				     rtsMode ? "rts" : "free", fxMode, osGet3DSliderState() * 100, fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
 				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL));
 				if (playTick % 60 == 0) logFlush();   // every 30 s
@@ -1188,6 +1455,8 @@ int main(void)
 			printf("draws %4d  culled %4d small %3d \n", statDraws, statCulled, statSmall);
 			printf("tris drawn %6lu             \n", statTris);
 			printf("\n");
+			printf("looks: %s  3D %3.0f%%   \n",
+			       fxMode == 0 ? "effects     " : fxMode == 1 ? "effects + AA" : "plain       ", osGet3DSliderState() * 100);
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");
 			printf("cells loaded %2d  missing %d     \n", loaded, cellsMissing);
 			printf("cell data %5lu KB  tris %7lu  \n", lbytes / 1024, ltris);
@@ -1199,7 +1468,7 @@ int main(void)
 			printf("pos %7.0f %7.0f %6.0f \n", eye[0], eye[1], eye[2]);
 			printf("%s\n", bench ? "\x1b[33mBENCHMARK running\x1b[0m        " : "                          ");
 			if (rtsMode)
-				printf("\x1b[2mRTS: pad walk  B run  L/R turn   \nSELECT free camera  START quit  \ntouch: [ -  ][radius][30/60]   \n                                \x1b[0m");
+				printf("\x1b[2mRTS: pad walk  B run  L/R turn   \nSELECT free camera  START quit  \ntouch: [looks][radius][30/60]  \n                                \x1b[0m");
 			else
 				printf("\x1b[2mpad move  ABXY look  L/R down/up\nDpad U/D speed  L/R budget|far\nSELECT RTS camera  START quit  \ntouch: [auto][radius][30/60]   \x1b[0m");
 		}
@@ -1225,6 +1494,11 @@ int main(void)
 done:
 	for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) unloadCell(&cells[i]);
 	for (int i = 0; i < ntex; i++) C3D_TexDelete(&texs[i]);
+	if (shV) linearFree(shV);
+	if (shI) linearFree(shI);
+	if (rippleOk) C3D_TexDelete(&rippleTex);
+	shaderProgramFree(&wProg);
+	DVLB_Free(wDvlb);
 	if (chrV) linearFree(chrV);
 	if (chrI) linearFree(chrI);
 	shaderProgramFree(&prog);

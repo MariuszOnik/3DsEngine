@@ -1,0 +1,55 @@
+; Water (and soft shadows) vertex shader (PICA200). The same vertex as world.v.pica:
+;   v0 = position (int16, relative to the cell centre), v1 = texcoord (int16), v2 = colour (u8 rgba).
+; The colour's alpha is the water's own transparency (from its depth, set on the CPU), so the
+; fog can't go there as in the world shader: it fades the water out instead (alpha x fog), and
+; what shows through is the fogged ground under it.
+; Two texture coordinates: the same ripple texture twice, scaled and scrolled differently.
+
+.fvec mvp[4]        ; projection x view (rotation only, the eye is at 0)
+.fvec origin        ; xyz = cell centre - eye, w unused
+.fvec fogRow        ; fog factor = dp4(fogRow, position): 1 near, 0 at the fog's end
+.fvec uvA           ; texcoord 0 = position.xy * uvA.z + uvA.xy
+.fvec uvB           ; texcoord 1 = position.xy * uvB.z + uvB.xy
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias zero  consts.xxxx
+.alias one   consts.yyyy
+
+.out outpos position
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outclr color
+
+.alias inpos v0
+.alias intc  v1
+.alias inclr v2
+
+.proc main
+	add r0.xyz, origin.xyz, inpos.xyz
+	mov r0.w,   one
+
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	; fog factor, clamped
+	dp4 r1.x, fogRow, r0
+	max r1.x, zero, r1.x
+	min r1.x, one, r1.x
+
+	mul r2, consts.zzzz, inclr
+	mul r2.w, r2.w, r1.x
+	mov outclr, r2
+
+	; ripples from the world position (cell-relative), so neighbouring cells meet
+	mul r3.xy, uvA.zz, inpos.xy
+	add r3.xy, uvA.xy, r3.xy
+	mov r3.zw, zero
+	mov outtc0, r3
+	mul r4.xy, uvB.zz, inpos.xy
+	add r4.xy, uvB.xy, r4.xy
+	mov r4.zw, zero
+	mov outtc1, r4
+	end
+.end

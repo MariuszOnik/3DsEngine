@@ -2441,7 +2441,88 @@ static float surfaceAt(float x, float y, float z, bool* ok)
 	return f > g ? f : g;
 }
 
+// Is the 16-unit square under (x, y) blocked (the ground's map, or the one up on stairs / roofs)?
+static bool occBit(float x, float y, bool up)
+{
+	int sx = (int)floorf(x / 16.0f), sy = (int)floorf(y / 16.0f);
+	int gx = sx >= 0 ? sx / 512 : -((-sx + 511) / 512), gy = sy >= 0 ? sy / 512 : -((-sy + 511) / 512);
+	Cell* c = findCell(gx, gy);
+	if (!c || !c->occ) return false;
+	int lx = sx - gx * 512, ly = sy - gy * 512;
+	return ((up ? c->occU : c->occ)[(ly * 512 + lx) >> 3] >> (lx & 7)) & 1;
+}
+
+// The ray (o, unit d) against an object's own triangles: the distance to the first one hit, or 1e9.
+static float rayObject(int i, const float o[3], const float d[3])
+{
+	const ObjModel* m = objModel(i);
+	if (!m || !m->nparts) return 1e9f;
+	float M[12];
+	const float zero[3] = { 0, 0, 0 };
+	objMatrix(i, zero, M);   // world = M v (+ the position in the last column)
+	// into the model's space: R^T / s for M = R s (s: the scale x the quantisation, the same on every axis)
+	float s2 = M[0] * M[0] + M[4] * M[4] + M[8] * M[8];
+	if (s2 < 1e-12f) return 1e9f;
+	float rel[3] = { o[0] - M[3], o[1] - M[7], o[2] - M[11] };
+	float om[3], dm[3];
+	for (int c = 0; c < 3; c++) {
+		om[c] = (M[c] * rel[0] + M[4 + c] * rel[1] + M[8 + c] * rel[2]) / s2;
+		dm[c] = (M[c] * d[0] + M[4 + c] * d[1] + M[8 + c] * d[2]) / s2;
+	}
+	// (o_m + t d_m is the world's o + t d: t stays in world units)
+	float best = 1e9f;
+	for (int k = 0; k < m->nparts; k++) {
+		int pi = m->first + k;
+		if (pi >= objNParts) break;
+		const ObjPart* p = &objParts[pi];
+		const s16* v = (const s16*)(objData + p->vofs);
+		const u16* ix = (const u16*)(objData + p->iofs);
+		for (u32 t = 0; t + 2 < p->icount; t += 3) {
+			const s16* a = v + ix[t] * 8, *b = v + ix[t + 1] * 8, *c = v + ix[t + 2] * 8;
+			float e1[3] = { b[0] - a[0], b[1] - a[1], b[2] - a[2] }, e2[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] };
+			float pv[3] = { dm[1] * e2[2] - dm[2] * e2[1], dm[2] * e2[0] - dm[0] * e2[2], dm[0] * e2[1] - dm[1] * e2[0] };
+			float det = e1[0] * pv[0] + e1[1] * pv[1] + e1[2] * pv[2];
+			if (fabsf(det) < 1e-9f) continue;
+			float inv = 1.0f / det;
+			float tv[3] = { om[0] - a[0], om[1] - a[1], om[2] - a[2] };
+			float u = (tv[0] * pv[0] + tv[1] * pv[1] + tv[2] * pv[2]) * inv;
+			if (u < 0 || u > 1) continue;
+			float q[3] = { tv[1] * e1[2] - tv[2] * e1[1], tv[2] * e1[0] - tv[0] * e1[2], tv[0] * e1[1] - tv[1] * e1[0] };
+			float w = (dm[0] * q[0] + dm[1] * q[1] + dm[2] * q[2]) * inv;
+			if (w < 0 || u + w > 1) continue;
+			float tt = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) * inv;
+			if (tt > 1.0f && tt < best) best = tt;
+		}
+	}
+	return best;
+}
+
+// The ray against a standing body: an upright cylinder (radius 26, the feet to 130 up; lying dead: low).
+static float rayActor(const Actor* a, const float o[3], const float d[3])
+{
+	float R = a->dead ? 45.0f : 26.0f, top = a->dead ? 30.0f : 130.0f;
+	float px = o[0] - a->pos[0], py = o[1] - a->pos[1];
+	float A = d[0] * d[0] + d[1] * d[1], B = px * d[0] + py * d[1], C = px * px + py * py - R * R;
+	float best = 1e9f;
+	if (A > 1e-6f) {
+		float disc = B * B - A * C;
+		if (disc >= 0) {
+			float t = (-B - sqrtf(disc)) / A;
+			float z = o[2] + d[2] * t - a->pos[2];
+			if (t > 1.0f && z >= 0 && z <= top) best = t;
+		}
+	}
+	if (best > 1e8f && fabsf(d[2]) > 1e-4f) {   // through the top (seen from above: the RTS camera)
+		float t = (a->pos[2] + top - o[2]) / d[2];
+		float x = o[0] + d[0] * t - a->pos[0], y = o[1] + d[1] * t - a->pos[1];
+		if (t > 1.0f && x * x + y * y <= R * R) best = t;
+	}
+	return best;
+}
+
 // The ray from the camera (eye, its forward fwd) through the screen point (sx, sy): what it hits first.
+// Precise: the terrain and the floors, the walls (the collision map's blocked squares in the body's band),
+// the objects' own triangles, the NPCs' bodies.
 static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 {
 	float up0[3] = { 0, 0, 1 };
@@ -2457,11 +2538,11 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 	float dl = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
 	for (int i = 0; i < 3; i++) d[i] /= dl;
 	const float MAXT = camMode == CAM_FPP ? 2500.0f : 4000.0f;
-	// the ground: steps along the ray, then halving the last one
-	float tg = 1e9f;
+	// the ground (and the walls): steps along the ray, then halving the last one
+	float tg = 1e9f, twall = 1e9f;
 	{
 		float prev = 0;
-		for (float t = 16.0f; t < MAXT; t += 24.0f) {
+		for (float t = 8.0f; t < MAXT; t += 12.0f) {
 			bool ok;
 			float px = eye[0] + d[0] * t, py = eye[1] + d[1] * t, pz = eye[2] + d[2] * t;
 			float s = surfaceAt(px, py, pz, &ok);
@@ -2476,40 +2557,37 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 				tg = b;
 				break;
 			}
+			// a wall: a blocked square with the ray in the body's band over where one stands there
+			float g; bool up = groundAt(px, py, &g) && s > g + 8.0f;
+			if (pz < s + 140.0f && pz > s + 20.0f && occBit(px, py, up)) { twall = t; break; }
 			prev = t;
 		}
 	}
-	if (tg > 1e8f && d[2] < -0.05f && camMode != CAM_FPP) {   // not found (a cell not in): the plane of the feet
+	if (tg > 1e8f && twall > 1e8f && d[2] < -0.05f && camMode != CAM_FPP) {   // not found (a cell not in): the plane of the feet
 		float t = (chr[2] - eye[2]) / d[2];
 		if (t > 0 && t < MAXT) tg = t;
 	}
 	int kind = tg < 1e8f ? CK_GROUND : CK_NONE, idx = -1;
-	float best = tg;
-	// the NPCs: a sphere round the middle of the body (lying dead: low)
+	float best = fminf(tg, twall);
 	for (int i = 1; i < MAX_ACTORS; i++) {
 		Actor* a = &actors[i];
 		if (!a->used) continue;
-		float c[3] = { a->pos[0], a->pos[1], a->pos[2] + (a->dead ? 20.0f : 70.0f) };
-		float t, m = rayClosest(eye, d, c, &t);
-		if (t > 8.0f && m < (a->dead ? 40.0f : 48.0f) && t - 20.0f < best) { best = t - 20.0f; kind = CK_NPC; idx = i; }
+		float t = rayActor(a, eye, d);
+		if (t < best) { best = t; kind = CK_NPC; idx = i; }
 	}
-	// the objects: a sphere a bit smaller than the model's (a door is reached at its middle)
 	if (objsOk)
 		for (int i = 0; i < nobj; i++) {
 			WObj* o = &objs[i];
 			if (o->flags & OF_TAKEN) continue;
-			float dx = o->pos[0] - eye[0], dy = o->pos[1] - eye[1];
-			if (dx * dx + dy * dy > MAXT * MAXT) continue;
 			const ObjModel* mo = objModel(i);
 			float rad = mo ? mo->radius * o->scale : 20.0f;
-			// (the console: spheres up to 90 caught the cursor everywhere in a town, the ground was never hit)
-			float hit = fmaxf(12.0f, fminf(rad * 0.35f, 45.0f));
-			float c[3] = { o->pos[0], o->pos[1], o->pos[2] + fminf(rad * 0.4f, 60.0f) };
-			float t, m = rayClosest(eye, d, c, &t);
-			if (t > 8.0f && m < hit && t - hit < best) { best = t - hit; kind = CK_OBJ; idx = i; }
+			float t, m = rayClosest(eye, d, o->pos, &t);   // the bounding sphere first
+			if (m > rad || t + rad < 0 || t - rad > best) continue;
+			float th2 = rayObject(i, eye, d);
+			if (th2 < best) { best = th2; kind = CK_OBJ; idx = i; }
 		}
 	curKind = kind; curIdx = idx;
-	if (kind == CK_GROUND) for (int i = 0; i < 3; i++) curP[i] = eye[i] + d[i] * tg;
+	if (kind == CK_GROUND) for (int i = 0; i < 3; i++) curP[i] = eye[i] + d[i] * best;
 	else if (kind == CK_NPC) memcpy(curP, actors[idx].pos, sizeof curP);
 	else if (kind == CK_OBJ) memcpy(curP, objs[idx].pos, sizeof curP);
 	curDist = sqrtf((curP[0] - chr[0]) * (curP[0] - chr[0]) + (curP[1] - chr[1]) * (curP[1] - chr[1]));

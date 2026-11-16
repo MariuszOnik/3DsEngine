@@ -141,9 +141,8 @@ static int paceFrames, paceCooldown;
 static bool cap30 = true;
 static float fogStart = 0.45f;     // the fog starts at this share of the draw distance
 
-// Looks (touch, bottom left in RTS mode): 0 effects (depth water, soft shadow), 1 the same with
-// anti-aliasing (drawn at 2 x 2 the size and scaled down), 2 plain (the baker's flat water, as
-// in the tests T1-T6). The stereo 3D follows the 3D slider (each eye drawn: twice the GPU).
+// Looks (touch, bottom left in RTS mode): 0 effects (clear water by depth, caustics, soft
+// shadow), 1 the same without the caustics, 2 plain (the baker's flat water, as in T1-T6). The stereo 3D follows the 3D slider (each eye drawn: twice the GPU).
 static int fxMode = 0;
 static float fxTime;               // seconds, for the ripples
 static C3D_Tex rippleTex, detailTex;
@@ -1167,6 +1166,7 @@ static int bPhase = B_OFF, bAngle = -1, bFrame;
 static float bCpu, bCpuMax, bGpu, bDraws, bTris, bFrameMs;
 static float startEye[3], startYaw;
 static bool benchOnlyRts;
+static int benchFx;   // the looks of the RTS test: bench.txt "rts nocaustics" -> 1
 
 // walk state
 static float wDist, wSpeed, wT, wTurnT;
@@ -1214,7 +1214,7 @@ static void benchStartRts(void)
 	wDist = 0;
 	rtsShot = 0;
 	rtsWaiting = true;
-	fxMode = 0;
+	fxMode = benchFx;
 	radius = 1; setCap(true);
 	yaw = startYaw;
 	chrPlaced = false;
@@ -1465,6 +1465,7 @@ int main(void)
 			fread(what, 1, sizeof what - 1, bf);
 			fclose(bf);
 			benchOnlyRts = strstr(what, "rts") != NULL;
+			benchFx = strstr(what, "nocaus") ? 1 : 0;
 			logFile = fopen("sdmc:/3ds/mwcell3d/bench.log", "w");
 			bPhase = B_STATIC;
 			rtsMode = false;
@@ -1510,7 +1511,7 @@ int main(void)
 				radius = (radius + 1) % 3;
 				if (!autoFar && !rtsMode) farDist = radius == 0 ? 7000.0f : radius == 1 ? 12000.0f : 18000.0f;
 			} else if (!rtsMode) autoFar = !autoFar;
-			else fxMode = fxMode == 0 ? 2 : 0;
+			else fxMode = (fxMode + 1) % 3;
 		}
 		if (held & KEY_DUP) speed *= 1.0f + dt * 1.5f;
 		if (held & KEY_DDOWN) speed /= 1.0f + dt * 1.5f;
@@ -1598,7 +1599,8 @@ int main(void)
 			drawWorld(&mvp, fwd);   // (resets the stats: the second eye's adds to the first's below)
 			if (rtsMode) drawCharacter();
 			if (rtsMode && fxMode != 2) drawShadow(&mvp, fwd);
-			if (fxMode != 2) { drawCaustics(&mvp, fwd); drawWater(&mvp, fwd); }
+			if (fxMode == 0) drawCaustics(&mvp, fwd);
+			if (fxMode != 2) drawWater(&mvp, fwd);
 			if (e == 1) { statDraws += d0; statTris += t0s; }
 		}
 		cpuMs = msSince(c0);
@@ -1639,7 +1641,7 @@ int main(void)
 			printf("tris drawn %6lu             \n", statTris);
 			printf("\n");
 			printf("looks: %s  3D %3.0f%%   \n",
-			       fxMode == 0 ? "effects     " : fxMode == 1 ? "effects + AA" : "plain       ", osGet3DSliderState() * 100);
+			       fxMode == 0 ? "fx+caustics " : fxMode == 1 ? "fx          " : "plain       ", osGet3DSliderState() * 100);
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");
 			printf("cells loaded %2d  missing %d     \n", loaded, cellsMissing);
 			printf("cell data %5lu KB  tris %7lu  \n", lbytes / 1024, ltris);

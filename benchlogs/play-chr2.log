@@ -1,0 +1,917 @@
+--- Old 3DS, heap 12288 KB, linear 52852 KB, textures 333 (2528 KB) in 306 ms, 49 cells baked, route 91 points
+    load -2,-9: 1969 KB, read 495 ms (posted 503 ms ago), setup 2.1 ms
+    load -2,-10: 1200 KB, read 306 ms (posted 334 ms ago), setup 1.9 ms
+    load -3,-9: 1084 KB, read 275 ms (posted 301 ms ago), setup 2.3 ms
+    load -1,-9: 1078 KB, read 274 ms (posted 300 ms ago), setup 1.9 ms
+    load -2,-8: 1206 KB, read 307 ms (posted 334 ms ago), setup 1.9 ms
+    load -3,-10: 882 KB, read 232 ms (posted 267 ms ago), setup 2.1 ms
+fps 29.7 cpu 4.35 (max 6.79) gpu 13.63 draws 160 tris 101612 | r1 far 8999 auto budget 13 | cells 6 missing 3 | load read 232 setup 2.1 ms #6 fail 0 | free 38939 KB | cell -2,-9
+    load -1,-10: 827 KB, read 211 ms (posted 234 ms ago), setup 2.2 ms
+    load -3,-8: 1181 KB, read 312 ms (posted 334 ms ago), setup 2.0 ms
+    load -1,-8: 1172 KB, read 301 ms (posted 334 ms ago), setup 2.3 ms
+fps 29.9 cpu 4.59 (max 4.62) gpu 13.44 draws 157 tris 101452 | r1 far 8279 auto budget 13 | cells 9 missing 0 | load read 301 setup 2.3 ms #9 fail 0 | free 36072 KB | cell -2,-9
+    load -2,-11: 654 KB, read 175 ms (posted 202 ms ago), setup 1.8 ms
+    load -4,-9: 1034 KB, read 267 ms (posted 301 ms ago), setup 2.0 ms
+fps 29.9 cpu 5.05 (max 7.12) gpu 12.33 draws 145 tris 87643 | r2 far 7007 auto budget 12 | cells 11 missing 14 | load read 267 setup 2.0 ms #11 fail 0 | free 32877 KB | cell -2,-9
+    load 0,-9: 1164 KB, read 301 ms (posted 334 ms ago), setup 2.2 ms
+    load -2,-7: 770 KB, read 211 ms (posted 233 ms ago), setup 1.9 ms
+    load -3,-11: 340 KB, read 98 ms (posted 134 ms ago), setup 2.1 ms
+    load -1,-11: 1353 KB, read 346 ms (posted 367 ms ago), setup 2.0 ms
+    load -4,-10: 674 KB, read 174 ms (posted 200 ms ago), setup 2.0 ms
+    load 0,-10: 1308 KB, read 341 ms (posted 368 ms ago), setup 2.4 ms
+    load -4,-8: 867 KB, read 222 ms (posted 234 ms ago), setup 2.3 ms
+fps 29.9 cpu 4.61 (max 6.99) gpu 11.88 draws 141 tris 85017 | r2 far 6447 auto budget 12 | cells 18 missing 7 | load read 222 setup 2.3 ms #18 fail 0 | free 25286 KB | cell -2,-9
+    load 0,-8: 1079 KB, read 273 ms (posted 300 ms ago), setup 1.9 ms
+    load -1,-7: 1165 KB, read 299 ms (posted 334 ms ago), setup 2.1 ms
+    load -3,-7: 816 KB, read 213 ms (posted 234 ms ago), setup 1.9 ms
+    load 0,-7: 1616 KB, read 419 ms (posted 434 ms ago), setup 2.0 ms
+    load -4,-7: 612 KB, read 161 ms (posted 167 ms ago), setup 2.2 ms
+    load 0,-11: 916 KB, read 245 ms (posted 267 ms ago), setup 2.2 ms
+    load -4,-11: 287 KB, read 77 ms (posted 100 ms ago), setup 1.7 ms
+    load -2,-6: 1155 KB, read 303 ms (posted 335 ms ago), setup 2.2 ms
+fps 30.0 cpu 4.56 (max 6.76) gpu 11.75 draws 129 tris 80409 | r2 far 6447 auto budget 12 | cells 26 missing 0 | load read 303 setup 2.2 ms #26 fail 0 | free 16189 KB | cell -2,-9
+    load 1,-9: 1161 KB, read 297 ms (posted 300 ms ago), setup 1.9 ms
+    load 1,-10: 1221 KB, read 331 ms (posted 334 ms ago), setup 2.1 ms
+    load 1,-8: 1089 KB, read 280 ms (posted 300 ms ago), setup 2.0 ms
+    load -1,-6: 1087 KB, read 280 ms (posted 300 ms ago), setup 1.9 ms
+    load 1,-7: 1234 KB, read 327 ms (posted 334 ms ago), setup 2.0 ms
+    load 0,-6: 1084 KB, read 278 ms (posted 301 ms ago), setup 2.2 ms
+fps 29.9 cpu 3.69 (max 6.00) gpu 9.99 draws 95 tris 57840 | r2 far 6447 auto budget 12 | cells 32 missing 0 | load read 278 setup 2.2 ms #32 fail 0 | free 8309 KB | cell -2,-9
+    load 1,-6: 1137 KB, read 289 ms (posted 300 ms ago), setup 1.9 ms
+    load 1,-11: 907 KB, read 238 ms (posted 268 ms ago), setup 2.3 ms
+fps 32.8 cpu 3.44 (max 3.49) gpu 10.74 draws 94 tris 71234 | r2 far 6973 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 4.47 (max 4.57) gpu 12.35 draws 148 tris 92723 | r2 far 7542 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 4.87 (max 4.91) gpu 11.80 draws 167 tris 87009 | r2 far 7843 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 4.07 (max 4.09) gpu 11.66 draws 127 tris 88224 | r2 far 7843 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 3.90 (max 3.92) gpu 11.89 draws 120 tris 84543 | r2 far 7843 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 3.99 (max 4.17) gpu 10.64 draws 111 tris 83241 | r2 far 7843 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 3.93 (max 3.94) gpu 11.73 draws 120 tris 85393 | r2 far 8483 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 3.96 (max 4.17) gpu 10.64 draws 117 tris 96966 | r2 far 9176 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 4.67 (max 5.06) gpu 13.82 draws 161 tris 110413 | r2 far 10321 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+fps 29.9 cpu 3.53 (max 3.69) gpu 8.95 draws 72 tris 65413 | r2 far 11164 auto budget 14 | cells 34 missing 0 | load read 238 setup 2.3 ms #34 fail 0 | free 7059 KB | cell -2,-9
+    load -3,-6: 1058 KB, read 267 ms (posted 269 ms ago), setup 2.0 ms
+    load -4,-6: 895 KB, read 228 ms (posted 234 ms ago), setup 1.8 ms
+fps 30.0 cpu 4.70 (max 5.06) gpu 9.25 draws 131 tris 79134 | r2 far 12558 auto budget 14 | cells 30 missing 0 | load read 228 setup 1.8 ms #36 fail 0 | free 12540 KB | cell -3,-9
+    load 1,-7: 1234 KB, read 324 ms (posted 336 ms ago), setup 2.1 ms
+    load 1,-9: 1161 KB, read 298 ms (posted 300 ms ago), setup 1.9 ms
+    load 1,-8: 1089 KB, read 282 ms (posted 301 ms ago), setup 2.0 ms
+    load 1,-10: 1221 KB, read 324 ms (posted 334 ms ago), setup 2.0 ms
+fps 29.9 cpu 6.87 (max 9.33) gpu 15.53 draws 175 tris 122159 | r2 far 12496 auto budget 14 | cells 34 missing 0 | load read 324 setup 2.0 ms #40 fail 0 | free 6242 KB | cell -2,-9
+    load 1,-11: 907 KB, read 241 ms (posted 267 ms ago), setup 2.3 ms
+    load 1,-6: 1137 KB, read 287 ms (posted 300 ms ago), setup 1.9 ms
+fps 29.9 cpu 5.10 (max 5.21) gpu 14.13 draws 155 tris 107317 | r2 far 11496 auto budget 14 | cells 36 missing 0 | load read 287 setup 1.9 ms #42 fail 0 | free 4763 KB | cell -2,-9
+fps 29.9 cpu 5.58 (max 5.63) gpu 14.18 draws 154 tris 107277 | r2 far 11496 auto budget 14 | cells 36 missing 0 | load read 287 setup 1.9 ms #42 fail 0 | free 4763 KB | cell -2,-9
+fps 30.0 cpu 3.73 (max 4.06) gpu 7.63 draws 70 tris 60665 | r2 far 11496 auto budget 14 | cells 36 missing 0 | load read 287 setup 1.9 ms #42 fail 0 | free 4763 KB | cell -2,-9
+fps 29.9 cpu 4.39 (max 4.47) gpu 12.67 draws 123 tris 94244 | r2 far 11956 auto budget 14 | cells 36 missing 0 | load read 287 setup 1.9 ms #42 fail 0 | free 4763 KB | cell -2,-9
+fps 29.9 cpu 3.75 (max 4.09) gpu 8.19 draws 66 tris 51569 | r2 far 12932 auto budget 14 | cells 36 missing 0 | load read 287 setup 1.9 ms #42 fail 0 | free 4763 KB | cell -2,-9
+    load -3,-5: 963 KB, read 252 ms (posted 269 ms ago), setup 2.1 ms
+fps 29.9 cpu 5.71 (max 7.97) gpu 16.89 draws 161 tris 125258 | r2 far 12373 auto budget 14 | cells 37 missing 0 | load read 252 setup 2.1 ms #43 fail 0 | free 2487 KB | cell -2,-8
+    load -4,-5: 1141 KB, read 292 ms (posted 300 ms ago), setup 1.8 ms
+    load -2,-5: 1071 KB, read 270 ms (posted 301 ms ago), setup 1.9 ms
+fps 29.9 cpu 4.23 (max 4.32) gpu 13.57 draws 125 tris 96010 | r2 far 10472 auto budget 14 | cells 39 missing 0 | load read 270 setup 1.9 ms #45 fail 44 | free 1075 KB | cell -2,-8
+fps 29.9 cpu 4.19 (max 4.23) gpu 12.79 draws 124 tris 98255 | r2 far 10472 auto budget 14 | cells 39 missing 0 | load read 270 setup 1.9 ms #45 fail 44 | free 1075 KB | cell -2,-8
+fps 29.9 cpu 3.85 (max 3.96) gpu 11.94 draws 113 tris 94058 | r2 far 10472 auto budget 14 | cells 39 missing 0 | load read 270 setup 1.9 ms #45 fail 44 | free 1075 KB | cell -2,-8
+fps 29.9 cpu 2.61 (max 3.15) gpu 8.62 draws 71 tris 58984 | r2 far 10891 auto budget 14 | cells 39 missing 0 | load read 270 setup 1.9 ms #45 fail 44 | free 1075 KB | cell -2,-8
+fps 29.9 cpu 4.02 (max 4.21) gpu 11.49 draws 102 tris 86003 | r2 far 12251 auto budget 14 | cells 39 missing 0 | load read 270 setup 1.9 ms #45 fail 44 | free 1075 KB | cell -2,-8
+fps 29.9 cpu 4.78 (max 5.20) gpu 14.32 draws 124 tris 111589 | r2 far 13781 auto budget 14 | cells 39 missing 0 | load read 270 setup 1.9 ms #45 fail 44 | free 1075 KB | cell -2,-8
+    load -1,-5: 1136 KB, read 285 ms (posted 303 ms ago), setup 2.0 ms
+fps 30.0 cpu 3.56 (max 5.01) gpu 11.20 draws 75 tris 81556 | r2 far 11664 auto budget 14 | cells 29 missing 0 | load read 285 setup 2.0 ms #46 fail 49 | free 11951 KB | cell -3,-7
+fps 29.9 cpu 0.73 (max 1.03) gpu 1.73 draws 13 tris 9612 | r2 far 13121 auto budget 14 | cells 12 missing 0 | load read 285 setup 2.0 ms #46 fail 49 | free 34289 KB | cell -4,-4
+    load -3,-8: 1181 KB, read 308 ms (posted 336 ms ago), setup 2.0 ms
+    load -4,-8: 867 KB, read 220 ms (posted 234 ms ago), setup 2.3 ms
+    load -2,-8: 1206 KB, read 306 ms (posted 334 ms ago), setup 1.9 ms
+    load -1,-8: 1172 KB, read 298 ms (posted 301 ms ago), setup 2.2 ms
+fps 29.9 cpu 1.94 (max 1.97) gpu 7.24 draws 44 tris 41923 | r2 far 14759 auto budget 14 | cells 16 missing 0 | load read 298 setup 2.2 ms #50 fail 49 | free 29177 KB | cell -4,-5
+fps 29.9 cpu 2.59 (max 2.81) gpu 7.84 draws 74 tris 66291 | r2 far 16602 auto budget 14 | cells 16 missing 0 | load read 298 setup 2.2 ms #50 fail 49 | free 29177 KB | cell -4,-5
+fps 29.9 cpu 2.93 (max 3.00) gpu 9.60 draws 75 tris 66706 | r2 far 18675 auto budget 14 | cells 16 missing 0 | load read 298 setup 2.2 ms #50 fail 49 | free 29177 KB | cell -4,-5
+fps 29.9 cpu 2.85 (max 2.92) gpu 9.59 draws 56 tris 60182 | r2 far 19384 auto budget 14 | cells 16 missing 0 | load read 298 setup 2.2 ms #50 fail 49 | free 29177 KB | cell -4,-5
+fps 29.9 cpu 2.06 (max 2.09) gpu 6.38 draws 33 tris 35583 | r2 far 19384 auto budget 14 | cells 16 missing 0 | load read 298 setup 2.2 ms #50 fail 49 | free 29177 KB | cell -4,-5
+fps 29.9 cpu 1.32 (max 2.07) gpu 4.91 draws 33 tris 38181 | r2 far 19384 auto budget 14 | cells 16 missing 0 | load read 298 setup 2.2 ms #50 fail 49 | free 29177 KB | cell -4,-5
+    load 0,-5: 1067 KB, read 271 ms (posted 303 ms ago), setup 2.2 ms
+    load 0,-6: 1084 KB, read 279 ms (posted 300 ms ago), setup 2.1 ms
+    load 0,-7: 1616 KB, read 419 ms (posted 434 ms ago), setup 2.0 ms
+    load 0,-8: 1079 KB, read 273 ms (posted 303 ms ago), setup 2.1 ms
+fps 29.9 cpu 3.19 (max 5.49) gpu 8.50 draws 44 tris 65615 | r2 far 19384 auto budget 14 | cells 20 missing 0 | load read 273 setup 2.1 ms #54 fail 49 | free 21677 KB | cell -3,-6
+    load -2,-9: 1969 KB, read 493 ms (posted 502 ms ago), setup 2.5 ms
+    load -3,-9: 1084 KB, read 274 ms (posted 300 ms ago), setup 2.4 ms
+    load -1,-9: 1078 KB, read 274 ms (posted 300 ms ago), setup 2.0 ms
+    load -1,-11: 1353 KB, read 342 ms (posted 368 ms ago), setup 2.3 ms
+    load -2,-11: 654 KB, read 172 ms (posted 200 ms ago), setup 1.9 ms
+    load -2,-10: 1200 KB, read 305 ms (posted 334 ms ago), setup 2.0 ms
+fps 29.8 cpu 4.07 (max 6.20) gpu 10.71 draws 90 tris 79166 | r2 far 19384 auto budget 14 | cells 21 missing 6 | load read 305 setup 2.0 ms #60 fail 49 | free 20632 KB | cell -2,-8
+    load -3,-10: 882 KB, read 237 ms (posted 267 ms ago), setup 2.2 ms
+    load -2,-5: 1071 KB, read 272 ms (posted 300 ms ago), setup 1.9 ms
+    load -3,-5: 963 KB, read 252 ms (posted 267 ms ago), setup 1.8 ms
+    load -4,-5: 1141 KB, read 291 ms (posted 301 ms ago), setup 1.8 ms
+    load -1,-5: 1136 KB, read 291 ms (posted 301 ms ago), setup 2.0 ms
+    load -4,-9: 1034 KB, read 266 ms (posted 301 ms ago), setup 2.1 ms
+fps 30.0 cpu 4.39 (max 4.93) gpu 12.39 draws 77 tris 72394 | r2 far 19384 auto budget 14 | cells 23 missing 0 | load read 266 setup 2.1 ms #66 fail 49 | free 19034 KB | cell -3,-6
+    load 0,-5: 1067 KB, read 272 ms (posted 303 ms ago), setup 1.9 ms
+fps 29.9 cpu 5.00 (max 5.34) gpu 12.22 draws 109 tris 101841 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 4.19 (max 5.00) gpu 16.06 draws 156 tris 141480 | r2 far 16407 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 4.69 (max 5.12) gpu 13.97 draws 132 tris 118219 | r2 far 15094 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 2.52 (max 2.55) gpu 5.39 draws 29 tris 28611 | r2 far 16326 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 2.57 (max 2.65) gpu 5.37 draws 29 tris 28611 | r2 far 18364 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.81) gpu 5.36 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.78) gpu 5.38 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.77 (max 3.82) gpu 5.37 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.76 (max 3.90) gpu 5.39 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.76 (max 3.79) gpu 5.46 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.77) gpu 5.36 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.79) gpu 5.38 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.77 (max 3.81) gpu 5.37 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.78) gpu 5.45 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.78) gpu 5.35 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.78) gpu 5.36 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+fps 29.9 cpu 3.75 (max 3.78) gpu 5.36 draws 29 tris 28611 | r2 far 19384 auto budget 14 | cells 24 missing 0 | load read 272 setup 1.9 ms #67 fail 49 | free 17796 KB | cell -3,-6
+--- Old 3DS, heap 12288 KB, linear 52844 KB, textures 333 (2528 KB) in 306 ms, 49 cells baked, route 91 points
+    load -2,-9: 2279 KB, read 577 ms (posted 605 ms ago), setup 3.3 ms
+    load -2,-10: 1300 KB, read 338 ms (posted 368 ms ago), setup 3.4 ms
+    load -3,-9: 1187 KB, read 305 ms (posted 334 ms ago), setup 3.4 ms
+    load -1,-9: 1281 KB, read 340 ms (posted 367 ms ago), setup 3.1 ms
+    load -2,-8: 1324 KB, read 334 ms (posted 368 ms ago), setup 3.4 ms
+rts fps 29.9 cpu 3.11 (max 6.41) gpu 8.41 draws 80 tris 53042 | r1 far 2600 budget 16 | cells 5 missing 4 | load read 334 setup 3.4 ms #5 fail 0 | free 39050 KB | cell -2,-9
+    load -3,-10: 921 KB, read 239 ms (posted 267 ms ago), setup 3.0 ms
+    load -3,-8: 1342 KB, read 339 ms (posted 367 ms ago), setup 3.0 ms
+    load -1,-10: 869 KB, read 226 ms (posted 234 ms ago), setup 3.2 ms
+    load -1,-8: 1345 KB, read 349 ms (posted 367 ms ago), setup 3.0 ms
+    load 0,-9: 1395 KB, read 355 ms (posted 368 ms ago), setup 3.5 ms
+rts fps 29.9 cpu 2.80 (max 6.12) gpu 8.48 draws 81 tris 53046 | r1 far 2600 budget 16 | cells 10 missing 0 | load read 355 setup 3.5 ms #10 fail 0 | free 33242 KB | cell -2,-9
+    load -2,-11: 656 KB, read 170 ms (posted 203 ms ago), setup 3.0 ms
+    load 0,-10: 1492 KB, read 395 ms (posted 402 ms ago), setup 3.6 ms
+    load 0,-8: 1252 KB, read 317 ms (posted 334 ms ago), setup 3.5 ms
+    load -2,-7: 900 KB, read 234 ms (posted 267 ms ago), setup 3.2 ms
+    load -1,-7: 1369 KB, read 346 ms (posted 367 ms ago), setup 3.1 ms
+rts fps 29.9 cpu 3.02 (max 6.07) gpu 7.42 draws 76 tris 41913 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 346 setup 3.1 ms #15 fail 0 | free 25722 KB | cell -2,-9
+    load -3,-7: 994 KB, read 253 ms (posted 267 ms ago), setup 3.2 ms
+    load -4,-8: 951 KB, read 238 ms (posted 267 ms ago), setup 3.0 ms
+    load -4,-9: 1155 KB, read 298 ms (posted 301 ms ago), setup 3.5 ms
+    load -4,-7: 774 KB, read 208 ms (posted 233 ms ago), setup 3.0 ms
+    load 0,-7: 1700 KB, read 439 ms (posted 471 ms ago), setup 3.4 ms
+    load 0,-11: 980 KB, read 255 ms (posted 271 ms ago), setup 3.3 ms
+rts fps 29.7 cpu 3.03 (max 6.01) gpu 7.61 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 255 setup 3.3 ms #21 fail 0 | free 19134 KB | cell -2,-9
+    load -1,-11: 1527 KB, read 383 ms (posted 404 ms ago), setup 3.2 ms
+rts fps 29.9 cpu 2.45 (max 2.54) gpu 7.62 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.48 (max 2.59) gpu 7.64 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.44 (max 2.50) gpu 7.68 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.50 (max 2.60) gpu 7.65 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.44 (max 2.48) gpu 7.69 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.46 (max 2.55) gpu 7.73 draws 78 tris 50123 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.59 (max 2.65) gpu 7.82 draws 84 tris 49241 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+rts fps 29.9 cpu 2.69 (max 2.77) gpu 8.22 draws 88 tris 50763 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 383 setup 3.2 ms #22 fail 0 | free 17435 KB | cell -2,-9
+    load -4,-10: 678 KB, read 174 ms (posted 203 ms ago), setup 2.9 ms
+    load -4,-11: 287 KB, read 80 ms (posted 100 ms ago), setup 2.8 ms
+    load -3,-11: 341 KB, read 92 ms (posted 100 ms ago), setup 2.9 ms
+rts fps 29.9 cpu 3.05 (max 5.83) gpu 7.33 draws 67 tris 46116 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.40 (max 2.49) gpu 8.47 draws 75 tris 51468 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.34 (max 2.44) gpu 7.76 draws 72 tris 49210 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.38 (max 2.48) gpu 7.86 draws 73 tris 50362 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.20 (max 2.22) gpu 7.36 draws 64 tris 45244 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.20 (max 2.32) gpu 7.80 draws 65 tris 45676 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.34 (max 2.45) gpu 7.85 draws 71 tris 48820 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.41 (max 2.43) gpu 8.05 draws 76 tris 49364 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.43 (max 2.47) gpu 8.41 draws 77 tris 52110 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.76 (max 2.93) gpu 8.37 draws 93 tris 52945 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.68 (max 2.83) gpu 8.59 draws 90 tris 49669 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.77 (max 2.82) gpu 8.27 draws 96 tris 51551 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.81 (max 2.85) gpu 8.28 draws 85 tris 51397 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.81 (max 2.89) gpu 8.05 draws 86 tris 51043 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.80 (max 2.85) gpu 8.01 draws 86 tris 51143 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.83 (max 2.91) gpu 8.06 draws 87 tris 51479 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.92 (max 3.06) gpu 7.75 draws 91 tris 48757 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.77 (max 2.91) gpu 7.50 draws 87 tris 48293 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.61 (max 2.77) gpu 7.52 draws 74 tris 44263 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.51 (max 2.68) gpu 7.84 draws 69 tris 44140 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.19 (max 2.23) gpu 7.65 draws 62 tris 41384 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 1.86 (max 1.89) gpu 6.76 draws 46 tris 31020 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.46 (max 2.52) gpu 7.89 draws 69 tris 42606 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.54 (max 2.61) gpu 7.91 draws 73 tris 42805 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.51 (max 2.53) gpu 7.94 draws 73 tris 42805 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.59 (max 2.63) gpu 7.89 draws 73 tris 42805 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 59.8 cpu 2.60 (max 2.67) gpu 7.91 draws 73 tris 42805 | r2 far 2600 budget 16 | cells 25 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 15615 KB | cell -2,-9
+rts fps 29.9 cpu 2.52 (max 2.54) gpu 7.91 draws 73 tris 42805 | r0 far 2600 budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+free fps 29.9 cpu 2.26 (max 2.28) gpu 7.43 draws 88 tris 44426 | r0 far 2812 auto budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+free fps 29.9 cpu 2.59 (max 2.71) gpu 7.85 draws 106 tris 50142 | r0 far 3163 auto budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+rts fps 29.9 cpu 2.51 (max 2.59) gpu 7.66 draws 73 tris 41813 | r0 far 2600 budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+rts fps 29.9 cpu 2.44 (max 2.50) gpu 7.45 draws 70 tris 42403 | r0 far 2600 budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+free fps 29.9 cpu 2.28 (max 2.33) gpu 7.49 draws 89 tris 44430 | r0 far 2925 auto budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+rts fps 29.9 cpu 2.45 (max 2.46) gpu 7.49 draws 70 tris 42403 | r0 far 2600 budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+rts fps 33.9 cpu 2.47 (max 2.49) gpu 7.44 draws 70 tris 42403 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 92 setup 2.9 ms #25 fail 0 | free 34809 KB | cell -2,-9
+    load -2,-11: 656 KB, read 169 ms (posted 203 ms ago), setup 3.0 ms
+rts fps 29.9 cpu 2.80 (max 6.01) gpu 7.53 draws 72 tris 42417 | r1 far 2600 budget 16 | cells 10 missing 0 | load read 169 setup 3.0 ms #26 fail 0 | free 33640 KB | cell -2,-9
+    load -3,-11: 341 KB, read 94 ms (posted 100 ms ago), setup 2.9 ms
+    load -1,-11: 1527 KB, read 387 ms (posted 401 ms ago), setup 3.2 ms
+rts fps 29.9 cpu 2.51 (max 2.60) gpu 7.39 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.50 (max 2.53) gpu 7.37 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.48 (max 2.50) gpu 7.38 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.50 (max 2.55) gpu 7.41 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.50 (max 2.58) gpu 7.42 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.51 (max 2.55) gpu 7.43 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.55 (max 2.65) gpu 7.38 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.50 (max 2.52) gpu 7.46 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.50 (max 2.53) gpu 7.50 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.51 (max 2.59) gpu 7.51 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.58 (max 2.67) gpu 7.48 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+rts fps 29.9 cpu 2.52 (max 2.63) gpu 7.37 draws 71 tris 42405 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 387 setup 3.2 ms #28 fail 0 | free 31771 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52760 KB, textures 333 (2528 KB) in 309 ms, 49 cells baked, route 91 points
+    load -2,-9: 2279 KB, read 571 ms (posted 609 ms ago), setup 7.4 ms
+    load -2,-10: 1300 KB, read 331 ms (posted 368 ms ago), setup 7.5 ms
+    load -3,-9: 1187 KB, read 302 ms (posted 334 ms ago), setup 7.5 ms
+    load -1,-9: 1281 KB, read 343 ms (posted 367 ms ago), setup 7.2 ms
+    load -2,-8: 1324 KB, read 336 ms (posted 368 ms ago), setup 7.6 ms
+rts fx0 3d0 fps 29.9 cpu 3.92 (max 10.80) gpu 10.57 draws 82 tris 57514 | r1 far 2600 budget 16 | cells 5 missing 4 | load read 336 setup 7.6 ms #5 fail 0 | free 38373 KB | cell -2,-9
+    load -3,-10: 921 KB, read 236 ms (posted 267 ms ago), setup 7.1 ms
+    load -1,-10: 869 KB, read 226 ms (posted 234 ms ago), setup 7.3 ms
+    load -3,-8: 1342 KB, read 338 ms (posted 367 ms ago), setup 7.2 ms
+    load -1,-8: 1345 KB, read 351 ms (posted 367 ms ago), setup 7.1 ms
+    load 0,-9: 1395 KB, read 353 ms (posted 375 ms ago), setup 7.6 ms
+rts fx0 3d0 fps 29.9 cpu 3.35 (max 10.76) gpu 10.20 draws 76 tris 53333 | r1 far 2600 budget 16 | cells 10 missing 0 | load read 353 setup 7.6 ms #10 fail 0 | free 31094 KB | cell -2,-9
+    load -2,-7: 900 KB, read 239 ms (posted 267 ms ago), setup 7.4 ms
+    load -1,-7: 1369 KB, read 347 ms (posted 363 ms ago), setup 3.2 ms
+rts fx0 3d0 fps 29.9 cpu 2.71 (max 2.79) gpu 8.63 draws 79 tris 55437 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 347 setup 3.2 ms #12 fail 0 | free 29269 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.80 (max 2.90) gpu 9.32 draws 79 tris 55437 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 347 setup 3.2 ms #12 fail 0 | free 29269 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.75 (max 2.84) gpu 8.54 draws 79 tris 55437 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 347 setup 3.2 ms #12 fail 0 | free 29269 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.80 (max 2.91) gpu 8.45 draws 82 tris 53787 | r1 far 2600 budget 16 | cells 12 missing 0 | load read 347 setup 3.2 ms #12 fail 0 | free 29269 KB | cell -2,-9
+    load -2,-11: 656 KB, read 173 ms (posted 208 ms ago), setup 7.0 ms
+rts fx0 3d0 fps 29.9 cpu 3.25 (max 9.87) gpu 8.47 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 13 missing 0 | load read 173 setup 7.0 ms #13 fail 0 | free 28328 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.71 (max 2.81) gpu 8.42 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 13 missing 0 | load read 173 setup 7.0 ms #13 fail 0 | free 28328 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.87 (max 2.89) gpu 8.55 draws 81 tris 53737 | r1 far 2600 budget 16 | cells 13 missing 0 | load read 173 setup 7.0 ms #13 fail 0 | free 28328 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.77 (max 2.99) gpu 8.70 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 13 missing 0 | load read 173 setup 7.0 ms #13 fail 0 | free 27172 KB | cell -2,-9
+    load -4,-9: 1155 KB, read 306 ms (posted 342 ms ago), setup 7.5 ms
+    load -3,-7: 994 KB, read 252 ms (posted 263 ms ago), setup 3.2 ms
+rts fx0 3d0 fps 29.9 cpu 2.79 (max 2.85) gpu 8.63 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.72 (max 2.78) gpu 8.54 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.70 (max 2.82) gpu 8.71 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.69 (max 2.85) gpu 8.57 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.76 (max 2.90) gpu 8.50 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.70 (max 2.78) gpu 8.60 draws 78 tris 54377 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+rts fx0 3d100 fps 29.9 cpu 5.40 (max 5.54) gpu 16.96 draws 156 tris 108754 | r1 far 2600 budget 16 | cells 15 missing 0 | load read 252 setup 3.2 ms #15 fail 0 | free 25722 KB | cell -2,-9
+    load -4,-10: 678 KB, read 176 ms (posted 207 ms ago), setup 7.0 ms
+    load -1,-11: 1527 KB, read 399 ms (posted 435 ms ago), setup 7.2 ms
+    load -3,-11: 341 KB, read 95 ms (posted 133 ms ago), setup 6.9 ms
+    load -4,-11: 287 KB, read 80 ms (posted 100 ms ago), setup 6.8 ms
+    load -4,-8: 951 KB, read 242 ms (posted 267 ms ago), setup 7.0 ms
+rts fx0 3d100 fps 29.9 cpu 6.08 (max 12.85) gpu 17.50 draws 158 tris 108686 | r1 far 2600 budget 16 | cells 20 missing 0 | load read 242 setup 7.0 ms #20 fail 0 | free 20510 KB | cell -2,-9
+rts fx0 3d100 fps 29.9 cpu 5.33 (max 5.40) gpu 16.89 draws 158 tris 102594 | r1 far 2600 budget 16 | cells 20 missing 0 | load read 242 setup 7.0 ms #20 fail 0 | free 20510 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.35 (max 5.52) gpu 16.88 draws 158 tris 102594 | r1 far 2600 budget 16 | cells 20 missing 0 | load read 242 setup 7.0 ms #20 fail 0 | free 20510 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.51 (max 5.63) gpu 17.64 draws 164 tris 103318 | r1 far 2600 budget 16 | cells 20 missing 0 | load read 242 setup 7.0 ms #20 fail 0 | free 20510 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.15 (max 5.25) gpu 17.80 draws 146 tris 101306 | r1 far 2600 budget 16 | cells 20 missing 0 | load read 242 setup 7.0 ms #20 fail 0 | free 20510 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.10 (max 5.33) gpu 17.82 draws 140 tris 95826 | r1 far 2600 budget 16 | cells 20 missing 0 | load read 242 setup 7.0 ms #20 fail 0 | free 20510 KB | cell -2,-9
+    load 0,-11: 980 KB, read 256 ms (posted 275 ms ago), setup 7.4 ms
+rts fx0 3d28 fps 29.9 cpu 4.98 (max 5.04) gpu 17.99 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 4.96 (max 5.01) gpu 17.82 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.03 (max 5.16) gpu 17.91 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.00 (max 5.13) gpu 18.04 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx0 3d28 fps 29.9 cpu 5.02 (max 5.22) gpu 18.00 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 4.96 (max 5.03) gpu 17.95 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.03 (max 5.20) gpu 18.18 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx2 3d28 fps 29.9 cpu 4.50 (max 4.53) gpu 15.58 draws 137 tris 86882 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.01 (max 5.13) gpu 18.19 draws 139 tris 95806 | r1 far 2600 budget 16 | cells 21 missing 0 | load read 256 setup 7.4 ms #21 fail 0 | free 19245 KB | cell -2,-9
+    load -4,-7: 774 KB, read 212 ms (posted 237 ms ago), setup 3.0 ms
+rts fx1 3d28 fps 29.9 cpu 5.41 (max 8.39) gpu 17.94 draws 138 tris 92266 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 212 setup 3.0 ms #22 fail 0 | free 18299 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 4.91 (max 5.02) gpu 17.03 draws 133 tris 91038 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 212 setup 3.0 ms #22 fail 0 | free 18299 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 4.64 (max 4.75) gpu 15.93 draws 118 tris 86364 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 212 setup 3.0 ms #22 fail 0 | free 18299 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 4.67 (max 4.79) gpu 16.51 draws 106 tris 98456 | r1 far 2600 budget 16 | cells 22 missing 0 | load read 212 setup 3.0 ms #22 fail 0 | free 18299 KB | cell -2,-9
+    load 0,-10: 1492 KB, read 392 ms (posted 409 ms ago), setup 7.7 ms
+rts fx1 3d28 fps 29.9 cpu 5.37 (max 12.66) gpu 17.08 draws 114 tris 100270 | r1 far 2600 budget 16 | cells 23 missing 0 | load read 392 setup 7.7 ms #23 fail 0 | free 16522 KB | cell -2,-9
+    load 0,-8: 1252 KB, read 319 ms (posted 342 ms ago), setup 7.5 ms
+rts fx1 3d28 fps 29.9 cpu 4.62 (max 4.74) gpu 16.43 draws 119 tris 87804 | r1 far 2600 budget 16 | cells 24 missing 0 | load read 319 setup 7.5 ms #24 fail 0 | free 14984 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 4.98 (max 5.12) gpu 18.31 draws 131 tris 91562 | r1 far 2600 budget 16 | cells 24 missing 0 | load read 319 setup 7.5 ms #24 fail 0 | free 14984 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 4.70 (max 4.81) gpu 15.90 draws 122 tris 83806 | r1 far 2600 budget 16 | cells 24 missing 0 | load read 319 setup 7.5 ms #24 fail 0 | free 14984 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.25 (max 5.36) gpu 19.53 draws 128 tris 124502 | r1 far 2600 budget 16 | cells 24 missing 0 | load read 319 setup 7.5 ms #24 fail 0 | free 14984 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.38 (max 5.63) gpu 20.84 draws 136 tris 130614 | r1 far 2600 budget 16 | cells 24 missing 0 | load read 319 setup 7.5 ms #24 fail 0 | free 13283 KB | cell -2,-9
+    load 0,-7: 1700 KB, read 438 ms (posted 475 ms ago), setup 7.5 ms
+rts fx1 3d28 fps 29.9 cpu 5.73 (max 5.84) gpu 19.90 draws 158 tris 138624 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.32 (max 5.48) gpu 16.24 draws 152 tris 92582 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 6.16 (max 6.35) gpu 18.97 draws 180 tris 139436 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 6.11 (max 6.37) gpu 22.27 draws 179 tris 127717 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 6.14 (max 6.26) gpu 18.29 draws 179 tris 126374 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.41 (max 5.50) gpu 18.13 draws 141 tris 114268 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.22 (max 5.37) gpu 15.27 draws 147 tris 102444 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.54 (max 5.71) gpu 17.86 draws 166 tris 116708 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.87 (max 6.21) gpu 16.65 draws 184 tris 107686 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d28 fps 29.9 cpu 5.84 (max 5.95) gpu 17.99 draws 184 tris 107686 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.97 (max 3.08) gpu 18.29 draws 90 tris 51539 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.87 (max 3.15) gpu 14.30 draws 86 tris 51601 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.96 (max 3.09) gpu 13.43 draws 89 tris 51219 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.97 (max 3.08) gpu 20.71 draws 89 tris 56201 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.85 (max 2.89) gpu 23.54 draws 84 tris 52297 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.85 (max 2.87) gpu 19.72 draws 85 tris 53209 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.93 (max 3.07) gpu 14.28 draws 93 tris 54921 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.97 (max 3.01) gpu 14.20 draws 92 tris 54913 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.02 (max 3.19) gpu 14.19 draws 92 tris 54913 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.96 (max 3.05) gpu 14.22 draws 92 tris 54913 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.98 (max 3.10) gpu 14.24 draws 92 tris 54913 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.71 (max 2.73) gpu 8.21 draws 91 tris 50451 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.84 (max 2.87) gpu 7.76 draws 89 tris 49329 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.87 (max 2.99) gpu 8.44 draws 88 tris 51487 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.87 (max 2.92) gpu 17.49 draws 88 tris 51487 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.88 (max 2.99) gpu 22.55 draws 88 tris 51487 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.90 (max 3.15) gpu 14.87 draws 85 tris 51069 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.13 (max 3.32) gpu 16.01 draws 88 tris 61343 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.15 (max 3.36) gpu 16.36 draws 89 tris 64849 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.86 (max 2.93) gpu 22.83 draws 74 tris 60937 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.80 (max 2.90) gpu 15.29 draws 68 tris 55121 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.39 (max 2.49) gpu 15.90 draws 46 tris 48789 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 31.5 cpu 1.88 (max 2.01) gpu 17.15 draws 24 tris 25432 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.20 (max 2.32) gpu 15.15 draws 27 tris 41318 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.19 (max 2.26) gpu 15.23 draws 27 tris 41318 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d63 fps 29.9 cpu 4.63 (max 4.80) gpu 18.66 draws 72 tris 95006 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d47 fps 29.9 cpu 4.61 (max 4.69) gpu 17.88 draws 72 tris 95006 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d47 fps 29.9 cpu 4.43 (max 4.49) gpu 29.00 draws 62 tris 85452 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d47 fps 29.9 cpu 4.36 (max 4.46) gpu 16.13 draws 60 tris 85004 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d47 fps 29.9 cpu 4.29 (max 4.44) gpu 15.86 draws 54 tris 51084 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d47 fps 29.9 cpu 4.46 (max 4.92) gpu 18.34 draws 87 tris 113320 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d47 fps 29.9 cpu 4.86 (max 4.96) gpu 18.79 draws 126 tris 101842 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d8 fps 29.9 cpu 4.99 (max 5.15) gpu 17.03 draws 126 tris 101842 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.57 (max 2.64) gpu 14.90 draws 63 tris 50921 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.52 (max 2.54) gpu 14.99 draws 63 tris 50921 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.55 (max 2.59) gpu 14.94 draws 63 tris 50921 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.51 (max 2.54) gpu 24.09 draws 63 tris 50921 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.53 (max 2.66) gpu 24.21 draws 63 tris 50921 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.26 (max 2.33) gpu 6.73 draws 61 tris 39903 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.27 (max 2.39) gpu 6.73 draws 61 tris 39903 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.29 (max 2.32) gpu 6.82 draws 62 tris 40335 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.54 (max 2.71) gpu 6.90 draws 56 tris 41232 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.60 (max 2.69) gpu 6.90 draws 56 tris 41232 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.82 (max 2.84) gpu 11.34 draws 59 tris 67444 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.80 (max 2.85) gpu 10.28 draws 59 tris 67444 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.75 (max 2.86) gpu 25.79 draws 59 tris 67444 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.98 (max 3.06) gpu 18.47 draws 71 tris 70195 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 22.0 cpu 3.02 (max 3.13) gpu 30.59 draws 71 tris 70195 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.71 (max 2.73) gpu 9.65 draws 68 tris 43983 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.97 (max 3.09) gpu 18.69 draws 71 tris 70195 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.01 (max 3.09) gpu 18.60 draws 71 tris 70195 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.97 (max 3.00) gpu 20.60 draws 71 tris 70203 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 27.9 cpu 3.08 (max 3.38) gpu 21.44 draws 86 tris 71571 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.99 (max 3.08) gpu 21.02 draws 83 tris 72820 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.86 (max 2.94) gpu 15.91 draws 75 tris 72540 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.19 (max 3.31) gpu 27.60 draws 88 tris 71660 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.00 (max 3.13) gpu 17.57 draws 80 tris 70400 | r1 far 2600 budget 16 | cells 25 missing 0 | load read 438 setup 7.5 ms #25 fail 0 | free 12999 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52312 KB, textures 333 (2528 KB) in 314 ms, 49 cells baked, route 91 points
+    load -2,-9: 2791 KB, read 710 ms (posted 748 ms ago), setup 12.4 ms
+rts fx0 3d0 fps 29.9 cpu 2.82 (max 3.06) gpu 10.46 draws 73 tris 52729 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 710 setup 12.4 ms #1 fail 0 | free 42050 KB | cell -2,-9
+    load -2,-8: 1836 KB, read 468 ms (posted 481 ms ago), setup 13.2 ms
+    load -3,-9: 1699 KB, read 433 ms (posted 468 ms ago), setup 13.3 ms
+    load -3,-8: 1854 KB, read 467 ms (posted 500 ms ago), setup 11.8 ms
+rts fx0 3d0 fps 29.9 cpu 2.53 (max 2.62) gpu 9.09 draws 64 tris 48291 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 467 setup 11.8 ms #4 fail 0 | free 36104 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 4.90 (max 5.06) gpu 18.09 draws 128 tris 96582 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 467 setup 11.8 ms #4 fail 0 | free 36104 KB | cell -2,-9
+    load -3,-10: 1433 KB, read 377 ms (posted 413 ms ago), setup 11.8 ms
+rts fx0 3d50 fps 29.9 cpu 4.74 (max 4.88) gpu 18.39 draws 120 tris 95362 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 377 setup 11.8 ms #5 fail 0 | free 33874 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 4.79 (max 4.90) gpu 18.20 draws 122 tris 90014 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 377 setup 11.8 ms #5 fail 0 | free 33874 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 4.70 (max 4.79) gpu 18.08 draws 120 tris 90006 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 377 setup 11.8 ms #5 fail 0 | free 33874 KB | cell -2,-9
+    load -2,-10: 1812 KB, read 474 ms (posted 515 ms ago), setup 13.2 ms
+rts fx0 3d50 fps 29.9 cpu 4.89 (max 4.98) gpu 18.96 draws 133 tris 97634 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 474 setup 13.2 ms #6 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 4.96 (max 5.13) gpu 19.05 draws 118 tris 99450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 474 setup 13.2 ms #6 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 4.88 (max 4.95) gpu 18.96 draws 118 tris 99450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 474 setup 13.2 ms #6 fail 0 | free 31265 KB | cell -2,-9
+    load -1,-9: 1793 KB, read 467 ms (posted 480 ms ago), setup 12.0 ms
+rts fx0 3d50 fps 29.9 cpu 5.13 (max 5.24) gpu 20.80 draws 144 tris 103928 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 467 setup 12.0 ms #7 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 5.26 (max 5.33) gpu 23.98 draws 151 tris 104262 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 467 setup 12.0 ms #7 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d50 fps 29.9 cpu 5.45 (max 5.71) gpu 25.72 draws 154 tris 103826 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 467 setup 12.0 ms #7 fail 0 | free 27292 KB | cell -2,-9
+    load -1,-10: 1381 KB, read 371 ms (posted 413 ms ago), setup 12.4 ms
+rts fx0 3d50 fps 29.9 cpu 5.21 (max 5.30) gpu 22.18 draws 146 tris 104054 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d9 fps 29.9 cpu 5.19 (max 5.35) gpu 21.35 draws 144 tris 103928 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d9 fps 29.9 cpu 5.20 (max 5.36) gpu 21.94 draws 142 tris 98042 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d9 fps 29.9 cpu 4.78 (max 5.09) gpu 21.16 draws 140 tris 97702 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d9 fps 29.9 cpu 5.09 (max 5.28) gpu 21.80 draws 142 tris 96750 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx2 3d9 fps 29.9 cpu 4.62 (max 4.67) gpu 20.83 draws 140 tris 87826 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d9 fps 29.9 cpu 5.12 (max 5.38) gpu 21.46 draws 138 tris 96702 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d9 fps 29.9 cpu 5.12 (max 5.28) gpu 19.68 draws 136 tris 89950 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d100 fps 29.9 cpu 4.98 (max 5.07) gpu 19.96 draws 135 tris 89930 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 26495 KB | cell -2,-9
+rts fx0 3d91 fps 29.9 cpu 5.24 (max 5.42) gpu 21.25 draws 134 tris 105310 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d56 fps 30.0 cpu 4.53 (max 5.27) gpu 17.24 draws 61 tris 57948 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d56 fps 29.9 cpu 3.81 (max 3.96) gpu 15.68 draws 66 tris 52548 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d56 fps 29.9 cpu 4.48 (max 4.61) gpu 19.11 draws 92 tris 84195 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d56 fps 29.9 cpu 4.16 (max 4.20) gpu 17.27 draws 75 tris 66856 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d56 fps 30.0 cpu 4.05 (max 4.82) gpu 15.88 draws 56 tris 55180 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d56 fps 29.9 cpu 3.76 (max 4.02) gpu 15.93 draws 56 tris 57652 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d8 fps 29.9 cpu 3.67 (max 3.79) gpu 15.07 draws 52 tris 52980 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 28674 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.86 (max 1.93) gpu 7.34 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.86 (max 1.92) gpu 7.44 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.83 (max 1.91) gpu 7.53 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.83 (max 1.85) gpu 7.54 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.83 (max 1.86) gpu 7.61 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.83 (max 1.85) gpu 7.51 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.84 (max 1.90) gpu 7.50 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.85 (max 1.89) gpu 7.36 draws 24 tris 26270 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.87 (max 1.92) gpu 7.49 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.87 (max 1.90) gpu 7.54 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.85 (max 1.88) gpu 7.55 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.84 (max 1.88) gpu 7.59 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.86 (max 1.90) gpu 7.55 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.85 (max 1.89) gpu 7.57 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.85 (max 1.89) gpu 7.68 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.86 (max 1.94) gpu 7.52 draws 25 tris 26450 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 371 setup 12.4 ms #8 fail 0 | free 31265 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52296 KB, textures 333 (2528 KB) in 313 ms, 49 cells baked, route 91 points
+    load -2,-9: 2791 KB, read 705 ms (posted 751 ms ago), setup 15.6 ms
+rts fx0 3d0 fps 29.9 cpu 2.87 (max 2.97) gpu 13.48 draws 83 tris 61962 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 705 setup 15.6 ms #1 fail 0 | free 43804 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.85 (max 2.92) gpu 13.77 draws 83 tris 61962 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 705 setup 15.6 ms #1 fail 0 | free 43804 KB | cell -2,-9
+    load -2,-8: 1836 KB, read 475 ms (posted 517 ms ago), setup 15.6 ms
+rts fx0 3d0 fps 29.9 cpu 3.88 (max 18.80) gpu 13.29 draws 72 tris 56590 | r1 far 2600 budget 16 | cells 2 missing 0 | load read 475 setup 15.6 ms #2 fail 0 | free 39250 KB | cell -2,-9
+    load -3,-8: 1854 KB, read 481 ms (posted 500 ms ago), setup 14.4 ms
+    load -1,-9: 1793 KB, read 469 ms (posted 501 ms ago), setup 14.7 ms
+rts fx0 3d0 fps 29.9 cpu 2.67 (max 2.80) gpu 12.45 draws 71 tris 56520 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 469 setup 14.7 ms #4 fail 0 | free 35730 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.68 (max 2.81) gpu 12.55 draws 71 tris 56520 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 469 setup 14.7 ms #4 fail 0 | free 35730 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.67 (max 2.80) gpu 12.62 draws 71 tris 56520 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 469 setup 14.7 ms #4 fail 0 | free 35730 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.66 (max 2.71) gpu 12.24 draws 71 tris 56520 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 469 setup 14.7 ms #4 fail 0 | free 35730 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.67 (max 2.79) gpu 12.39 draws 71 tris 56520 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 469 setup 14.7 ms #4 fail 0 | free 35730 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.68 (max 2.76) gpu 12.59 draws 71 tris 56520 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 469 setup 14.7 ms #4 fail 0 | free 35730 KB | cell -2,-9
+    load -1,-8: 1857 KB, read 482 ms (posted 515 ms ago), setup 13.9 ms
+rts fx0 3d0 fps 29.9 cpu 2.53 (max 2.62) gpu 10.94 draws 62 tris 47873 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 482 setup 13.9 ms #5 fail 0 | free 33009 KB | cell -2,-9
+    load -3,-9: 1699 KB, read 433 ms (posted 453 ms ago), setup 18.6 ms
+    load -2,-10: 1812 KB, read 466 ms (posted 502 ms ago), setup 19.2 ms
+rts fx0 3d0 fps 29.9 cpu 3.81 (max 21.85) gpu 11.26 draws 62 tris 49511 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 466 setup 19.2 ms #7 fail 0 | free 27771 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.48 (max 2.58) gpu 8.66 draws 61 tris 45063 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 466 setup 19.2 ms #7 fail 0 | free 27771 KB | cell -2,-9
+    load -1,-10: 1381 KB, read 359 ms (posted 386 ms ago), setup 18.6 ms
+rts fx1 3d0 fps 31.0 cpu 2.60 (max 2.80) gpu 9.69 draws 70 tris 50025 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 359 setup 18.6 ms #8 fail 0 | free 25527 KB | cell -2,-9
+    load -3,-10: 1433 KB, read 369 ms (posted 419 ms ago), setup 18.0 ms
+rts fx1 3d0 fps 29.9 cpu 2.51 (max 2.63) gpu 9.21 draws 60 tris 47681 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 369 setup 18.0 ms #9 fail 0 | free 23230 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.51 (max 2.56) gpu 9.34 draws 64 tris 48299 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 369 setup 18.0 ms #9 fail 0 | free 23230 KB | cell -2,-9
+rts fx1 3d26 fps 29.8 cpu 4.57 (max 5.17) gpu 19.65 draws 138 tris 106360 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 369 setup 18.0 ms #9 fail 0 | free 23230 KB | cell -2,-9
+rts fx1 3d66 fps 29.9 cpu 5.25 (max 5.52) gpu 19.72 draws 144 tris 108392 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 369 setup 18.0 ms #9 fail 0 | free 23230 KB | cell -2,-9
+rts fx1 3d66 fps 29.9 cpu 5.28 (max 5.35) gpu 19.86 draws 148 tris 108356 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 369 setup 18.0 ms #9 fail 0 | free 25950 KB | cell -2,-9
+rts fx1 3d66 fps 29.9 cpu 4.96 (max 5.28) gpu 19.00 draws 126 tris 95418 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 369 setup 18.0 ms #9 fail 0 | free 26337 KB | cell -2,-9
+    load -1,-8: 1857 KB, read 485 ms (posted 515 ms ago), setup 13.9 ms
+rts fx1 3d66 fps 29.9 cpu 5.35 (max 5.53) gpu 18.69 draws 160 tris 111492 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 485 setup 13.9 ms #10 fail 0 | free 25474 KB | cell -2,-9
+rts fx1 3d66 fps 29.9 cpu 5.30 (max 5.43) gpu 19.42 draws 148 tris 102620 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 485 setup 13.9 ms #10 fail 0 | free 25474 KB | cell -2,-9
+    load -1,-10: 1381 KB, read 366 ms (posted 386 ms ago), setup 18.6 ms
+rts fx1 3d66 fps 29.9 cpu 6.97 (max 24.25) gpu 20.39 draws 161 tris 107866 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 23230 KB | cell -2,-9
+rts fx1 3d66 fps 29.9 cpu 5.67 (max 5.89) gpu 19.96 draws 166 tris 110682 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 23230 KB | cell -2,-9
+rts fx2 3d66 fps 29.9 cpu 5.59 (max 5.67) gpu 19.64 draws 161 tris 107866 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 23230 KB | cell -2,-9
+rts fx2 3d66 fps 29.9 cpu 5.24 (max 5.40) gpu 19.21 draws 142 tris 100174 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 23230 KB | cell -2,-9
+rts fx2 3d66 fps 29.9 cpu 5.08 (max 5.14) gpu 18.94 draws 138 tris 97010 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 25950 KB | cell -2,-9
+rts fx2 3d0 fps 30.1 cpu 2.78 (max 5.14) gpu 9.93 draws 71 tris 47271 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 25950 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.64 (max 2.72) gpu 11.74 draws 70 tris 48163 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 25950 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.56 (max 2.64) gpu 11.37 draws 67 tris 45229 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 28668 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.98 (max 3.09) gpu 11.49 draws 81 tris 68670 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 28668 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 3.04 (max 3.16) gpu 11.72 draws 78 tris 71348 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.98 (max 3.05) gpu 13.07 draws 81 tris 76239 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.97 (max 3.02) gpu 12.75 draws 74 tris 76532 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.58 (max 2.65) gpu 10.47 draws 53 tris 54892 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.31 (max 2.48) gpu 8.46 draws 29 tris 35395 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx3 3d0 fps 29.9 cpu 1.69 (max 1.90) gpu 6.34 draws 19 tris 18511 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.94 (max 1.98) gpu 11.82 draws 21 tris 43852 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.81 (max 1.87) gpu 8.10 draws 17 tris 29386 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.84 (max 2.02) gpu 9.37 draws 13 tris 40624 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.08 (max 2.14) gpu 9.66 draws 19 tris 45344 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-10
+rts fx1 3d0 fps 29.9 cpu 2.17 (max 2.29) gpu 10.15 draws 22 tris 47463 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-10
+rts fx1 3d0 fps 29.9 cpu 2.16 (max 2.20) gpu 10.61 draws 22 tris 49507 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 31368 KB | cell -2,-10
+rts fx1 3d0 fps 29.9 cpu 2.08 (max 2.16) gpu 9.73 draws 19 tris 45344 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 36270 KB | cell -2,-10
+rts fx1 3d0 fps 29.9 cpu 2.16 (max 2.22) gpu 10.69 draws 25 tris 49775 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 366 setup 18.6 ms #11 fail 0 | free 36270 KB | cell -2,-10
+    load -1,-10: 1381 KB, read 356 ms (posted 386 ms ago), setup 18.5 ms
+    load -1,-9: 1793 KB, read 468 ms (posted 497 ms ago), setup 14.6 ms
+rts fx1 3d0 fps 29.9 cpu 2.08 (max 2.16) gpu 9.95 draws 33 tris 35029 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-10
+rts fx2 3d0 fps 29.9 cpu 1.89 (max 1.98) gpu 8.34 draws 20 tris 30069 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-10
+rts fx2 3d0 fps 29.9 cpu 2.11 (max 2.21) gpu 9.79 draws 19 tris 45344 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-10
+rts fx2 3d0 fps 29.9 cpu 2.01 (max 2.05) gpu 9.08 draws 14 tris 41550 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.01 (max 2.06) gpu 9.17 draws 14 tris 40960 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 1.74 (max 1.78) gpu 8.20 draws 14 tris 26166 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx3 3d0 fps 29.9 cpu 1.50 (max 1.52) gpu 6.36 draws 13 tris 14012 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.73 (max 1.81) gpu 12.41 draws 15 tris 37804 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.83 (max 1.85) gpu 12.08 draws 17 tris 38644 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.00 (max 2.02) gpu 12.33 draws 24 tris 42730 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.88 (max 1.97) gpu 8.25 draws 17 tris 29386 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.77 (max 1.82) gpu 7.88 draws 14 tris 25998 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.66 (max 2.71) gpu 10.26 draws 62 tris 56300 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.01 (max 3.06) gpu 11.68 draws 80 tris 69856 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.02 (max 3.20) gpu 11.40 draws 78 tris 65873 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.94 (max 3.05) gpu 10.70 draws 79 tris 60194 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.14 (max 3.38) gpu 10.67 draws 88 tris 62621 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 468 setup 14.6 ms #13 fail 0 | free 31368 KB | cell -2,-9
+    load -2,-8: 1836 KB, read 468 ms (posted 483 ms ago), setup 15.6 ms
+rts fx1 3d0 fps 29.9 cpu 2.96 (max 3.10) gpu 10.62 draws 78 tris 62406 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 468 setup 15.6 ms #14 fail 0 | free 28668 KB | cell -2,-9
+    load -1,-8: 1857 KB, read 477 ms (posted 515 ms ago), setup 13.9 ms
+rts fx1 3d0 fps 29.9 cpu 2.81 (max 2.89) gpu 11.13 draws 80 tris 57524 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 25948 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.91 (max 3.00) gpu 10.30 draws 85 tris 53432 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 25948 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.96 (max 3.05) gpu 9.66 draws 87 tris 52023 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 25948 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.92 (max 2.99) gpu 10.04 draws 86 tris 51871 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 25948 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.25 (max 3.49) gpu 12.15 draws 99 tris 67445 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 28668 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 3.09 (max 3.19) gpu 12.04 draws 82 tris 70892 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.96 (max 3.01) gpu 12.05 draws 78 tris 73794 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.89 (max 3.02) gpu 16.32 draws 74 tris 84683 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 3.09 (max 3.22) gpu 15.75 draws 83 tris 82978 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.98 (max 3.06) gpu 11.83 draws 73 tris 72955 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.80 (max 2.88) gpu 11.53 draws 69 tris 70545 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.94 (max 3.01) gpu 11.96 draws 79 tris 73840 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.94 (max 3.06) gpu 11.58 draws 72 tris 68739 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.42 (max 2.57) gpu 9.80 draws 46 tris 52699 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.07 (max 2.18) gpu 8.40 draws 27 tris 35229 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.09 (max 2.22) gpu 9.61 draws 17 tris 42104 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.09 (max 2.13) gpu 9.56 draws 17 tris 42104 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.83 (max 2.10) gpu 8.10 draws 17 tris 28069 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.96 (max 2.00) gpu 8.37 draws 24 tris 32701 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.97 (max 2.10) gpu 8.64 draws 24 tris 32701 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx3 3d0 fps 29.9 cpu 1.72 (max 1.87) gpu 6.71 draws 23 tris 20547 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.96 (max 1.98) gpu 8.36 draws 24 tris 32701 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 1.96 (max 2.16) gpu 8.41 draws 22 tris 30657 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.99 (max 2.11) gpu 12.88 draws 24 tris 42799 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.94 (max 2.01) gpu 8.47 draws 22 tris 30657 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 1.77 (max 2.07) gpu 12.63 draws 24 tris 42799 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx3 3d0 fps 29.9 cpu 1.67 (max 1.72) gpu 6.65 draws 21 tris 18503 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx3 3d0 fps 29.9 cpu 1.78 (max 1.92) gpu 6.80 draws 25 tris 22999 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.05 (max 2.20) gpu 12.50 draws 26 tris 44843 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.02 (max 2.06) gpu 12.75 draws 25 tris 43023 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.01 (max 2.12) gpu 12.79 draws 25 tris 43023 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.94 (max 2.04) gpu 8.31 draws 23 tris 30881 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 1.96 (max 2.09) gpu 8.36 draws 23 tris 30881 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.00 (max 2.11) gpu 8.31 draws 23 tris 30881 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.93 (max 2.00) gpu 8.34 draws 23 tris 30881 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 477 setup 13.9 ms #15 fail 0 | free 31368 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52296 KB, textures 333 (2528 KB) in 314 ms, 49 cells baked, route 91 points
+    load -2,-9: 2791 KB, read 712 ms (posted 751 ms ago), setup 15.7 ms
+rts fx0 3d0 fps 29.9 cpu 2.87 (max 2.95) gpu 13.42 draws 83 tris 61962 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 712 setup 15.7 ms #1 fail 0 | free 43804 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52288 KB, textures 333 (2528 KB) in 313 ms, 49 cells baked, route 91 points
+    load -2,-9: 2791 KB, read 715 ms (posted 751 ms ago), setup 15.5 ms
+rts fx0 3d0 fps 29.9 cpu 2.86 (max 2.97) gpu 15.76 draws 84 tris 66410 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 715 setup 15.5 ms #1 fail 0 | free 43730 KB | cell -2,-9
+rts fx0 3d0 fps 29.9 cpu 2.90 (max 3.17) gpu 16.29 draws 75 tris 61625 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 715 setup 15.5 ms #1 fail 0 | free 42031 KB | cell -2,-9
+    load -3,-9: 1699 KB, read 442 ms (posted 487 ms ago), setup 18.6 ms
+    load -2,-8: 1836 KB, read 488 ms (posted 531 ms ago), setup 15.4 ms
+    load -3,-8: 1854 KB, read 485 ms (posted 500 ms ago), setup 14.3 ms
+rts fx0 3d0 fps 29.9 cpu 2.82 (max 2.88) gpu 16.14 draws 81 tris 63357 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 485 setup 14.3 ms #4 fail 0 | free 35551 KB | cell -2,-9
+    load -3,-10: 1433 KB, read 386 ms (posted 419 ms ago), setup 18.0 ms
+rts fx1 3d0 fps 30.2 cpu 2.70 (max 2.86) gpu 11.58 draws 74 tris 55431 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.65 (max 2.70) gpu 11.70 draws 73 tris 55368 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.64 (max 2.73) gpu 11.66 draws 73 tris 55368 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.66 (max 2.79) gpu 11.70 draws 73 tris 55368 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.65 (max 2.74) gpu 11.73 draws 73 tris 55368 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.65 (max 2.70) gpu 11.75 draws 73 tris 55368 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.66 (max 2.76) gpu 11.69 draws 73 tris 54216 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.61 (max 2.66) gpu 11.78 draws 71 tris 53320 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.65 (max 2.97) gpu 12.23 draws 71 tris 53320 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 386 setup 18.0 ms #5 fail 0 | free 31395 KB | cell -2,-9
+    load -1,-9: 1793 KB, read 470 ms (posted 516 ms ago), setup 14.5 ms
+    load -1,-8: 1857 KB, read 482 ms (posted 515 ms ago), setup 13.9 ms
+rts fx2 3d0 fps 29.9 cpu 2.75 (max 3.02) gpu 12.23 draws 71 tris 53445 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 482 setup 13.9 ms #7 fail 0 | free 25867 KB | cell -2,-9
+    load -2,-10: 1812 KB, read 480 ms (posted 520 ms ago), setup 19.1 ms
+rts fx3 3d0 fps 29.9 cpu 2.26 (max 2.37) gpu 7.56 draws 52 tris 36433 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 480 setup 19.1 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.34 (max 2.49) gpu 10.42 draws 54 tris 45343 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 480 setup 19.1 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.42 (max 2.48) gpu 11.28 draws 58 tris 49178 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 480 setup 19.1 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.32 (max 2.44) gpu 10.37 draws 55 tris 44573 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 480 setup 19.1 ms #8 fail 0 | free 27724 KB | cell -2,-9
+    load -1,-8: 1857 KB, read 476 ms (posted 515 ms ago), setup 13.9 ms
+rts fx1 3d0 fps 29.9 cpu 3.38 (max 16.36) gpu 10.53 draws 54 tris 45297 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 476 setup 13.9 ms #9 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.83 (max 1.95) gpu 8.67 draws 23 tris 26464 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 476 setup 13.9 ms #9 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.59 (max 1.64) gpu 8.24 draws 14 tris 21606 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 476 setup 13.9 ms #9 fail 0 | free 24937 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 1.54 (max 1.57) gpu 8.01 draws 13 tris 19558 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 476 setup 13.9 ms #9 fail 0 | free 24937 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 1.64 (max 1.69) gpu 8.42 draws 18 tris 25652 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 476 setup 13.9 ms #9 fail 0 | free 24937 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.30 (max 2.35) gpu 10.21 draws 53 tris 44605 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 476 setup 13.9 ms #9 fail 0 | free 24937 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52288 KB, textures 333 (2528 KB) in 315 ms, 49 cells baked, route 91 points
+    load -2,-9: 2791 KB, read 705 ms (posted 750 ms ago), setup 15.2 ms
+rts fx0 3d0 fps 29.9 cpu 2.89 (max 3.03) gpu 16.38 draws 84 tris 66410 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 705 setup 15.2 ms #1 fail 0 | free 43730 KB | cell -2,-9
+    load -3,-9: 1699 KB, read 454 ms (posted 486 ms ago), setup 18.4 ms
+rts fx0 3d0 fps 29.9 cpu 4.13 (max 21.55) gpu 16.65 draws 70 tris 60360 | r1 far 2600 budget 16 | cells 2 missing 0 | load read 454 setup 18.4 ms #2 fail 0 | free 39265 KB | cell -2,-9
+    load -2,-8: 1836 KB, read 477 ms (posted 498 ms ago), setup 15.0 ms
+    load -3,-8: 1854 KB, read 480 ms (posted 500 ms ago), setup 13.7 ms
+rts fx0 3d0 fps 29.9 cpu 2.79 (max 2.93) gpu 14.97 draws 80 tris 63190 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 480 setup 13.7 ms #4 fail 0 | free 35551 KB | cell -2,-9
+    load -3,-10: 1433 KB, read 381 ms (posted 422 ms ago), setup 20.9 ms
+rts fx0 3d0 fps 29.9 cpu 4.30 (max 24.03) gpu 18.49 draws 81 tris 61407 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 381 setup 20.9 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.75 (max 2.81) gpu 18.71 draws 75 tris 55485 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 381 setup 20.9 ms #5 fail 0 | free 33189 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.79 (max 3.11) gpu 13.95 draws 73 tris 53451 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 381 setup 20.9 ms #5 fail 0 | free 31376 KB | cell -2,-9
+    load -2,-10: 1812 KB, read 471 ms (posted 523 ms ago), setup 21.5 ms
+rts fx1 3d0 fps 29.9 cpu 2.24 (max 2.29) gpu 11.28 draws 45 tris 39315 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 471 setup 21.5 ms #6 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.86 (max 1.91) gpu 10.48 draws 30 tris 29260 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 471 setup 21.5 ms #6 fail 0 | free 30447 KB | cell -2,-9
+    load -1,-9: 1793 KB, read 466 ms (posted 482 ms ago), setup 14.4 ms
+rts fx1 3d0 fps 29.9 cpu 2.47 (max 2.74) gpu 13.02 draws 59 tris 50744 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 466 setup 14.4 ms #7 fail 0 | free 25867 KB | cell -2,-9
+    load -1,-8: 1857 KB, read 481 ms (posted 515 ms ago), setup 13.3 ms
+rts fx1 3d0 fps 29.9 cpu 2.60 (max 2.67) gpu 11.73 draws 71 tris 54250 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 481 setup 13.3 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.74 (max 2.84) gpu 11.56 draws 75 tris 56426 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 481 setup 13.3 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.76 (max 2.84) gpu 11.58 draws 75 tris 56426 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 481 setup 13.3 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx2 3d0 fps 29.9 cpu 2.74 (max 2.79) gpu 11.52 draws 75 tris 56426 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 481 setup 13.3 ms #8 fail 0 | free 24937 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.77 (max 2.87) gpu 14.33 draws 75 tris 56426 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 481 setup 13.3 ms #8 fail 0 | free 24937 KB | cell -2,-9
+    load -1,-10: 1381 KB, read 366 ms (posted 386 ms ago), setup 18.2 ms
+rts fx1 3d0 fps 29.9 cpu 2.73 (max 2.77) gpu 11.98 draws 74 tris 55038 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 22627 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.85 (max 3.00) gpu 12.21 draws 83 tris 58205 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 22627 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.76 (max 2.87) gpu 11.51 draws 73 tris 56238 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 22627 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.56 (max 2.62) gpu 11.33 draws 64 tris 52403 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 22627 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.45 (max 2.51) gpu 12.74 draws 59 tris 51012 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 22627 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.38 (max 2.45) gpu 13.29 draws 59 tris 49308 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 22627 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.21 (max 2.27) gpu 11.68 draws 45 tris 39641 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 25413 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.01 (max 2.17) gpu 10.28 draws 30 tris 26887 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 25413 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.82 (max 2.00) gpu 11.50 draws 29 tris 37782 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 27724 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.89 (max 1.99) gpu 10.94 draws 24 tris 37618 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 1.98 (max 2.03) gpu 11.54 draws 29 tris 38306 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.32) gpu 14.24 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.28) gpu 14.41 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.28) gpu 14.54 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.37) gpu 14.29 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.32) gpu 14.32 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.30) gpu 14.35 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.33) gpu 14.56 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.32) gpu 14.48 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.34) gpu 14.45 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.44) gpu 14.29 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.38) gpu 14.65 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.32) gpu 14.45 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.28) gpu 14.59 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.29) gpu 14.35 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.37) gpu 14.43 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.32) gpu 14.59 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.35) gpu 14.34 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.30) gpu 14.46 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.31) gpu 14.40 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.34) gpu 14.18 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.28) gpu 14.35 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.31) gpu 14.53 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.37) gpu 14.41 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.30) gpu 14.29 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.32) gpu 14.51 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.32) gpu 14.43 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.34) gpu 14.36 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.37) gpu 14.31 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.30) gpu 14.36 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.34) gpu 14.53 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.25 (max 2.29) gpu 14.30 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.42) gpu 14.52 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.33) gpu 14.48 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.30) gpu 14.53 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.34) gpu 14.51 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.33) gpu 14.41 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.41) gpu 14.48 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.42) gpu 14.35 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.42) gpu 14.61 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.34) gpu 14.54 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.34) gpu 14.63 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.27 (max 2.31) gpu 14.33 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+rts fx1 3d0 fps 29.9 cpu 2.26 (max 2.33) gpu 14.28 draws 29 tris 68238 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 366 setup 18.2 ms #9 fail 0 | free 30447 KB | cell -2,-9
+--- Old 3DS, heap 12288 KB, linear 52276 KB, textures 529 (4277 KB) in 517 ms, 88 cells baked, route 91 points
+    load -2,-9: 2798 KB, read 696 ms (posted 719 ms ago), setup 17.2 ms
+rts fx0 3d0 fps 29.9 cpu 8.52 (max 8.69) gpu 16.73 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 696 setup 17.2 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.71 ms
+rts fx0 3d0 fps 29.9 cpu 8.52 (max 8.74) gpu 17.26 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 696 setup 17.2 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.61 ms
+rts fx0 3d0 fps 29.9 cpu 8.52 (max 8.74) gpu 17.52 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 696 setup 17.2 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.54 ms
+rts fx0 3d0 fps 29.9 cpu 8.55 (max 8.72) gpu 17.51 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 696 setup 17.2 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.52 ms
+rts fx1 3d0 fps 29.9 cpu 8.43 (max 8.53) gpu 13.35 draws 111 tris 65038 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 696 setup 17.2 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.55 ms
+rts fx1 3d0 fps 29.9 cpu 8.52 (max 8.64) gpu 13.55 draws 110 tris 63001 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 696 setup 17.2 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.60 ms
+    load -3,-9: 1703 KB, read 454 ms (posted 488 ms ago), setup 20.3 ms
+    load -2,-8: 1842 KB, read 486 ms (posted 530 ms ago), setup 15.9 ms
+rts fx1 3d0 fps 29.6 cpu 9.93 (max 24.91) gpu 13.75 draws 108 tris 61757 | r1 far 2600 budget 16 | cells 3 missing 0 | load read 486 setup 15.9 ms #3 fail 0 | free 34243 KB | cell -2,-9 | char commoner 2242 verts skin 5.60 ms
+    load -3,-8: 1861 KB, read 491 ms (posted 535 ms ago), setup 15.8 ms
+    load -3,-10: 1435 KB, read 379 ms (posted 406 ms ago), setup 20.5 ms
+rts fx1 3d0 fps 29.9 cpu 8.51 (max 11.38) gpu 13.34 draws 122 tris 62910 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 379 setup 20.5 ms #5 fail 0 | free 30949 KB | cell -2,-9 | char netch 3351 verts skin 8.30 ms
+rts fx1 3d0 fps 29.9 cpu 12.28 (max 12.74) gpu 14.15 draws 119 tris 62877 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 379 setup 20.5 ms #5 fail 0 | free 29149 KB | cell -2,-9 | char iron 4019 verts skin 9.46 ms
+    load -1,-9: 1799 KB, read 479 ms (posted 519 ms ago), setup 17.4 ms
+    load -2,-10: 1817 KB, read 478 ms (posted 504 ms ago), setup 20.1 ms
+    load -1,-8: 1861 KB, read 489 ms (posted 530 ms ago), setup 15.2 ms
+rts fx1 3d0 fps 30.6 cpu 14.18 (max 17.15) gpu 13.58 draws 160 tris 64253 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 489 setup 15.2 ms #8 fail 0 | free 22683 KB | cell -2,-9 | char glass 5124 verts skin 12.92 ms
+    load -1,-10: 1383 KB, read 360 ms (posted 388 ms ago), setup 20.5 ms
+rts fx1 3d0 fps 29.9 cpu 9.62 (max 28.68) gpu 13.24 draws 109 tris 62319 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 360 setup 20.5 ms #9 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.21 ms
+rts fx1 3d0 fps 29.9 cpu 8.04 (max 8.30) gpu 12.93 draws 108 tris 61983 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 360 setup 20.5 ms #9 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.12 ms
+rts fx1 3d0 fps 29.9 cpu 8.16 (max 8.34) gpu 11.97 draws 114 tris 59147 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 360 setup 20.5 ms #9 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.11 ms
+rts fx1 3d0 fps 29.9 cpu 8.13 (max 8.28) gpu 11.51 draws 113 tris 59924 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 360 setup 20.5 ms #9 fail 0 | free 23161 KB | cell -2,-9 | char bare 2009 verts skin 5.33 ms
+rts fx1 3d0 fps 29.9 cpu 8.16 (max 8.38) gpu 12.27 draws 114 tris 62739 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 360 setup 20.5 ms #9 fail 0 | free 23161 KB | cell -2,-9 | char bare 2009 verts skin 5.15 ms
+rts fx1 3d0 fps 29.9 cpu 8.09 (max 8.21) gpu 13.51 draws 111 tris 62534 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #9 fail 0 | free 25526 KB | cell -2,-9 | char bare 2009 verts skin 5.19 ms
+    load -3,-8: 1861 KB, read 491 ms (posted 517 ms ago), setup 15.9 ms
+rts fx1 3d0 fps 25.8 cpu 13.50 (max 77.66) gpu 13.25 draws 112 tris 62870 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 491 setup 15.9 ms #10 fail 0 | free 22736 KB | cell -2,-9 | char bare 2009 verts skin 5.30 ms
+rts fx1 3d0 fps 29.9 cpu 8.11 (max 8.22) gpu 13.37 draws 112 tris 62870 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 491 setup 15.9 ms #10 fail 0 | free 22736 KB | cell -2,-9 | char bare 2009 verts skin 5.13 ms
+    load -3,-10: 1435 KB, read 376 ms (posted 422 ms ago), setup 20.7 ms
+rts fx1 3d0 fps 29.9 cpu 8.09 (max 8.21) gpu 13.59 draws 112 tris 62870 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.14 ms
+rts fx1 3d0 fps 29.9 cpu 7.65 (max 7.79) gpu 11.43 draws 88 tris 52943 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.10 ms
+rts fx1 3d0 fps 29.9 cpu 7.63 (max 7.81) gpu 11.43 draws 80 tris 51011 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.36 ms
+rts fx1 3d0 fps 29.9 cpu 7.30 (max 7.49) gpu 10.69 draws 69 tris 45018 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.07 ms
+rts fx1 3d0 fps 29.9 cpu 7.50 (max 7.61) gpu 11.49 draws 85 tris 51821 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.19 ms
+rts fx1 3d0 fps 30.7 cpu 7.78 (max 7.90) gpu 12.58 draws 92 tris 54588 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.23 ms
+rts fx1 3d0 fps 29.9 cpu 7.92 (max 8.08) gpu 11.69 draws 101 tris 59012 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.29 ms
+rts fx1 3d0 fps 29.9 cpu 7.91 (max 8.03) gpu 11.74 draws 101 tris 59012 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.30 ms
+rts fx1 3d0 fps 29.9 cpu 7.83 (max 8.06) gpu 11.52 draws 95 tris 59350 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 20371 KB | cell -2,-9 | char bare 2009 verts skin 5.25 ms
+rts fx1 3d23 fps 29.9 cpu 7.91 (max 10.11) gpu 10.52 draws 184 tris 109526 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 22736 KB | cell -2,-9 | char bare 2009 verts skin 5.19 ms
+rts fx1 3d58 fps 29.9 cpu 9.44 (max 9.57) gpu 19.08 draws 146 tris 85366 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 22736 KB | cell -2,-9 | char bare 2009 verts skin 5.17 ms
+rts fx1 3d65 fps 29.9 cpu 9.43 (max 10.02) gpu 18.23 draws 141 tris 79264 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 22736 KB | cell -2,-9 | char bare 2009 verts skin 5.23 ms
+rts fx1 3d65 fps 29.9 cpu 9.51 (max 9.65) gpu 15.38 draws 150 tris 66732 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 22736 KB | cell -2,-9 | char bare 2009 verts skin 5.24 ms
+rts fx1 3d65 fps 29.9 cpu 9.60 (max 9.89) gpu 15.53 draws 154 tris 63108 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.10 ms
+rts fx1 3d65 fps 29.9 cpu 10.15 (max 10.39) gpu 17.93 draws 170 tris 80304 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.09 ms
+rts fx1 3d36 fps 29.9 cpu 10.12 (max 10.31) gpu 18.27 draws 164 tris 82404 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.12 ms
+rts fx1 3d36 fps 29.9 cpu 10.13 (max 10.30) gpu 18.09 draws 168 tris 78708 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.17 ms
+rts fx1 3d100 fps 29.9 cpu 10.22 (max 10.95) gpu 18.05 draws 168 tris 78708 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.05 ms
+rts fx1 3d8 fps 29.9 cpu 10.14 (max 10.31) gpu 18.16 draws 168 tris 78708 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.21 ms
+rts fx1 3d29 fps 29.9 cpu 10.05 (max 10.24) gpu 17.84 draws 162 tris 80100 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.12 ms
+rts fx1 3d29 fps 29.9 cpu 9.97 (max 10.31) gpu 20.18 draws 160 tris 81964 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 27794 KB | cell -2,-9 | char bare 2009 verts skin 5.27 ms
+rts fx1 3d29 fps 29.9 cpu 10.04 (max 10.14) gpu 18.17 draws 164 tris 82404 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 27794 KB | cell -2,-9 | char bare 2009 verts skin 5.28 ms
+rts fx1 3d29 fps 29.9 cpu 10.14 (max 10.70) gpu 16.99 draws 156 tris 63508 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.7 ms #11 fail 0 | free 25977 KB | cell -2,-9 | char bare 2009 verts skin 5.17 ms
+    load -2,-10: 1817 KB, read 480 ms (posted 522 ms ago), setup 20.4 ms
+rts fx1 3d29 fps 29.9 cpu 10.84 (max 11.42) gpu 22.08 draws 212 tris 124660 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 480 setup 20.4 ms #12 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.21 ms
+rts fx1 3d29 fps 29.9 cpu 10.70 (max 11.12) gpu 21.83 draws 187 tris 110962 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 480 setup 20.4 ms #12 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.23 ms
+rts fx1 3d29 fps 29.9 cpu 10.13 (max 10.28) gpu 19.62 draws 170 tris 88846 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 480 setup 20.4 ms #12 fail 0 | free 25048 KB | cell -2,-9 | char bare 2009 verts skin 5.08 ms
+    load -1,-10: 1383 KB, read 359 ms (posted 388 ms ago), setup 20.5 ms
+rts fx1 3d29 fps 29.9 cpu 10.04 (max 10.22) gpu 19.33 draws 158 tris 110996 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 25526 KB | cell -2,-9 | char bare 2009 verts skin 5.22 ms
+rts fx1 3d29 fps 29.8 cpu 10.37 (max 10.51) gpu 23.17 draws 173 tris 124942 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.18 ms
+rts fx1 3d29 fps 27.2 cpu 10.65 (max 10.86) gpu 25.31 draws 186 tris 121716 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.22 ms
+rts fx1 3d29 fps 26.3 cpu 10.82 (max 11.06) gpu 26.68 draws 192 tris 125496 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.25 ms
+rts fx1 3d29 fps 26.2 cpu 10.49 (max 10.62) gpu 26.99 draws 178 tris 121078 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.11 ms
+rts fx1 3d29 fps 23.7 cpu 11.57 (max 11.98) gpu 32.66 draws 211 tris 183626 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.21 ms
+rts fx1 3d29 fps 22.8 cpu 11.73 (max 12.00) gpu 32.41 draws 214 tris 186466 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 30950 KB | cell -2,-9 | char bare 2009 verts skin 5.17 ms
+rts fx1 3d7 fps 22.8 cpu 11.69 (max 12.13) gpu 31.87 draws 208 tris 176968 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 33722 KB | cell -2,-9 | char bare 2009 verts skin 5.18 ms
+rts fx1 3d0 fps 29.9 cpu 8.51 (max 8.70) gpu 16.04 draws 104 tris 88484 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 33722 KB | cell -2,-9 | char bare 2009 verts skin 5.18 ms
+rts fx1 3d0 fps 29.9 cpu 8.55 (max 8.70) gpu 16.89 draws 109 tris 95015 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 359 setup 20.5 ms #13 fail 0 | free 33722 KB | cell -2,-9 | char bare 2009 verts skin 5.20 ms
+    load -2,-8: 1842 KB, read 481 ms (posted 517 ms ago), setup 15.9 ms
+    load -1,-8: 1861 KB, read 488 ms (posted 534 ms ago), setup 15.3 ms
+rts fx1 3d0 fps 29.9 cpu 8.41 (max 8.56) gpu 16.35 draws 102 tris 89881 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.33 ms
+rts fx1 3d0 fps 29.9 cpu 8.13 (max 8.37) gpu 13.71 draws 103 tris 62754 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.20 ms
+rts fx1 3d0 fps 29.9 cpu 7.98 (max 8.24) gpu 12.97 draws 95 tris 63000 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.16 ms
+rts fx1 3d0 fps 29.9 cpu 7.95 (max 8.14) gpu 12.18 draws 97 tris 64444 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.12 ms
+rts fx1 3d0 fps 29.9 cpu 7.85 (max 7.97) gpu 10.96 draws 87 tris 60351 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.21 ms
+rts fx1 3d0 fps 29.9 cpu 7.84 (max 8.18) gpu 13.31 draws 89 tris 60460 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.13 ms
+rts fx1 3d0 fps 29.9 cpu 7.95 (max 8.13) gpu 10.35 draws 78 tris 53370 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 28159 KB | cell -2,-9 | char bare 2009 verts skin 5.19 ms
+rts fx1 3d0 fps 29.9 cpu 7.96 (max 8.11) gpu 8.95 draws 79 tris 46685 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 33218 KB | cell -2,-9 | char bare 2009 verts skin 5.21 ms
+rts fx1 3d0 fps 29.9 cpu 8.07 (max 8.29) gpu 9.75 draws 85 tris 45452 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 33218 KB | cell -1,-9 | char bare 2009 verts skin 5.08 ms
+rts fx1 3d0 fps 29.9 cpu 8.25 (max 8.53) gpu 10.78 draws 92 tris 48559 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 33218 KB | cell -1,-9 | char bare 2009 verts skin 5.24 ms
+rts fx1 3d0 fps 29.9 cpu 8.17 (max 8.39) gpu 11.63 draws 90 tris 47924 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.3 ms #15 fail 0 | free 33218 KB | cell -1,-9 | char bare 2009 verts skin 5.20 ms
+    load -1,-10: 1383 KB, read 353 ms (posted 388 ms ago), setup 20.4 ms
+rts fx1 3d0 fps 29.9 cpu 9.69 (max 28.83) gpu 12.58 draws 84 tris 46964 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 353 setup 20.4 ms #16 fail 0 | free 30905 KB | cell -1,-9 | char bare 2009 verts skin 5.33 ms
+rts fx1 3d0 fps 29.9 cpu 7.93 (max 8.07) gpu 12.59 draws 74 tris 41641 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 353 setup 20.4 ms #16 fail 0 | free 30905 KB | cell -1,-9 | char bare 2009 verts skin 5.19 ms
+    load 0,-9: 1912 KB, read 494 ms (posted 518 ms ago), setup 16.9 ms
+rts fx1 3d0 fps 29.9 cpu 8.06 (max 8.29) gpu 11.68 draws 73 tris 48234 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 494 setup 16.9 ms #17 fail 0 | free 26295 KB | cell -1,-9 | char bare 2009 verts skin 5.37 ms
+    load 0,-8: 1768 KB, read 457 ms (posted 485 ms ago), setup 17.5 ms
+rts fx1 3d0 fps 30.0 cpu 7.32 (max 7.42) gpu 10.33 draws 70 tris 41448 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 457 setup 17.5 ms #18 fail 0 | free 25366 KB | cell -1,-9 | char bare 2009 verts skin 5.10 ms
+rts fx1 3d0 fps 29.9 cpu 7.19 (max 7.35) gpu 6.53 draws 72 tris 33688 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 457 setup 17.5 ms #18 fail 0 | free 25366 KB | cell -1,-9 | char bare 2009 verts skin 5.11 ms
+rts fx1 3d0 fps 29.9 cpu 7.17 (max 7.36) gpu 7.14 draws 71 tris 32456 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 457 setup 17.5 ms #18 fail 0 | free 25366 KB | cell -1,-9 | char bare 2009 verts skin 5.13 ms
+    load 0,-10: 2012 KB, read 526 ms (posted 552 ms ago), setup 17.0 ms
+rts fx1 3d0 fps 29.9 cpu 7.14 (max 7.31) gpu 8.46 draws 68 tris 28999 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 526 setup 17.0 ms #19 fail 0 | free 22424 KB | cell -1,-9 | char bare 2009 verts skin 5.28 ms
+    load -2,-10: 1817 KB, read 474 ms (posted 521 ms ago), setup 20.1 ms
+rts fx1 3d0 fps 29.9 cpu 8.70 (max 27.38) gpu 7.94 draws 68 tris 28999 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 19678 KB | cell -1,-9 | char bare 2009 verts skin 5.18 ms
+rts fx1 3d0 fps 29.9 cpu 7.16 (max 7.36) gpu 6.93 draws 67 tris 29119 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 19678 KB | cell -1,-9 | char bare 2009 verts skin 5.10 ms
+rts fx1 3d0 fps 29.9 cpu 7.11 (max 7.28) gpu 6.74 draws 70 tris 30217 | r1 far 2600 budget 16 | cells 9 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 19678 KB | cell -1,-9 | char bare 2009 verts skin 5.13 ms
+rts fx1 3d0 fps 29.9 cpu 7.24 (max 7.43) gpu 6.70 draws 73 tris 34184 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 22620 KB | cell -1,-9 | char bare 2009 verts skin 5.18 ms
+rts fx1 3d0 fps 29.9 cpu 7.08 (max 7.22) gpu 9.60 draws 66 tris 33722 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 22620 KB | cell -1,-9 | char bare 2009 verts skin 5.13 ms
+rts fx1 3d0 fps 29.9 cpu 7.29 (max 7.43) gpu 10.17 draws 66 tris 30171 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 22620 KB | cell -1,-9 | char bare 2009 verts skin 5.07 ms
+rts fx1 3d0 fps 29.9 cpu 7.11 (max 7.25) gpu 11.24 draws 66 tris 29082 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 22620 KB | cell -1,-9 | char bare 2009 verts skin 5.07 ms
+rts fx1 3d0 fps 29.9 cpu 7.27 (max 7.41) gpu 10.51 draws 70 tris 31514 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 25366 KB | cell -1,-9 | char bare 2009 verts skin 5.07 ms
+rts fx1 3d0 fps 29.9 cpu 7.88 (max 8.21) gpu 13.05 draws 83 tris 51039 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 28063 KB | cell -1,-9 | char bare 2009 verts skin 5.35 ms
+rts fx1 3d0 fps 29.9 cpu 8.58 (max 8.71) gpu 12.61 draws 91 tris 55370 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 30905 KB | cell -1,-9 | char commoner 2242 verts skin 5.60 ms
+rts fx1 3d0 fps 29.9 cpu 11.68 (max 11.82) gpu 10.50 draws 103 tris 55031 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 30905 KB | cell -1,-9 | char netch 3351 verts skin 8.51 ms
+rts fx1 3d0 fps 29.9 cpu 11.66 (max 11.80) gpu 10.10 draws 100 tris 53405 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 30905 KB | cell -1,-9 | char netch 3351 verts skin 8.50 ms
+rts fx1 3d0 fps 29.9 cpu 11.46 (max 11.91) gpu 9.25 draws 90 tris 48883 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -1,-9 | char netch 3351 verts skin 8.95 ms
+rts fx1 3d0 fps 29.9 cpu 11.59 (max 12.12) gpu 8.72 draws 82 tris 47367 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -1,-9 | char iron 4019 verts skin 9.13 ms
+rts fx1 3d0 fps 29.9 cpu 12.48 (max 12.58) gpu 8.96 draws 84 tris 48766 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -1,-9 | char iron 4257 verts skin 9.67 ms
+rts fx1 3d0 fps 29.9 cpu 12.56 (max 12.68) gpu 9.89 draws 87 tris 50943 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -1,-9 | char iron 4257 verts skin 9.64 ms
+rts fx1 3d0 fps 29.9 cpu 12.54 (max 12.81) gpu 9.76 draws 87 tris 50943 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -1,-9 | char iron 4257 verts skin 9.66 ms
+rts fx1 3d0 fps 29.9 cpu 12.48 (max 12.59) gpu 8.85 draws 86 tris 43521 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -2,-9 | char iron 4257 verts skin 9.68 ms
+rts fx1 3d0 fps 29.9 cpu 12.56 (max 13.18) gpu 10.37 draws 84 tris 45798 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -2,-9 | char iron 4257 verts skin 9.74 ms
+rts fx1 3d0 fps 29.9 cpu 12.69 (max 12.90) gpu 13.54 draws 93 tris 50012 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 474 setup 20.1 ms #20 fail 0 | free 33218 KB | cell -2,-9 | char iron 4257 verts skin 9.73 ms
+    load -3,-9: 1703 KB, read 443 ms (posted 488 ms ago), setup 20.2 ms
+    load -3,-8: 1861 KB, read 496 ms (posted 532 ms ago), setup 17.7 ms
+rts fx1 3d0 fps 29.9 cpu 12.79 (max 12.91) gpu 12.84 draws 98 tris 50452 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-9 | char iron 4257 verts skin 9.64 ms
+rts fx1 3d0 fps 29.9 cpu 12.40 (max 12.56) gpu 10.22 draws 93 tris 45797 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-9 | char iron 4257 verts skin 9.69 ms
+rts fx1 3d0 fps 29.9 cpu 12.16 (max 12.31) gpu 9.20 draws 82 tris 39544 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-8 | char iron 4257 verts skin 9.67 ms
+rts fx1 3d0 fps 29.9 cpu 12.15 (max 12.28) gpu 9.38 draws 80 tris 37922 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-8 | char iron 4257 verts skin 9.66 ms
+rts fx1 3d0 fps 29.9 cpu 12.14 (max 12.58) gpu 8.10 draws 75 tris 33748 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-8 | char iron 4257 verts skin 9.70 ms
+rts fx1 3d0 fps 29.9 cpu 12.54 (max 12.63) gpu 10.30 draws 88 tris 60701 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-8 | char iron 4257 verts skin 9.64 ms
+rts fx1 3d0 fps 29.9 cpu 12.49 (max 12.58) gpu 10.50 draws 89 tris 63301 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 27794 KB | cell -2,-8 | char iron 4257 verts skin 9.65 ms
+rts fx1 3d0 fps 29.9 cpu 12.66 (max 12.99) gpu 10.04 draws 90 tris 62415 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -2,-8 | char iron 4257 verts skin 9.76 ms
+rts fx1 3d0 fps 29.9 cpu 12.51 (max 12.73) gpu 11.15 draws 84 tris 66211 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -2,-8 | char iron 4257 verts skin 9.61 ms
+rts fx1 3d0 fps 29.9 cpu 12.55 (max 12.65) gpu 10.49 draws 87 tris 67266 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -2,-8 | char iron 4257 verts skin 9.63 ms
+rts fx1 3d0 fps 29.9 cpu 12.81 (max 13.38) gpu 12.21 draws 101 tris 69193 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -3,-8 | char iron 4257 verts skin 9.63 ms
+rts fx1 3d0 fps 29.9 cpu 12.69 (max 12.85) gpu 11.04 draws 94 tris 60653 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -3,-8 | char iron 4257 verts skin 9.62 ms
+rts fx1 3d0 fps 29.9 cpu 12.75 (max 12.87) gpu 12.35 draws 94 tris 61434 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.78 ms
+rts fx1 3d0 fps 29.9 cpu 12.55 (max 12.65) gpu 12.10 draws 88 tris 60722 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.74 ms
+rts fx1 3d0 fps 29.9 cpu 12.66 (max 12.77) gpu 13.06 draws 92 tris 64788 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.70 ms
+rts fx1 3d0 fps 29.9 cpu 12.60 (max 12.72) gpu 12.92 draws 91 tris 62740 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 496 setup 17.7 ms #22 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.71 ms
+    load -4,-9: 1671 KB, read 439 ms (posted 488 ms ago), setup 19.9 ms
+rts fx1 3d0 fps 29.9 cpu 12.81 (max 13.62) gpu 13.35 draws 90 tris 63824 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 439 setup 19.9 ms #23 fail 0 | free 29247 KB | cell -3,-9 | char iron 4257 verts skin 9.94 ms
+    load -4,-8: 1466 KB, read 383 ms (posted 419 ms ago), setup 18.2 ms
+rts fx1 3d0 fps 29.9 cpu 12.59 (max 12.84) gpu 12.46 draws 91 tris 62910 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 383 setup 18.2 ms #24 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.71 ms
+rts fx1 3d0 fps 29.9 cpu 11.96 (max 12.08) gpu 11.51 draws 85 tris 49250 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 383 setup 18.2 ms #24 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.70 ms
+rts fx1 3d0 fps 29.9 cpu 12.03 (max 12.13) gpu 11.74 draws 87 tris 49772 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 383 setup 18.2 ms #24 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.69 ms
+rts fx1 3d0 fps 29.9 cpu 11.99 (max 12.13) gpu 11.90 draws 86 tris 49586 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 383 setup 18.2 ms #24 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.56 ms
+rts fx1 3d0 fps 29.9 cpu 11.98 (max 12.16) gpu 11.71 draws 85 tris 49250 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 383 setup 18.2 ms #24 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.57 ms
+    load -3,-10: 1435 KB, read 376 ms (posted 422 ms ago), setup 20.5 ms
+rts fx1 3d0 fps 29.9 cpu 12.03 (max 12.66) gpu 11.78 draws 86 tris 49586 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 25953 KB | cell -3,-9 | char iron 4257 verts skin 9.57 ms
+rts fx1 3d0 fps 29.9 cpu 12.01 (max 12.18) gpu 11.83 draws 85 tris 49250 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 25953 KB | cell -3,-9 | char iron 4257 verts skin 9.72 ms
+rts fx1 3d0 fps 29.9 cpu 12.57 (max 12.76) gpu 12.53 draws 90 tris 62890 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.76 ms
+rts fx1 3d0 fps 29.9 cpu 12.65 (max 12.89) gpu 12.13 draws 91 tris 62910 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.77 ms
+rts fx1 3d0 fps 29.9 cpu 12.62 (max 12.78) gpu 12.12 draws 91 tris 62910 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.60 ms
+rts fx1 3d0 fps 29.9 cpu 12.61 (max 12.81) gpu 12.42 draws 89 tris 61776 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.74 ms
+rts fx1 3d0 fps 29.9 cpu 12.77 (max 13.56) gpu 14.73 draws 106 tris 70611 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.53 ms
+rts fx1 3d0 fps 29.9 cpu 12.38 (max 12.88) gpu 13.24 draws 95 tris 66024 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 28318 KB | cell -3,-9 | char iron 4257 verts skin 9.69 ms
+rts fx1 3d0 fps 29.9 cpu 12.66 (max 12.80) gpu 12.08 draws 92 tris 67440 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.64 ms
+rts fx1 3d0 fps 29.9 cpu 12.46 (max 12.60) gpu 9.79 draws 79 tris 60680 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.71 ms
+rts fx1 3d0 fps 29.9 cpu 12.34 (max 12.47) gpu 11.16 draws 79 tris 61302 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.74 ms
+rts fx1 3d0 fps 29.9 cpu 12.09 (max 12.20) gpu 9.04 draws 65 tris 52384 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 376 setup 20.5 ms #25 fail 0 | free 33314 KB | cell -3,-9 | char iron 4257 verts skin 9.64 ms
+    load -2,-10: 1817 KB, read 469 ms (posted 521 ms ago), setup 20.0 ms
+rts fx1 3d0 fps 29.9 cpu 12.05 (max 12.29) gpu 8.22 draws 62 tris 46164 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 469 setup 20.0 ms #26 fail 0 | free 30568 KB | cell -3,-9 | char iron 4257 verts skin 9.69 ms
+    load -3,-10: 1435 KB, read 373 ms (posted 422 ms ago), setup 20.5 ms
+rts fx1 3d0 fps 29.9 cpu 11.69 (max 11.92) gpu 9.27 draws 60 tris 41580 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.64 ms
+rts fx1 3d0 fps 29.9 cpu 11.82 (max 11.99) gpu 10.26 draws 68 tris 42972 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.63 ms
+rts fx1 3d0 fps 29.9 cpu 11.80 (max 11.99) gpu 10.31 draws 68 tris 42972 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.71 ms
+rts fx1 3d0 fps 29.9 cpu 11.74 (max 11.87) gpu 9.36 draws 61 tris 41916 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.64 ms
+rts fx1 3d0 fps 29.9 cpu 11.78 (max 12.16) gpu 9.06 draws 65 tris 48794 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.71 ms
+rts fx1 3d0 fps 29.9 cpu 12.24 (max 12.82) gpu 11.32 draws 75 tris 53016 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.70 ms
+rts fx1 3d0 fps 29.9 cpu 12.45 (max 12.54) gpu 12.63 draws 86 tris 57736 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 373 setup 20.5 ms #27 fail 0 | free 28203 KB | cell -2,-9 | char iron 4257 verts skin 9.65 ms
+    load -1,-9: 1799 KB, read 471 ms (posted 519 ms ago), setup 17.7 ms
+rts fx1 3d0 fps 29.9 cpu 12.81 (max 12.97) gpu 14.22 draws 107 tris 73970 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 471 setup 17.7 ms #28 fail 0 | free 25474 KB | cell -2,-9 | char iron 4257 verts skin 9.78 ms
+rts fx1 3d0 fps 25.9 cpu 17.67 (max 75.47) gpu 14.12 draws 107 tris 73970 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 471 setup 17.7 ms #28 fail 0 | free 25474 KB | cell -2,-9 | char iron 4257 verts skin 9.58 ms
+rts fx1 3d0 fps 29.9 cpu 12.93 (max 13.22) gpu 13.94 draws 121 tris 76697 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 471 setup 17.7 ms #28 fail 0 | free 25474 KB | cell -2,-9 | char iron 4257 verts skin 9.71 ms
+    load -1,-8: 1861 KB, read 489 ms (posted 517 ms ago), setup 15.2 ms
+rts fx1 3d0 fps 29.9 cpu 12.97 (max 13.14) gpu 11.67 draws 128 tris 66267 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 25048 KB | cell -2,-9 | char iron 4257 verts skin 9.65 ms
+rts fx1 3d0 fps 29.9 cpu 13.10 (max 13.65) gpu 11.29 draws 126 tris 65552 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 25048 KB | cell -2,-9 | char iron 4257 verts skin 9.65 ms
+rts fx1 3d0 fps 29.9 cpu 12.88 (max 13.30) gpu 10.96 draws 119 tris 57750 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 25048 KB | cell -2,-9 | char iron 4257 verts skin 9.68 ms
+rts fx1 3d0 fps 29.9 cpu 12.76 (max 12.99) gpu 9.32 draws 100 tris 45418 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 25048 KB | cell -2,-9 | char iron 4257 verts skin 9.59 ms
+rts fx1 3d0 fps 29.9 cpu 13.07 (max 13.24) gpu 10.33 draws 111 tris 47706 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 25048 KB | cell -2,-9 | char bonemold 4060 verts skin 9.83 ms
+rts fx1 3d0 fps 29.9 cpu 13.20 (max 13.39) gpu 9.81 draws 118 tris 51973 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 25048 KB | cell -2,-9 | char bonemold 4060 verts skin 10.04 ms
+rts fx1 3d0 fps 29.9 cpu 13.20 (max 13.65) gpu 11.24 draws 124 tris 59035 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 489 setup 15.2 ms #29 fail 0 | free 23665 KB | cell -2,-9 | char bonemold 4060 verts skin 10.07 ms
+    load -1,-10: 1383 KB, read 360 ms (posted 388 ms ago), setup 20.5 ms
+rts fx1 3d0 fps 29.9 cpu 13.30 (max 14.11) gpu 11.50 draws 123 tris 59539 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 22736 KB | cell -2,-9 | char bonemold 4060 verts skin 9.91 ms
+rts fx1 3d0 fps 29.9 cpu 13.28 (max 13.41) gpu 12.13 draws 129 tris 63080 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 22736 KB | cell -2,-9 | char bonemold 4060 verts skin 10.04 ms
+rts fx1 3d0 fps 29.9 cpu 13.51 (max 13.85) gpu 13.69 draws 143 tris 64612 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 22736 KB | cell -2,-9 | char bonemold 4060 verts skin 10.09 ms
+rts fx1 3d0 fps 29.9 cpu 13.57 (max 13.70) gpu 12.54 draws 146 tris 68179 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 10.04 ms
+rts fx1 3d0 fps 29.9 cpu 13.54 (max 14.14) gpu 13.49 draws 141 tris 63758 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 13.49 (max 13.58) gpu 12.90 draws 135 tris 62565 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 10.01 ms
+rts fx1 3d0 fps 29.9 cpu 13.65 (max 14.10) gpu 12.31 draws 133 tris 65096 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 10.16 ms
+rts fx1 3d0 fps 25.9 cpu 18.20 (max 75.21) gpu 11.45 draws 126 tris 62100 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 13.51 (max 13.70) gpu 12.60 draws 136 tris 65600 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 9.91 ms
+rts fx1 3d0 fps 29.9 cpu 13.64 (max 13.87) gpu 12.88 draws 137 tris 68242 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 10.08 ms
+rts fx1 3d0 fps 29.9 cpu 13.60 (max 13.68) gpu 12.91 draws 135 tris 67926 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 10.02 ms
+rts fx1 3d0 fps 29.9 cpu 13.55 (max 13.81) gpu 12.59 draws 136 tris 68875 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 9.87 ms
+rts fx1 3d0 fps 29.9 cpu 13.34 (max 13.80) gpu 11.61 draws 124 tris 62244 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 9.87 ms
+rts fx1 3d0 fps 29.9 cpu 13.32 (max 13.64) gpu 10.37 draws 116 tris 53849 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 360 setup 20.5 ms #30 fail 0 | free 25526 KB | cell -2,-9 | char bonemold 4060 verts skin 9.89 ms
+    load -3,-8: 1861 KB, read 488 ms (posted 517 ms ago), setup 15.9 ms
+rts fx1 3d0 fps 30.0 cpu 14.55 (max 29.50) gpu 11.37 draws 116 tris 51504 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 25048 KB | cell -2,-9 | char bonemold 4060 verts skin 10.12 ms
+rts fx1 3d0 fps 29.9 cpu 12.99 (max 13.17) gpu 10.21 draws 108 tris 46074 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 27794 KB | cell -2,-9 | char bonemold 4060 verts skin 10.00 ms
+rts fx1 3d0 fps 29.9 cpu 12.94 (max 13.17) gpu 9.91 draws 103 tris 44952 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 27794 KB | cell -2,-9 | char bonemold 4060 verts skin 10.07 ms
+rts fx1 3d0 fps 29.9 cpu 12.86 (max 13.04) gpu 9.57 draws 95 tris 39062 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 27794 KB | cell -2,-9 | char bonemold 4060 verts skin 9.94 ms
+rts fx1 3d0 fps 29.9 cpu 12.55 (max 12.94) gpu 10.57 draws 86 tris 35574 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 27794 KB | cell -2,-9 | char bonemold 4060 verts skin 9.97 ms
+rts fx1 3d0 fps 29.9 cpu 12.63 (max 12.70) gpu 10.55 draws 84 tris 35218 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 27794 KB | cell -2,-9 | char bonemold 4060 verts skin 9.93 ms
+rts fx1 3d0 fps 29.9 cpu 12.53 (max 12.69) gpu 10.50 draws 81 tris 33126 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 27794 KB | cell -2,-9 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 12.81 (max 13.34) gpu 12.77 draws 83 tris 52074 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 30585 KB | cell -2,-9 | char bonemold 4060 verts skin 10.02 ms
+rts fx1 3d0 fps 29.9 cpu 12.95 (max 13.18) gpu 11.43 draws 92 tris 62490 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 33314 KB | cell -2,-9 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 13.16 (max 13.39) gpu 10.53 draws 104 tris 70666 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 33314 KB | cell -2,-9 | char bonemold 4060 verts skin 10.00 ms
+rts fx1 3d0 fps 29.9 cpu 13.35 (max 13.46) gpu 10.43 draws 113 tris 70558 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 33314 KB | cell -2,-9 | char bonemold 4060 verts skin 9.93 ms
+rts fx1 3d0 fps 29.9 cpu 13.50 (max 13.62) gpu 11.72 draws 121 tris 71403 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 33314 KB | cell -3,-8 | char bonemold 4060 verts skin 9.82 ms
+rts fx1 3d0 fps 29.9 cpu 13.37 (max 13.52) gpu 13.30 draws 111 tris 72350 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 33314 KB | cell -3,-8 | char bonemold 4060 verts skin 10.01 ms
+rts fx1 3d0 fps 29.9 cpu 13.13 (max 13.30) gpu 12.69 draws 100 tris 66830 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 488 setup 15.9 ms #31 fail 0 | free 33314 KB | cell -3,-8 | char bonemold 4060 verts skin 10.01 ms
+    load -3,-7: 1510 KB, read 396 ms (posted 409 ms ago), setup 8.1 ms
+rts fx1 3d0 fps 29.9 cpu 14.12 (max 21.37) gpu 12.62 draws 104 tris 69148 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 396 setup 8.1 ms #32 fail 0 | free 31121 KB | cell -3,-8 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 13.62 (max 14.07) gpu 13.35 draws 103 tris 68448 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 396 setup 8.1 ms #32 fail 0 | free 29706 KB | cell -3,-8 | char bonemold 4060 verts skin 10.60 ms
+    load -2,-7: 1415 KB, read 376 ms (posted 417 ms ago), setup 16.4 ms
+    load -4,-8: 1466 KB, read 375 ms (posted 419 ms ago), setup 18.1 ms
+rts fx1 3d0 fps 30.5 cpu 12.67 (max 12.81) gpu 11.57 draws 100 tris 48112 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 375 setup 18.1 ms #34 fail 0 | free 26381 KB | cell -3,-8 | char bonemold 4060 verts skin 9.97 ms
+rts fx1 3d0 fps 29.9 cpu 12.54 (max 12.67) gpu 10.33 draws 96 tris 47677 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 375 setup 18.1 ms #34 fail 0 | free 26381 KB | cell -3,-8 | char bonemold 4060 verts skin 10.12 ms
+rts fx1 3d0 fps 29.9 cpu 12.57 (max 12.71) gpu 11.99 draws 97 tris 49011 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 375 setup 18.1 ms #34 fail 0 | free 26381 KB | cell -3,-8 | char bonemold 4060 verts skin 10.01 ms
+rts fx1 3d0 fps 29.9 cpu 12.64 (max 12.81) gpu 12.10 draws 97 tris 49011 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 375 setup 18.1 ms #34 fail 0 | free 26381 KB | cell -3,-8 | char bonemold 4060 verts skin 9.85 ms
+    load -4,-7: 1289 KB, read 339 ms (posted 376 ms ago), setup 8.8 ms
+rts fx1 3d0 fps 29.9 cpu 13.34 (max 21.38) gpu 10.97 draws 96 tris 44382 | r1 far 2600 budget 16 | cells 8 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 24409 KB | cell -3,-8 | char bonemold 4060 verts skin 10.03 ms
+rts fx1 3d0 fps 29.9 cpu 12.29 (max 12.47) gpu 7.69 draws 85 tris 36930 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 28136 KB | cell -3,-8 | char bonemold 4060 verts skin 10.09 ms
+rts fx1 3d0 fps 29.9 cpu 12.16 (max 12.35) gpu 7.76 draws 82 tris 35572 | r1 far 2600 budget 16 | cells 7 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 28136 KB | cell -3,-8 | char bonemold 4060 verts skin 9.90 ms
+rts fx1 3d0 fps 29.9 cpu 12.11 (max 12.22) gpu 6.11 draws 74 tris 26790 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 30769 KB | cell -3,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 11.93 (max 12.09) gpu 5.91 draws 69 tris 23882 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 30769 KB | cell -3,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.41 (max 12.56) gpu 7.81 draws 80 tris 45154 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 35885 KB | cell -3,-8 | char bonemold 4060 verts skin 9.88 ms
+rts fx1 3d0 fps 29.9 cpu 12.42 (max 12.68) gpu 7.80 draws 79 tris 39733 | r1 far 2600 budget 16 | cells 4 missing 0 | load read 339 setup 8.8 ms #35 fail 0 | free 35885 KB | cell -3,-8 | char bonemold 4060 verts skin 9.99 ms
+    load -4,-9: 1671 KB, read 443 ms (posted 488 ms ago), setup 20.0 ms
+rts fx1 3d0 fps 29.9 cpu 12.54 (max 12.75) gpu 8.02 draws 80 tris 39127 | r1 far 2600 budget 16 | cells 5 missing 0 | load read 443 setup 20.0 ms #36 fail 0 | free 31582 KB | cell -3,-8 | char bonemold 4060 verts skin 10.36 ms
+    load -3,-9: 1703 KB, read 441 ms (posted 488 ms ago), setup 20.4 ms
+rts fx1 3d0 fps 29.9 cpu 12.48 (max 12.59) gpu 8.75 draws 93 tris 42036 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -3,-8 | char bonemold 4060 verts skin 10.05 ms
+rts fx1 3d0 fps 29.9 cpu 12.49 (max 12.66) gpu 9.60 draws 92 tris 39988 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.90 ms
+rts fx1 3d0 fps 29.9 cpu 12.44 (max 12.56) gpu 9.11 draws 92 tris 39988 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.52 (max 12.93) gpu 9.23 draws 92 tris 39988 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.00 ms
+rts fx1 3d0 fps 29.9 cpu 12.46 (max 12.70) gpu 8.85 draws 93 tris 42036 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -3,-8 | char bonemold 4060 verts skin 10.06 ms
+rts fx1 3d0 fps 29.9 cpu 12.49 (max 12.68) gpu 9.11 draws 93 tris 42036 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -3,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.58 (max 12.76) gpu 10.26 draws 95 tris 41006 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -3,-8 | char bonemold 4060 verts skin 10.05 ms
+rts fx1 3d0 fps 29.9 cpu 12.49 (max 12.68) gpu 11.02 draws 92 tris 38866 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.90 ms
+rts fx1 3d0 fps 29.9 cpu 12.38 (max 12.53) gpu 10.83 draws 88 tris 37454 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 12.25 (max 12.33) gpu 10.91 draws 78 tris 37222 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.14 ms
+rts fx1 3d0 fps 29.9 cpu 12.16 (max 12.33) gpu 11.44 draws 78 tris 37452 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.13 ms
+rts fx1 3d0 fps 29.9 cpu 12.22 (max 12.33) gpu 10.90 draws 79 tris 37394 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.12 ms
+rts fx1 3d0 fps 29.9 cpu 12.22 (max 12.38) gpu 10.63 draws 80 tris 37594 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.11 ms
+rts fx1 3d0 fps 29.9 cpu 12.29 (max 12.37) gpu 10.82 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.05 ms
+rts fx1 3d0 fps 29.9 cpu 12.32 (max 12.43) gpu 11.16 draws 84 tris 38924 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.03 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.48) gpu 11.07 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.09 ms
+rts fx1 3d0 fps 29.9 cpu 12.38 (max 12.58) gpu 12.38 draws 90 tris 40343 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.37 (max 12.51) gpu 11.27 draws 84 tris 38924 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.04 ms
+rts fx1 3d0 fps 29.9 cpu 12.29 (max 12.46) gpu 11.23 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.07 ms
+rts fx1 3d0 fps 29.9 cpu 12.27 (max 12.43) gpu 11.09 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.81 ms
+rts fx1 3d0 fps 29.9 cpu 12.31 (max 12.47) gpu 11.18 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.08 ms
+rts fx1 3d0 fps 29.9 cpu 12.34 (max 12.55) gpu 11.18 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.03 ms
+rts fx1 3d0 fps 29.9 cpu 12.27 (max 12.39) gpu 11.29 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 12.28 (max 12.49) gpu 11.29 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.11 ms
+rts fx1 3d0 fps 29.9 cpu 12.32 (max 12.44) gpu 11.34 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.94 ms
+rts fx1 3d0 fps 29.9 cpu 12.28 (max 12.45) gpu 11.39 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.91 ms
+rts fx1 3d0 fps 29.9 cpu 12.27 (max 12.45) gpu 11.24 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.89 ms
+rts fx1 3d0 fps 29.9 cpu 12.28 (max 12.40) gpu 11.28 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.10 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.54) gpu 11.28 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.03 ms
+rts fx1 3d0 fps 29.9 cpu 12.27 (max 12.46) gpu 11.35 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.98 ms
+rts fx1 3d0 fps 29.9 cpu 12.27 (max 12.40) gpu 11.33 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.31 (max 12.48) gpu 11.40 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.52) gpu 11.19 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.99 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.49) gpu 11.35 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.96 ms
+rts fx1 3d0 fps 29.9 cpu 12.28 (max 12.52) gpu 11.37 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.04 ms
+rts fx1 3d0 fps 29.9 cpu 12.29 (max 12.48) gpu 11.38 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.20 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.41) gpu 11.29 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.00 ms
+rts fx1 3d0 fps 29.9 cpu 12.32 (max 12.55) gpu 11.23 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.09 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.50) gpu 11.40 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.08 ms
+rts fx1 3d0 fps 29.9 cpu 12.27 (max 12.37) gpu 11.28 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.03 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.59) gpu 11.31 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.07 ms
+rts fx1 3d0 fps 29.9 cpu 12.31 (max 12.54) gpu 11.12 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.06 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.48) gpu 11.16 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.13 ms
+rts fx1 3d0 fps 29.9 cpu 12.28 (max 12.35) gpu 11.10 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.05 ms
+rts fx1 3d0 fps 29.9 cpu 12.31 (max 12.40) gpu 11.20 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.94 ms
+rts fx1 3d0 fps 29.9 cpu 12.32 (max 12.70) gpu 11.33 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.92 ms
+rts fx1 3d0 fps 29.9 cpu 12.35 (max 13.45) gpu 11.15 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.86 ms
+rts fx1 3d0 fps 29.9 cpu 12.31 (max 12.43) gpu 11.13 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.10 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.39) gpu 11.21 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.01 ms
+rts fx1 3d0 fps 29.9 cpu 12.29 (max 12.44) gpu 11.18 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.12 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.44) gpu 11.14 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.86 ms
+rts fx1 3d0 fps 29.9 cpu 12.24 (max 12.42) gpu 11.11 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 9.89 ms
+rts fx1 3d0 fps 29.9 cpu 12.32 (max 12.42) gpu 11.27 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.05 ms
+rts fx1 3d0 fps 29.9 cpu 12.34 (max 12.49) gpu 11.28 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.07 ms
+rts fx1 3d0 fps 29.9 cpu 12.30 (max 12.41) gpu 11.20 draws 84 tris 36884 | r1 far 2600 budget 16 | cells 6 missing 0 | load read 441 setup 20.4 ms #37 fail 0 | free 30652 KB | cell -4,-8 | char bonemold 4060 verts skin 10.08 ms
+--- Old 3DS, heap 12288 KB, linear 52276 KB, textures 529 (4277 KB) in 516 ms, 88 cells baked, route 91 points
+    load -2,-9: 2798 KB, read 690 ms (posted 719 ms ago), setup 17.0 ms
+rts fx0 3d0 fps 29.9 cpu 8.51 (max 8.63) gpu 16.82 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 690 setup 17.0 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.70 ms
+rts fx0 3d0 fps 29.9 cpu 8.54 (max 8.74) gpu 17.24 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 690 setup 17.0 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.60 ms
+rts fx0 3d0 fps 29.9 cpu 8.52 (max 8.63) gpu 17.50 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 690 setup 17.0 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.52 ms
+rts fx0 3d0 fps 29.9 cpu 8.53 (max 8.65) gpu 17.49 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 690 setup 17.0 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.46 ms
+rts fx0 3d0 fps 29.9 cpu 8.52 (max 8.75) gpu 17.34 draws 112 tris 69486 | r1 far 2600 budget 16 | cells 1 missing 0 | load read 690 setup 17.0 ms #1 fail 0 | free 41509 KB | cell -2,-9 | char commoner 2242 verts skin 5.63 ms

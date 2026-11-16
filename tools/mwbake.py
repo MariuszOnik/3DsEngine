@@ -24,6 +24,7 @@ from PIL import Image
 CELL = 8192.0
 HALF = CELL / 2
 UV_SCALE = 1024.0  # uv as int16 / 1024 (range +-32)
+SMALL_RADIUS = 180.0  # objects smaller than this (grass 35-104, kelp 89-160, shells; trees and rocks 250+): batch flag 8
 SUN = np.array([-0.35, 0.45, 0.82]); SUN /= np.linalg.norm(SUN)
 AMBIENT = np.array([0.52, 0.54, 0.60])
 SUNCOL = np.array([0.62, 0.58, 0.50])
@@ -762,6 +763,13 @@ def bake_cell(esm, models, tex, gx, gy, stats):
         Rn = rot_matrix(rx, ry, rz)
         lx, ly = px - ox, py - oy
         sub = (0 if lx < 0 else 1) + (0 if ly < 0 else 2)
+        # size class (docs/POMYSLY.md, step 1): small things (grass, kelp, shells: radius < 180) get their own
+        # batches, drawn only near; things wholly under the water too (seen from the land only close by)
+        allv = np.concatenate([s["v"] for s in shapes])
+        rad = float(np.linalg.norm(allv, axis=1).max()) * ref["scale"]
+        top = pz + float((allv @ R.T)[:, 2].max())
+        cls = (8 if rad < SMALL_RADIUS else 0) | (16 if top < 0 else 0)
+        stats["small_tris" if cls & 8 else "under_tris" if cls & 16 else "big_tris"] += sum(len(s["tri"]) for s in shapes)
         for s in shapes:
             v = s["v"] @ R.T + np.array([lx, ly, pz])
             nrm = None if s["n"] is None else s["n"] @ Rn.T
@@ -769,7 +777,7 @@ def bake_cell(esm, models, tex, gx, gy, stats):
             col = np.concatenate([rgb * 255, s["a"][:, None] * 255], axis=1)
             col = np.clip(col, 0, 255).astype(np.uint8)
             ti = tex.get(s["tex"], s["alpha"])
-            flags = (1 if s["alpha"] else 0) | (2 if s["double"] else 0)
+            flags = (1 if s["alpha"] else 0) | (2 if s["double"] else 0) | cls
             key = (sub, ti, flags)
             bl = groups.get(key)
             if bl is None or bl[-1].nv + len(v) > 65000:
@@ -872,7 +880,7 @@ def main():
     for fn in os.listdir(os.path.join(a.out, "cells")):
         os.remove(os.path.join(a.out, "cells", fn))
     done = []
-    stats = {"terrain_tris": 0, "object_tris": 0, "refs": 0, "terrain_tex": a.terrain_tex}
+    stats = {"terrain_tris": 0, "object_tris": 0, "refs": 0, "terrain_tex": a.terrain_tex, "small_tris": 0, "under_tris": 0, "big_tris": 0}
     cx, cy = a.center
     total_bytes = 0
     if a.radius is not None:
@@ -915,6 +923,7 @@ def main():
     print("route: %d points, %.0f units" % (len(route), math.hypot(tx - sx, ty - sy)))
     tbytes = os.path.getsize(os.path.join(a.out, "textures.bin"))
     print("%d cells, %d refs, %d object tris, %d terrain tris" % (len(done), stats["refs"], stats["object_tris"], stats["terrain_tris"]))
+    print("object tris by class: big %d, small %d, under water %d" % (stats["big_tris"], stats["small_tris"], stats["under_tris"]))
     print("textures: %d (%.0f KB), cells %.0f KB, models parsed %d, failed %d, missing textures %d, %.1fs" % (
         len(tex.list), tbytes / 1024, total_bytes / 1024, len(models.cache), len(models.failed), len(tex.missing), time.time() - t0))
     for k, v in list(models.failed.items())[:20]:

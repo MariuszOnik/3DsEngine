@@ -130,7 +130,7 @@ static int paceFrames, paceCooldown;
 static bool cap30 = true;
 
 // stats
-static int statDraws, statCulled;
+static int statDraws, statCulled, statSmall;   // statSmall: batches of small / under-water things left out
 static u32 statTris;
 static int loadsTotal, loadFailed;
 static float lastIoMs, lastSetupMs;
@@ -426,8 +426,9 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 		for (int j = 0; j < 4; j++) pl[i][j] /= l;
 	}
 
-	statDraws = statCulled = 0;
+	statDraws = statCulled = statSmall = 0;
 	statTris = 0;
+	float smallDist = farDist < 3000.0f ? farDist : 3000.0f;
 	for (int pass = 0; pass < 3; pass++) {
 		if (pass == 0) {
 			C3D_AlphaTest(false, GPU_ALWAYS, 0);
@@ -455,7 +456,12 @@ static void drawWorld(const C3D_Mtx* mvp, const float fwd[3])
 				int bp = (b->flags & 4) ? 2 : (b->flags & 1) ? 1 : 0;
 				if (bp != pass) continue;
 				float x = b->c[0] + ox, y = b->c[1] + oy, z = b->c[2] + oz;
-				bool out = sqrtf(x * x + y * y + z * z) - b->r > farDist;
+				float d = sqrtf(x * x + y * y + z * z) - b->r;
+				bool out = d > farDist;
+				// small things (flag 8) only near; things wholly under the water (16) never while the camera is
+				// above it (the water is opaque enough to hide them: Maniek, hardware test 2)
+				if ((b->flags & 8) && d > smallDist) { statSmall++; out = true; }
+				else if ((b->flags & 16) && eye[2] > 0) { statSmall++; out = true; }
 				for (int p = 0; p < 4 && !out; p++)
 					if (pl[p][0] * x + pl[p][1] * y + pl[p][2] * z + pl[p][3] < -b->r) out = true;
 				if (out) { statCulled++; continue; }
@@ -562,7 +568,7 @@ static int wTurn;          // 0 not yet, 1 going back, 2 done
 static float sT, sFrameMs, sFrameMax, sCpu, sGpu, sTris, sDraws, sFar;
 static int sFrames, sMissingMax;
 // per walk
-static int wFrames, wHitch, wOver34, wLoads;
+static int wFrames, wHitch, wOver34, wLoads, wSkip;
 static float wWorst, wFrameSum, wSetupMax;
 
 static float routeLen(void) { return (nroute - 1) * 256.0f; }
@@ -587,6 +593,7 @@ static void benchStartWalk(int stage)
 	wDir = stage == 2 ? 1 : -1;
 	wDist = stage == 2 ? 0 : routeLen();
 	wFrames = wHitch = wOver34 = wLoads = 0;
+	wSkip = 3;   // the frames after the log was written to the SD (logFlush) are not the streaming's
 	wWorst = wFrameSum = wSetupMax = 0;
 	sT = sFrameMs = sFrameMax = sCpu = sGpu = sTris = sDraws = sFar = 0;
 	sFrames = sMissingMax = 0;
@@ -661,6 +668,7 @@ static void benchAfterFrame(float rawMs, float cpuMs, float gpuMs, float setupMs
 	}
 	if (bPhase != B_WALK) return;
 	// the walk: per second and per walk
+	if (wSkip > 0) { wSkip--; return; }
 	wFrames++; wFrameSum += rawMs;
 	if (rawMs > wWorst) wWorst = rawMs;
 	if (rawMs > 34.5f) wOver34++;       // longer than a 30 fps frame: a missed frame
@@ -749,6 +757,7 @@ int main(void)
 		     n3ds ? "New" : "Old", __ctru_heap_size / 1024, __ctru_linear_heap_size / 1024, ntex, texBytes / 1024, texMs,
 		     navail, nroute, loaderThread ? "" : ", NO LOADER THREAD");
 		logFlush();
+		if (bPhase != B_OFF) printf("\x1b[33mBENCHMARK running (about 3 min),\nthis screen stays still meanwhile\x1b[0m\n");
 	}
 	startEye[0] = eye[0]; startEye[1] = eye[1]; startEye[2] = eye[2];
 	startYaw = yaw;
@@ -850,18 +859,22 @@ int main(void)
 
 			int loaded = 0; u32 ltris = 0, lbytes = 0;
 			for (int i = 0; i < MAX_CELLS; i++) if (cells[i].used) { loaded++; ltris += cells[i].tris; lbytes += cells[i].size; }
-			if (!bench && ++playTick % 4 == 0) {
+			++playTick;
+			if (!bench && playTick % 4 == 0) {
 				logw("fps %.1f cpu %.2f (max %.2f) gpu %.2f draws %d tris %lu | r%d far %.0f%s budget %.0f | cells %d missing %d | load read %.0f setup %.1f ms #%d fail %d | free %lu KB | cell %d,%d\n",
 				     fps, cpuAvg, cpuMaxShown, gpuMs, statDraws, statTris, radius, farDist, autoFar ? " auto" : "", gpuBudget,
 				     loaded, cellsMissing, lastIoMs, lastSetupMs, loadsTotal, loadFailed, linearSpaceFree() / 1024,
 				     (int)floorf(eye[0] / CELL), (int)floorf(eye[1] / CELL));
 				if (playTick % 60 == 0) logFlush();   // every 30 s
 			}
+			// The console's text costs ~7 ms of CPU on the Old 3DS (hardware test 2: a 40 ms frame at each
+			// refresh): not during the benchmark, and once a second otherwise.
+			if (bench || (playTick & 1)) continue;
 			printf("\x1b[3;0H");
 			printf("FPS        %5.1f  (cap %d)       \n", fps, cap30 ? 30 : 60);
 			printf("CPU frame  %5.2f ms (max %5.2f)  \n", cpuAvg, cpuMaxShown);
 			printf("GPU draw   %5.2f ms  budget %4.1f  \n", gpuMs, gpuBudget);
-			printf("draws %4d  culled %4d        \n", statDraws, statCulled);
+			printf("draws %4d  culled %4d small %3d \n", statDraws, statCulled, statSmall);
 			printf("tris drawn %6lu             \n", statTris);
 			printf("\n");
 			printf("radius %d (%dx%d)  far %5.0f %s  \n", radius, radius * 2 + 1, radius * 2 + 1, farDist, autoFar ? "AUTO" : "man ");

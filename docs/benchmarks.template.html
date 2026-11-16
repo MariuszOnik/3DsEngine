@@ -1,0 +1,365 @@
+<title>Benchmarki mwcell3d</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: one reading column; each test is a step in a log, each chart a measured panel under its caption. */
+:root {
+  --bg: #f6f7f8;
+  --surface: #fcfcfb;
+  --ink: #0e1116;
+  --ink-2: #4b5260;
+  --ink-3: #737b88;
+  --rule: #dfe3e8;
+  --grid: #e9ecef;
+  --accent: #2a78d6;
+  --good: #0f7a3d;
+  --good-bg: #e3f3e8;
+  --warn: #9a5b00;
+  --warn-bg: #fbefd9;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121417; --surface: #1a1c20; --ink: #eef0f3; --ink-2: #b9bfc8; --ink-3: #8a919c;
+    --rule: #2c3036; --grid: #262a2f; --accent: #3987e5;
+    --good: #5cc98a; --good-bg: #16301f; --warn: #f0b552; --warn-bg: #352812;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121417; --surface: #1a1c20; --ink: #eef0f3; --ink-2: #b9bfc8; --ink-3: #8a919c;
+  --rule: #2c3036; --grid: #262a2f; --accent: #3987e5;
+  --good: #5cc98a; --good-bg: #16301f; --warn: #f0b552; --warn-bg: #352812;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.page { max-width: 980px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 600; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+header { display: grid; gap: 12px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+.meta b { color: var(--ink); font-weight: 500; }
+
+/* the log of tests */
+.steps { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.step { display: grid; grid-template-columns: 56px 1fr auto; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--rule); align-items: start; }
+.step .key { font-family: var(--mono); font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.step .what { display: grid; gap: 6px; min-width: 0; }
+.step .what p { color: var(--ink); }
+.gain { font-size: 14px; color: var(--ink-2); }
+.pill { font-family: var(--mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { color: var(--good); background: var(--good-bg); }
+.pill.wait { color: var(--warn); background: var(--warn-bg); }
+
+/* chart panels */
+.panel { display: grid; gap: 14px; }
+.chart-box { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 16px 8px; }
+.chart-wrap { position: relative; height: 300px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); padding-bottom: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.two > * { min-width: 0; }
+.note { font-size: 13px; color: var(--ink-3); }
+
+/* numbers */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; background: var(--surface); display: grid; gap: 4px; }
+.tile .v { font-family: var(--mono); font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 13px; color: var(--ink-2); }
+.tile .d { font-family: var(--mono); font-size: 12px; color: var(--good); }
+
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { font-weight: 500; color: var(--ink-3); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+td { font-family: var(--mono); }
+details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); padding: 6px 0; }
+details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 16px; }
+@media (max-width: 560px) {
+  .step { grid-template-columns: 44px 1fr; }
+  .step .pill { grid-column: 2; justify-self: start; }
+  .chart-wrap { height: 240px; }
+}
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">3dsOpenworld · silnik streamujący otwarty świat</div>
+    <h1>Benchmarki na Old 3DS</h1>
+    <p>Każdy test to ten sam benchmark uruchomiony na konsoli: stanie w Seyda Neen i rozglądanie się w 8 kierunkach,
+      potem marsz do Pelagiadu (400 jednostek/s) z zawróceniem w połowie i sprint z powrotem (1000 jednostek/s).
+      Dane świata pochodzą z Morrowinda, ale testujemy silnik, nie grę.</p>
+    <div class="meta">
+      <span>konsola <b>Old 3DS</b></span>
+      <span>pamięć linear <b>53 MB</b></span>
+      <span>obszar <b>7×7 komórek</b></span>
+      <span>1 komórka <b>8192 jedn. ≈ 117 m</b></span>
+      <span>cel <b>30 FPS = 33,3 ms</b></span>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="h-steps">
+    <h2 id="h-steps">Co dała każda zmiana</h2>
+    <div class="steps" id="steps"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-walk">
+    <h2 id="h-walk">Płynność w ruchu</h2>
+    <p>Najdłuższa klatka w każdej sekundzie marszu. Wszystko powyżej linii 33,3 ms to klatka, której nie zdążyliśmy
+      pokazać na czas. W T2 co sekundę skakało do ~40 ms: to był tekst statystyk na dolnym ekranie, nie wczytywanie
+      komórek. Po jego usunięciu (T3) linia leży płasko.</p>
+    <div class="chart-box">
+      <div class="legend" id="lg-walk"></div>
+      <div class="chart-wrap"><canvas id="c-walk" aria-label="Najdłuższa klatka w każdej sekundzie marszu"></canvas></div>
+    </div>
+    <div class="tiles" id="walk-tiles"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-far">
+    <h2 id="h-far">Zasięg rysowania ustawiany przez pacer</h2>
+    <p>Pacer patrzy na czas GPU uśredniony z 20 klatek i trzyma go przy budżecie 16 ms (połowa klatki zostaje na
+      przyszłe postacie). Mniej trójkątów w T3 oznacza, że przy tym samym budżecie widać dalej: zasięg częściej
+      dochodzi do limitu 11 192 jednostek.</p>
+    <div class="two">
+      <div class="chart-box">
+        <h3>Zasięg w czasie marszu</h3>
+        <div class="legend" id="lg-far"></div>
+        <div class="chart-wrap"><canvas id="c-far" aria-label="Zasięg rysowania w czasie marszu"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Czas GPU w czasie marszu</h3>
+        <div class="legend" id="lg-gpu"></div>
+        <div class="chart-wrap"><canvas id="c-gpu" aria-label="Czas GPU w czasie marszu"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-static">
+    <h2 id="h-static">Stojąc: 3×3 komórki, zasięg 12 000, bez limitu 30 FPS</h2>
+    <p>Ten sam punkt, 8 kierunków patrzenia, stały zasięg. To pokazuje surową wydajność rysowania. Odcięcie małych
+      obiektów (T3) dało tu najwięcej: z 36–43 do 43–52 FPS.</p>
+    <div class="two">
+      <div class="chart-box">
+        <h3>FPS w każdym kierunku</h3>
+        <div class="legend" id="lg-sfps"></div>
+        <div class="chart-wrap"><canvas id="c-sfps" aria-label="FPS w 8 kierunkach"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Trójkąty w kadrze (tys.)</h3>
+        <div class="legend" id="lg-stris"></div>
+        <div class="chart-wrap"><canvas id="c-stris" aria-label="Trójkąty w kadrze w 8 kierunkach"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-data">
+    <h2 id="h-data">Skąd są trójkąty i ile ważą tekstury</h2>
+    <div class="two">
+      <div class="chart-box">
+        <h3>Trójkąty obiektów na obszarze 7×7 (1,67 mln)</h3>
+        <div class="chart-wrap"><canvas id="c-kind" aria-label="Udział rodzajów obiektów w trójkątach"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Pamięć tekstur obiektów (KB)</h3>
+        <div class="chart-wrap"><canvas id="c-tex" aria-label="Pamięć tekstur przed i po ETC1"></canvas></div>
+      </div>
+    </div>
+    <p class="note">Roślinność to 60 % trójkątów; małe obiekty (promień &lt; 180: trawa, wodorosty, muszle) to 37 %.
+      ETC1 zmniejszył tekstury z 9068 do 2532 KB, a teren dostał przy tym teksturę 512² zamiast 256².</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-table">
+    <h2 id="h-table">Wszystkie liczby</h2>
+    <div class="table-wrap"><table id="t-sum"></table></div>
+    <details>
+      <summary>Stojąc, promień 1: każdy kierunek</summary>
+      <div class="table-wrap"><table id="t-static"></table></div>
+    </details>
+  </section>
+
+  <footer>Dane: benchlogs/*.log z konsoli, przeliczone przez tools/benchdata.py. GPU to czas rysowania poprzedniej
+    klatki zmierzony przez citro3d na sprzęcie.</footer>
+</div>
+
+<script id="bench-data" type="application/json">/*DATA*/</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script>
+(function () {
+  const tests = JSON.parse(document.getElementById("bench-data").textContent);
+  const SLOT = { T1: "--s1", T2: "--s2", T3: "--s3", T4: "--s4" };
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const byKey = Object.fromEntries(tests.map((t) => [t.key, t]));
+  const walkOf = (t, name) => (t.walks || []).find((w) => w.name === name && w.summary);
+  const fmt = (n, d = 1) => n == null ? "–" : n.toLocaleString("pl-PL", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const avg = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+
+  // ---------------- the log of tests
+  const gains = {
+    T1: "Punkt wyjścia. 1 komórka: 60 FPS. 3×3: 36–43 FPS. 5×5: 19–27 FPS. Wczytanie komórki zatrzymywało obraz na 40–190 ms.",
+    T2: "Marsz 29,9 FPS, 0 brakujących komórek, ustawienie wczytanej komórki ≤ 2,4 ms (było 40–190 ms). Zostały skoki do ~40 ms co sekundę.",
+    T3: "Pominięte klatki 150 → 20, zatrzymania 1 → 0, najgorsza klatka 64 → 36 ms. Stojąc 3×3: 36–43 → 43–52 FPS, GPU o ~2,5 ms mniej.",
+    T4: "Tekstury 9068 → 2532 KB, ostrzejszy teren. Czeka na test na konsoli: sprawdzimy, czy ETC1 przyspiesza też GPU.",
+  };
+  const descs = {
+    T1: "Komórka wczytywana w głównej pętli, stały zasięg",
+    T2: "Streaming w osobnym wątku, przewidywanie kierunku ruchu, automatyczny zasięg z budżetem GPU 16 ms, limit 30 FPS",
+    T3: "Małe obiekty (37 % trójkątów) rysowane tylko do 3000 jednostek, obiekty pod wodą wcale; bez tekstu na dolnym ekranie w teście",
+    T4: "Tekstury ETC1 / ETC1A4 przez tex3ds, teren 512² w ETC1",
+  };
+  const steps = document.getElementById("steps");
+  for (const key of ["T1", "T2", "T3", "T4"]) {
+    const done = !!byKey[key];
+    const row = document.createElement("div");
+    row.className = "step";
+    row.innerHTML = `<div class="key"><span class="swatch" style="background:var(${SLOT[key]})"></span>${key}</div>
+      <div class="what"><p>${descs[key]}</p><div class="gain">${gains[key]}</div></div>
+      <span class="pill ${done ? "ok" : "wait"}">${done ? "zmierzone" : "czeka na test"}</span>`;
+    steps.appendChild(row);
+  }
+
+  // ---------------- tiles: T3 vs T2 walk
+  const w2 = byKey.T2 && walkOf(byKey.T2, "marsz"), w3 = byKey.T3 && walkOf(byKey.T3, "marsz");
+  const s2 = byKey.T2 && walkOf(byKey.T2, "sprint"), s3 = byKey.T3 && walkOf(byKey.T3, "sprint");
+  const tiles = document.getElementById("walk-tiles");
+  if (w2 && w3) {
+    const items = [
+      [fmt(w3.summary.fps), "FPS w marszu (T3)", `T2: ${fmt(w2.summary.fps)}`],
+      [String(w3.summary.missed + s3.summary.missed), "pominięte klatki, marsz + sprint", `T2: ${w2.summary.missed + s2.summary.missed}`],
+      [String(w3.summary.stops + s3.summary.stops), "zatrzymania > 50 ms", `T2: ${w2.summary.stops + s2.summary.stops}`],
+      [fmt(Math.max(w3.summary.worst, s3.summary.worst)) + " ms", "najgorsza klatka", `T2: ${fmt(Math.max(w2.summary.worst, s2.summary.worst))} ms`],
+      [fmt(Math.max(w3.summary.setup, s3.summary.setup)) + " ms", "praca głównej pętli przy wczytaniu", "T1: 40–190 ms"],
+    ];
+    tiles.innerHTML = items.map(([v, l, d]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div><div class="d">${d}</div></div>`).join("");
+  }
+
+  // ---------------- tables
+  const sum = document.getElementById("t-sum");
+  let rows = `<tr><th>test</th><th>przebieg</th><th>FPS</th><th>pominięte</th><th>zatrzymania</th><th>najgorsza ms</th><th>wczytania</th><th>ustawienie ms</th></tr>`;
+  for (const t of tests) for (const w of t.walks) if (w.summary)
+    rows += `<tr><td>${t.key}</td><td>${w.name}</td><td>${fmt(w.summary.fps)}</td><td>${w.summary.missed}</td><td>${w.summary.stops}</td><td>${fmt(w.summary.worst)}</td><td>${w.summary.loads}</td><td>${fmt(w.summary.setup)}</td></tr>`;
+  for (const t of tests) {
+    const r1 = t.static["1"];
+    if (r1) rows += `<tr><td>${t.key}</td><td>stojąc 3×3</td><td>${fmt(avg(r1.map((d) => d.fps)))}</td><td>–</td><td>–</td><td>–</td><td>–</td><td>GPU ${fmt(avg(r1.map((d) => d.gpu)), 2)}</td></tr>`;
+  }
+  sum.innerHTML = rows;
+  const st = document.getElementById("t-static");
+  let srows = `<tr><th>test</th><th>kierunek</th><th>FPS</th><th>GPU ms</th><th>CPU ms</th><th>draw calle</th><th>trójkąty</th></tr>`;
+  for (const t of tests) for (const d of (t.static["1"] || []))
+    srows += `<tr><td>${t.key}</td><td>${d.dir * 45}°</td><td>${fmt(d.fps)}</td><td>${fmt(d.gpu, 2)}</td><td>${fmt(d.cpu, 2)}</td><td>${fmt(d.draws, 0)}</td><td>${fmt(d.tris, 0)}</td></tr>`;
+  st.innerHTML = srows;
+
+  // ---------------- charts
+  if (!window.Chart) return;
+  const charts = [];
+  function legend(id, keys) {
+    document.getElementById(id).innerHTML = keys.map((k) => `<span><span class="swatch" style="background:var(${SLOT[k]})"></span>${k}</span>`).join("");
+  }
+  function base(yTitle, xTitle) {
+    const ink2 = css("--ink-2"), grid = css("--grid"), rule = css("--rule");
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: css("--surface"), titleColor: css("--ink"), bodyColor: css("--ink-2"),
+          borderColor: rule, borderWidth: 1, padding: 10, boxPadding: 4, usePointStyle: true,
+          titleFont: { family: "IBM Plex Mono" }, bodyFont: { family: "IBM Plex Mono" } },
+      },
+      scales: {
+        x: { title: { display: !!xTitle, text: xTitle, color: ink2 }, ticks: { color: ink2, font: { family: "IBM Plex Mono", size: 11 } },
+          grid: { color: grid, drawTicks: false }, border: { color: rule } },
+        y: { title: { display: !!yTitle, text: yTitle, color: ink2 }, ticks: { color: ink2, font: { family: "IBM Plex Mono", size: 11 } },
+          grid: { color: grid }, border: { display: false } },
+      },
+    };
+  }
+  const line = (key, data, extra) => Object.assign({ label: key, data, borderColor: css(SLOT[key]), backgroundColor: css(SLOT[key]),
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.25 }, extra || {});
+
+  function draw() {
+    charts.splice(0).forEach((c) => c.destroy());
+    const walkKeys = ["T2", "T3", "T4"].filter((k) => byKey[k] && walkOf(byKey[k], "marsz"));
+
+    // max frame per second during the walk + the 33.3 ms line
+    {
+      const o = base("najdłuższa klatka w sekundzie (ms)", "czas marszu (s)");
+      o.scales.x.type = "linear"; o.scales.y.suggestedMin = 30; o.scales.y.suggestedMax = 66;
+      const ds = walkKeys.map((k) => line(k, walkOf(byKey[k], "marsz").seconds.map((s) => ({ x: s.t, y: s.max }))));
+      const xs = walkOf(byKey[walkKeys[0]], "marsz").seconds.map((s) => s.t);
+      ds.push({ label: "33,3 ms (30 FPS)", data: [{ x: xs[0], y: 33.3 }, { x: xs[xs.length - 1], y: 33.3 }], borderColor: css("--ink-3"),
+        borderDash: [4, 4], borderWidth: 1, pointRadius: 0, pointHoverRadius: 0 });
+      o.plugins.tooltip.callbacks = { title: (it) => `t = ${fmt(it[0].parsed.x)} s`, label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)} ms` };
+      charts.push(new Chart(document.getElementById("c-walk"), { type: "line", data: { datasets: ds }, options: o }));
+      legend("lg-walk", walkKeys);
+    }
+    // far and GPU during the walk
+    for (const [id, field, title, unit, lg] of [["c-far", "far", "zasięg (jednostki)", "", "lg-far"], ["c-gpu", "gpu", "GPU (ms)", " ms", "lg-gpu"]]) {
+      const o = base(title, "czas marszu (s)");
+      o.scales.x.type = "linear";
+      if (field === "gpu") { o.scales.y.suggestedMin = 8; o.scales.y.suggestedMax = 20; }
+      const ds = walkKeys.map((k) => line(k, walkOf(byKey[k], "marsz").seconds.map((s) => ({ x: s.t, y: s[field] }))));
+      if (field === "gpu") {
+        const xs = walkOf(byKey[walkKeys[0]], "marsz").seconds.map((s) => s.t);
+        ds.push({ label: "budżet 16 ms", data: [{ x: xs[0], y: 16 }, { x: xs[xs.length - 1], y: 16 }], borderColor: css("--ink-3"),
+          borderDash: [4, 4], borderWidth: 1, pointRadius: 0, pointHoverRadius: 0 });
+      }
+      o.plugins.tooltip.callbacks = { title: (it) => `t = ${fmt(it[0].parsed.x)} s`,
+        label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y, field === "far" ? 0 : 1)}${unit}` };
+      charts.push(new Chart(document.getElementById(id), { type: "line", data: { datasets: ds }, options: o }));
+      legend(lg, walkKeys);
+    }
+    // standing, radius 1: fps and triangles per direction
+    const sKeys = ["T1", "T2", "T3", "T4"].filter((k) => byKey[k] && byKey[k].static["1"]);
+    const dirs = [0, 1, 2, 3, 4, 5, 6, 7].map((d) => `${d * 45}°`);
+    for (const [id, field, title, div, lg] of [["c-sfps", "fps", "FPS", 1, "lg-sfps"], ["c-stris", "tris", "tys. trójkątów", 1000, "lg-stris"]]) {
+      const o = base(title, "kierunek patrzenia");
+      if (field === "fps") { o.scales.y.suggestedMin = 30; o.scales.y.suggestedMax = 55; }
+      else { o.scales.y.beginAtZero = true; }
+      const ds = sKeys.map((k) => line(k, byKey[k].static["1"].map((d) => d[field] / div), { pointRadius: 4, pointBorderColor: css("--surface"), pointBorderWidth: 2, tension: 0 }));
+      o.plugins.tooltip.callbacks = { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y, field === "fps" ? 1 : 0)}${field === "fps" ? " FPS" : " tys."}` };
+      charts.push(new Chart(document.getElementById(id), { type: "line", data: { labels: dirs, datasets: ds }, options: o }));
+      legend(lg, sKeys);
+    }
+    // triangle kinds: one series, horizontal bars
+    {
+      const o = base("", "% trójkątów obiektów");
+      o.indexAxis = "y"; o.interaction = { mode: "nearest", intersect: true };
+      o.scales.x.beginAtZero = true; o.scales.x.max = 70;
+      o.scales.y.grid = { display: false };
+      o.plugins.tooltip.callbacks = { label: (c) => `${fmt(c.parsed.x)} %` };
+      charts.push(new Chart(document.getElementById("c-kind"), { type: "bar", data: {
+        labels: ["roślinność", "skały terenu", "budynki", "reszta"],
+        datasets: [{ data: [60.0, 19.3, 14.5, 6.2], backgroundColor: css("--s1"), borderRadius: 4, borderSkipped: "start", barPercentage: 0.6 }] }, options: o }));
+    }
+    // texture memory before / after ETC1
+    {
+      const o = base("KB", "");
+      o.interaction = { mode: "nearest", intersect: true };
+      o.scales.y.beginAtZero = true; o.scales.x.grid = { display: false };
+      o.plugins.tooltip.callbacks = { label: (c) => `${fmt(c.parsed.y, 0)} KB` };
+      charts.push(new Chart(document.getElementById("c-tex"), { type: "bar", data: {
+        labels: ["RGB565 / RGBA4 (T1–T3)", "ETC1 / ETC1A4 (T4)"],
+        datasets: [{ data: [9068, 2532], backgroundColor: [css("--s1"), css("--s4")], borderRadius: 4, borderSkipped: "start", barPercentage: 0.5 }] }, options: o }));
+    }
+  }
+  draw();
+  // redraw in the other theme's colours
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>

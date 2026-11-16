@@ -80,6 +80,7 @@ Status: ✅ zrobione · 🔜 następne · 💡 do rozważenia · ❌ odrzucone
 | 💡 | Profile sprzętowe Old/New 3DS w jednym silniku | ChatGPT | tak: te same dane, inne budżety (zasięg, budżet GPU) |
 | 💡 | NPC: skinning na GPU (partie 14 kości), rzadsze pozy z daleka, pełne AI tylko blisko | openmw-3ds, ChatGPT | po ustabilizowaniu streamingu; budżet ~15–17 ms GPU przy 30 FPS |
 | 💡 | Światła punktowe (latarnie, pochodnie) w shaderze, 0–4 na draw | openmw-3ds | dopiero gdy dojdzie noc |
+| 💡 | **Postacie ze zmienną zbroją / ubraniem**: szkielet + części ciała i ekwipunku podpinane do kości, wszystkie skinowane tym samym szkieletem | Maniek | wymaganie silnika (nie Morrowinda); u nas ludzie Morrowinda są właśnie tak złożeni, więc są dobrym testem |
 | 💡 | Osobne, uproszczone siatki kolizji | ChatGPT | gdy dojdzie chodzenie po świecie |
 | ❌ | GPU instancing | ChatGPT | PICA200 nie ma instancingu; każda instancja = draw call |
 | ❌ | Atlasy tekstur dla świata | ChatGPT | Morrowind powtarza tekstury (wrap), atlas to psuje; ETC1 daje więcej |

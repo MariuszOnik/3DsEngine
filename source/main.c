@@ -2419,7 +2419,9 @@ static struct {
 	int kind, idx;                        // CK_GROUND: walk; CK_OBJ: use it; CK_NPC: talk (fight: true)
 	bool fight;
 	float p[3];
-	float best, stuckT;                   // the nearest it got, how long without getting nearer
+	float best, stuckT;                   // the nearest it got (to the next corner), how long without getting nearer
+	float planned[3];                     // where the path was found to (an NPC moves on)
+	int replans;
 } walkTo;
 
 static float rayClosest(const float o[3], const float d[3], const float c[3], float* along)
@@ -2605,11 +2607,200 @@ static void cursorPick(const float fwd[3], float sx, float sy, float fov)
 	if (camMode == CAM_FPP && kind != CK_GROUND && curDist > 260.0f) curLabel[0] = 0;
 }
 
+// Path finding (RTS cursor walks): A* over the baked collision map's 16-unit squares, in a window of
+// PN x PN squares round the way. A square is passable when the feet can stand there coming from the
+// neighbour (a step up of at most 45: stairs yes, a cliff no) and it and the squares round it are
+// not blocked (the body is 22 wide: the blocked map of the ground, or the upper one on stairs / roofs).
+// Deep water is swum (dearer). The squares found are thinned to the corners (the straight stretches
+// between them checked on the map), the walk goes from corner to corner.
+#define PN 192
+#define PMAXW 128
+static float pG[PN * PN], pZ[PN * PN];
+static u16 pPar[PN * PN];
+static u8 pState[PN * PN];   // 0 unseen, 1 open, 2 closed
+typedef struct { float f; u16 i; } PHeap;
+#define PHEAP 24576
+static PHeap pHeap[PHEAP];
+static int pHeapN;
+static float pathPts[PMAXW][3];
+static int pathN, pathAt;
+static float pathMs;
+
+static void pPush(float f, u16 i)
+{
+	if (pHeapN >= PHEAP) return;
+	int k = pHeapN++;
+	while (k > 0) {
+		int up = (k - 1) / 2;
+		if (pHeap[up].f <= f) break;
+		pHeap[k] = pHeap[up]; k = up;
+	}
+	pHeap[k].f = f; pHeap[k].i = i;
+}
+
+static u16 pPop(void)
+{
+	u16 top = pHeap[0].i;
+	PHeap last = pHeap[--pHeapN];
+	int k = 0;
+	for (;;) {
+		int c = 2 * k + 1;
+		if (c >= pHeapN) break;
+		if (c + 1 < pHeapN && pHeap[c + 1].f < pHeap[c].f) c++;
+		if (pHeap[c].f >= last.f) break;
+		pHeap[k] = pHeap[c]; k = c;
+	}
+	if (pHeapN > 0) pHeap[k] = last;
+	return top;
+}
+
+// Free for the body at (x, y) standing at z: the square and (wide) the 8 round it.
+static bool pClear(float x, float y, float z, bool wide)
+{
+	float g;
+	bool up = groundAt(x, y, &g) && z > g + 8.0f;
+	if (occBit(x, y, up)) return false;
+	if (!wide) return true;
+	for (int dy = -1; dy <= 1; dy++)
+		for (int dx = -1; dx <= 1; dx++)
+			if ((dx || dy) && occBit(x + dx * 16.0f, y + dy * 16.0f, up)) return false;
+	return true;
+}
+
+// The straight way from a to b free (every 8 units; the heights from the path's own)?
+static bool pLine(const float a[3], const float b[3])
+{
+	float dx = b[0] - a[0], dy = b[1] - a[1];
+	float len = sqrtf(dx * dx + dy * dy);
+	int n = (int)(len / 8.0f) + 1;
+	float z = a[2];
+	for (int k = 1; k <= n; k++) {
+		float t = (float)k / n;
+		float x = a[0] + dx * t, y = a[1] + dy * t, g;
+		if (!standAt(x, y, z, 45.0f, &g)) return false;
+		if (g < -9000.0f) g = -2000.0f;
+		if (g > z + 45.0f) return false;
+		if (fabsf(g - (a[2] + (b[2] - a[2]) * t)) > 60.0f) return false;   // off an edge the path keeps to
+		if (!pClear(x, y, g, true)) return false;
+		z = g;
+	}
+	return true;
+}
+
+// The way from the character to `goal` (near enough: within `near` of it). False: none found (the
+// walk then goes straight, as before).
+static bool pathFind(const float goal[3], float near)
+{
+	u64 t0 = ticks();
+	pathN = pathAt = 0;
+	float mx = (chr[0] + goal[0]) / 2, my = (chr[1] + goal[1]) / 2;
+	int ox = (int)floorf(mx / 16.0f) - PN / 2, oy = (int)floorf(my / 16.0f) - PN / 2;
+	int sx = (int)floorf(chr[0] / 16.0f) - ox, sy = (int)floorf(chr[1] / 16.0f) - oy;
+	int gx = (int)floorf(goal[0] / 16.0f) - ox, gy = (int)floorf(goal[1] / 16.0f) - oy;
+	if (sx < 1 || sy < 1 || sx >= PN - 1 || sy >= PN - 1 || gx < 1 || gy < 1 || gx >= PN - 1 || gy >= PN - 1) {
+		logw("    path: too far\n");
+		return false;
+	}
+	memset(pState, 0, sizeof pState);
+	pHeapN = 0;
+	int s = sy * PN + sx;
+	pG[s] = 0; pZ[s] = chr[2]; pPar[s] = 0xFFFF; pState[s] = 1;
+	pPush(0, (u16)s);
+	int found = -1, expanded = 0;
+	float nearSq = near * near;
+	for (int pass = 0; pass < 2 && found < 0; pass++) {   // the second time: the square itself only (narrow doors)
+		bool wide = pass == 0;
+		if (pass == 1) { memset(pState, 0, sizeof pState); pHeapN = 0; pState[s] = 1; pPush(0, (u16)s); }
+		while (pHeapN > 0 && expanded < 14000) {
+			int i = pPop();
+			if (pState[i] == 2) continue;
+			pState[i] = 2;
+			expanded++;
+			int x = i % PN, y = i / PN;
+			float wx = (ox + x) * 16.0f + 8.0f, wy = (oy + y) * 16.0f + 8.0f;
+			float ddx = wx - goal[0], ddy = wy - goal[1];
+			if (ddx * ddx + ddy * ddy <= nearSq) { found = i; break; }
+			for (int k = 0; k < 8; k++) {
+				static const s8 DX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, DY[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
+				int nx = x + DX[k], ny = y + DY[k];
+				if (nx < 0 || ny < 0 || nx >= PN || ny >= PN) continue;
+				int j = ny * PN + nx;
+				if (pState[j] == 2) continue;
+				if (k >= 4) {   // diagonal: not round a corner
+					if (pState[y * PN + nx] == 0 && !pClear((ox + nx) * 16.0f + 8.0f, wy, pZ[i], false)) continue;
+					if (pState[ny * PN + x] == 0 && !pClear(wx, (oy + ny) * 16.0f + 8.0f, pZ[i], false)) continue;
+				}
+				float nwx = (ox + nx) * 16.0f + 8.0f, nwy = (oy + ny) * 16.0f + 8.0f, g;
+				if (!standAt(nwx, nwy, pZ[i], 45.0f, &g)) continue;
+				if (g < -9000.0f) g = -2000.0f;
+				if (g > pZ[i] + 45.0f) continue;
+				bool swim = g < -SWIM_DEPTH;
+				float z = swim ? SWIM_Z : g;
+				if (!swim && !pClear(nwx, nwy, g, wide)) continue;
+				float step = (k >= 4 ? 22.6f : 16.0f) * (swim ? 3.0f : 1.0f);
+				float ng = pG[i] + step;
+				if (pState[j] == 1 && ng >= pG[j]) continue;
+				pG[j] = ng; pZ[j] = z; pPar[j] = (u16)i; pState[j] = 1;
+				float hx = fabsf(nwx - goal[0]), hy = fabsf(nwy - goal[1]);
+				float h = fmaxf(hx, hy) + 0.414f * fminf(hx, hy);
+				pPush(ng + h, (u16)j);
+			}
+		}
+	}
+	pathMs = msSince(t0);
+	if (found < 0) { logw("    path: none (%d squares, %.1f ms)\n", expanded, pathMs); return false; }
+	// the squares back to the start, then only the corners
+	static u16 sq[PN * 4];
+	int n = 0;
+	for (int i = found; i != 0xFFFF && n < PN * 4; i = pPar[i]) sq[n++] = (u16)i;
+	float pts[PMAXW][3];
+	int np = 0;
+	float cur[3] = { chr[0], chr[1], chr[2] };
+	int k = n - 1;
+	while (k > 0 && np < PMAXW) {
+		// the farthest square still seen in a straight line from cur
+		int far = k - 1;
+		for (int j = (k - 40 > 0 ? k - 40 : 0); j < k; j++) {
+			int i = sq[j];
+			float p[3] = { (ox + i % PN) * 16.0f + 8.0f, (oy + i / PN) * 16.0f + 8.0f, pZ[i] };
+			if (pLine(cur, p)) { far = j; break; }
+		}
+		int i = sq[far];
+		pts[np][0] = (ox + i % PN) * 16.0f + 8.0f; pts[np][1] = (oy + i / PN) * 16.0f + 8.0f; pts[np][2] = pZ[i];
+		memcpy(cur, pts[np], sizeof cur);
+		np++;
+		k = far;
+	}
+	memcpy(pathPts, pts, np * sizeof pts[0]);
+	pathN = np; pathAt = 0;
+	pathMs = msSince(t0);
+	logw("    path: %d squares, %d corners, %d expanded, %.1f ms\n", n, np, expanded, pathMs);
+	return true;
+}
+
+// How near the walk must get to what it goes to (the ground point, an NPC, an object: its edge).
+static float walkReach(void)
+{
+	if (walkTo.kind == CK_GROUND) return 20.0f;
+	if (walkTo.kind == CK_NPC) return 100.0f;
+	const ObjModel* mo = objModel(walkTo.idx);
+	float rad = mo ? mo->radius * objs[walkTo.idx].scale : 20.0f;
+	return 90.0f + (rad < 80.0f ? rad * 0.5f : 40.0f);
+}
+
+static void walkPlan(void)
+{
+	if (!pathFind(walkTo.p, fmaxf(12.0f, walkReach() - 12.0f))) pathN = pathAt = 0;
+	memcpy(walkTo.planned, walkTo.p, sizeof walkTo.planned);
+	walkTo.best = 1e9f; walkTo.stuckT = 0;
+}
+
 static void walkStart(int kind, int idx, const float p[3], bool fightIt)
 {
 	walkTo.on = true; walkTo.kind = kind; walkTo.idx = idx; walkTo.fight = fightIt;
 	memcpy(walkTo.p, p, sizeof walkTo.p);
-	walkTo.best = 1e9f; walkTo.stuckT = 0;
+	walkTo.replans = 0;
+	walkPlan();
 }
 
 static void fightStartAt(int want);
@@ -2626,12 +2817,7 @@ static bool walkStep(float dt, float* mx, float* my, bool* run)
 	}
 	float dx = walkTo.p[0] - chr[0], dy = walkTo.p[1] - chr[1];
 	float d = sqrtf(dx * dx + dy * dy);
-	float reach = walkTo.kind == CK_GROUND ? 20.0f : walkTo.kind == CK_NPC ? 100.0f : 0;
-	if (walkTo.kind == CK_OBJ) {
-		const ObjModel* mo = objModel(walkTo.idx);
-		float rad = mo ? mo->radius * objs[walkTo.idx].scale : 20.0f;
-		reach = 90.0f + (rad < 80.0f ? rad * 0.5f : 40.0f);
-	}
+	float reach = walkReach();
 	if (d <= reach) {
 		walkTo.on = false;
 		if (walkTo.kind == CK_OBJ) {
@@ -2648,10 +2834,31 @@ static bool walkStep(float dt, float* mx, float* my, bool* run)
 		}
 		return false;
 	}
-	// stuck (a wall in the way): given up after a second without getting nearer
-	if (d < walkTo.best - 2.0f) { walkTo.best = d; walkTo.stuckT = 0; }
-	else if ((walkTo.stuckT += dt) > 1.0f) { walkTo.on = false; gameMessage("Nie da się tam przejść"); logw("    walk: stuck %.0f away\n", d); return false; }
-	float ux = dx / d, uy = dy / d;
+	// an NPC went on: the way again
+	if (walkTo.kind == CK_NPC) {
+		float mx2 = walkTo.p[0] - walkTo.planned[0], my2 = walkTo.p[1] - walkTo.planned[1];
+		if (mx2 * mx2 + my2 * my2 > 150.0f * 150.0f) walkPlan();
+	}
+	// the next corner of the path (passed when near it), else straight at it
+	float tx = walkTo.p[0], ty = walkTo.p[1];
+	while (pathAt < pathN) {
+		float cx = pathPts[pathAt][0] - chr[0], cy = pathPts[pathAt][1] - chr[1];
+		if (cx * cx + cy * cy > 18.0f * 18.0f || pathAt == pathN - 1) break;
+		pathAt++; walkTo.best = 1e9f; walkTo.stuckT = 0;
+	}
+	if (pathAt < pathN) {
+		float cx = pathPts[pathAt][0] - chr[0], cy = pathPts[pathAt][1] - chr[1];
+		if (pathAt < pathN - 1 || cx * cx + cy * cy > 18.0f * 18.0f) { tx = pathPts[pathAt][0]; ty = pathPts[pathAt][1]; }
+	}
+	float sdx = tx - chr[0], sdy = ty - chr[1], sd = sqrtf(sdx * sdx + sdy * sdy);
+	if (sd < 1.0f) { sdx = dx; sdy = dy; sd = d; }
+	// stuck (something in the way): the way found again, twice, then given up
+	if (sd < walkTo.best - 2.0f) { walkTo.best = sd; walkTo.stuckT = 0; }
+	else if ((walkTo.stuckT += dt) > 1.0f) {
+		if (walkTo.replans++ < 2) { logw("    walk: stuck %.0f away, the way again\n", d); walkPlan(); return true; }
+		walkTo.on = false; gameMessage("Nie da się tam przejść"); logw("    walk: stuck %.0f away\n", d); return false;
+	}
+	float ux = sdx / sd, uy = sdy / sd;
 	float fx = sinf(rtsYaw), fy = cosf(rtsYaw);
 	*my = ux * fx + uy * fy;
 	*mx = ux * fy - uy * fx;

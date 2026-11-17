@@ -1,6 +1,6 @@
 // One cell being edited: the game's terrain formats (tools/mwbake.py, source/main.c).
 // A 65 x 65 height grid every 128 units (row 0 = the south edge), vertices relative to the cell's centre with the
-// sun baked into their colours, a 1024^2 terrain image (RGB here, row 0 = north; ETC1 on the GPU).
+// sun baked into their colours, a 1024^2 terrain image (RGB here, row 0 = the south edge, as the GPU's v = 0; ETC1 on the GPU).
 #pragma once
 #include <3ds.h>
 #include <citro3d.h>
@@ -44,7 +44,7 @@ bool cellNew(ECell* c, int gx, int gy);
 // New heights for the whole cell (CELL_GRID^2, e.g. read from an .esp); vertices and light follow.
 void cellSetHeights(ECell* c, const float* h);
 
-// Painting: blends the 64 x 64 texture `tex` (one repeat per 512 units, row 0 = north) into the image round
+// Painting: blends the 64 x 64 texture `tex` (one repeat per 512 units, its row 0 = the top: laid to the north) into the image round
 // (cx, cy), opacity up to `amount` at the centre with a soft rim; the squares mostly under the brush take `texIndex`
 // (+ 1) in vtex. The GPU copy follows through cellFlushPaint.
 void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float radius, float amount);

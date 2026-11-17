@@ -54,10 +54,24 @@ static void paintTest(void)
 {
 	FILE* f = fopen("sdmc:/3ds/mwedit/painttest.txt", "rb");
 	if (!f) return;
+	float dx, dy;
+	int encode = 1;
+	float vx = 1e9f, vy = 0;
+	int nargs = fscanf(f, "%f %f %d %f %f", &dx, &dy, &encode, &vx, &vy);
 	fclose(f);
 	static float flat[CELL_GRID * CELL_GRID];   // above the sea, to see the land's colours
 	for (int i = 0; i < CELL_GRID * CELL_GRID; i++) flat[i] = 120;
 	cellSetHeights(&ed.cell, flat);
+	if (nargs >= 2) {   // "x y [encode]": one strong dab there, the brush (and the view) on the same point
+		const LandTex* lt = ltGet(0);
+		if (lt) cellPaint(&ed.cell, lt->rgb, 0, dx, dy, 500, 1.0f);
+		if (encode) cellFlushPaint(&ed.cell, 0);
+		ed.tab = TAB_PAINT;
+		ed.view.tx = nargs >= 5 ? vx : dx;   // "x y encode vx vy": look elsewhere
+		ed.view.ty = nargs >= 5 ? vy : dy;
+		ed.brush.radius = 500;
+		return;
+	}
 	u64 t0 = svcGetSystemTick();
 	for (int s = 0; s < 3; s++) {
 		const LandTex* lt = ltGet(s % (ltCount() ? ltCount() : 1));

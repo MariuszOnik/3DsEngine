@@ -227,7 +227,8 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 {
 	const int S = CELL_TEX;
 	int px0 = (int)floorf((cx - radius + CELL_HALF) / PX_UNITS), px1 = (int)ceilf((cx + radius + CELL_HALF) / PX_UNITS);
-	int py0 = (int)floorf((CELL_HALF - cy - radius) / PX_UNITS), py1 = (int)ceilf((CELL_HALF - cy + radius) / PX_UNITS);
+	// the image's row 0 is the south edge (the GPU's v = 0: a dab at y = 2500 showed at -2500 with row 0 = north)
+	int py0 = (int)floorf((cy - radius + CELL_HALF) / PX_UNITS), py1 = (int)ceilf((cy + radius + CELL_HALF) / PX_UNITS);
 	if (px0 < 0) px0 = 0;
 	if (py0 < 0) py0 = 0;
 	if (px1 > S - 1) px1 = S - 1;
@@ -237,8 +238,8 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 	if (!rimNoise[0] && !rimNoise[1]) makeRimNoise();
 	float inv = 1.0f / (radius * radius);
 	for (int py = py0; py <= py1; py++) {
-		float wy = CELL_HALF - (py + 0.5f) * PX_UNITS - cy;
-		const u8* trow = tex + (py & (64 - 1)) * 64 * 3;
+		float wy = (py + 0.5f) * PX_UNITS - CELL_HALF - cy;
+		const u8* trow = tex + (63 - (py & (64 - 1))) * 64 * 3;   // the texture's top row to the north
 		u8* o = c->rgb + ((size_t)py * S + px0) * 3;
 		for (int px = px0; px <= px1; px++, o += 3) {
 			float wx = (px + 0.5f) * PX_UNITS - CELL_HALF - cx;
@@ -249,7 +250,7 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 			const u8* t = trow + (px & (64 - 1)) * 3;
 			float n = rimNoise[(py & (NOISE - 1)) * NOISE + (px & (NOISE - 1))] * (0.6f / 255) +
 			          (t[0] + 2 * t[1] + t[2]) * (0.4f / 1020);
-			float w = (1 - d2) * 1.6f - 0.35f - n * 0.7f;
+			float w = (1 - d2) * 2.4f - 0.15f - n * 0.75f;   // ragged only in the outer fifth: it fills the ring
 			if (w <= 0) continue;
 			if (w > 1) w = 1;
 			w = w * w * (3 - 2 * w);
@@ -333,8 +334,8 @@ void cellImageFromVtex(ECell* c, const u8* (*getTex)(int i))
 			const u8* t = v ? getTex(v - 1) : NULL;
 			if (!t) continue;
 			any = true;
-			int py0 = (15 - sy) * 64;   // the image's row 0 is north; vtex row 0 south
-			for (int y = 0; y < 64; y++) memcpy(c->rgb + ((size_t)(py0 + y) * S + sx * 64) * 3, t + y * 64 * 3, 64 * 3);
+			int py0 = sy * 64;   // the image's row 0 is south, as vtex's (the texture's top row to the north)
+			for (int y = 0; y < 64; y++) memcpy(c->rgb + ((size_t)(py0 + y) * S + sx * 64) * 3, t + (63 - y) * 64 * 3, 64 * 3);
 		}
 	if (!any) return;
 	u8* work = linearAlloc((size_t)S * S * 3 / 4);

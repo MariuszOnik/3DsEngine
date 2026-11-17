@@ -180,3 +180,40 @@ Pomysły (status: **do zrobienia**):
 
 Dla porównania OpenMW: 9 MB, a przez błąd z kopią listy 15 MB. Każda rozmowa filtruje odpowiedzi wszystkich
 tematów (OpenMW `updateActorKnownTopics`), więc nagłówki muszą być w RAM, zwarte i szybkie do przejrzenia.
+
+## 8. Cel „wszystko na 3DS” i etap 1: teren (uzgodnione 2026-11-17)
+
+**Cel:** budowanie świata na konsoli (teren, tekstury, obiekty, bake, NPC, dialogi) i granie w nim. Zgodność z
+OpenMW-CS / Construction Setem przez zapis zmian do `.esp`. Assety (modele, tekstury) robione poza konsolą;
+jednorazowy import na PC jest w porządku.
+
+**Kolejność (wybór użytkownika):** najpierw teren i malowanie tekstur z zapisem, dopiero potem domki i drzewka.
+
+**Malowanie: wariant A** (zamiast terenu z kafelków):
+- malujemy po gotowym obrazku komórki;
+- w czasie edycji obrazek edytowanej komórki trzymamy jako RGB565 (2 MB przy 1024²);
+- pędzel wkleja fragment tekstury z miękką krawędzią;
+- „Bake” na konsoli kompresuje obrazek do ETC1;
+- równolegle uzupełniamy tabelkę VTEX 16×16, którą zapisujemy do `.esp` dla CS.
+
+Zalety: GPU w grze bez zmian, wygląd jak dziś, malowanie drobniejsze niż kafelki Morrowinda.
+Ryzyko: czas kompresji ETC1 na Old 3DS (szacunek 1–3 s na 1024²).
+
+Odrzucone, zostają jako alternatywy:
+- B: teren z kafelków w kilku przebiegach (2–4× koszt GPU terenu);
+- C: atlas z 2 teksturami na trójkąt (szwy, duża przeróbka).
+
+Dodatek na później: D, malowanie kolorem wierzchołków (VCLR).
+
+**Etap 1, kroki:**
+1. Koder ETC1 i mieszanie tekstur w C; pomiar czasu na PC i na konsoli.
+2. Rzeźbienie terenu: pędzel na kursorze (podnieś, obniż, wygładź, wyrównaj), normalne i `groundAt` od nowa.
+3. Malowanie po obrazku (RGB565) i bake do ETC1.
+4. Zapis i odczyt `.esp` (rekordy LAND: VHGT, VNML, VTEX, VCLR) na karcie.
+5. Wypiekacz na PC czyta `.esp`; sprawdzenie w OpenMW-CS.
+
+**Następne etapy:**
+- 2: obiekty (wstawianie, przesuwanie, obrót, kolizja, „przyklej do ziemi”);
+- 3: bake statyków komórki na konsoli;
+- 4: nowe komórki i wnętrza;
+- 5: NPC, dialogi, questy.

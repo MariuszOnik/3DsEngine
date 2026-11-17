@@ -144,3 +144,39 @@ Proponowana kolejność (po teście stream1):
   (pień, nie korona; ściany, nie okap); pomosty, mosty, schody bez kolizji. Postać = koło 22 j., ślizga się
   po przeszkodzie; z przeszkody, w której stoi, zawsze może wyjść. Komórki `MWC2` (boksy na końcu pliku).
 - **Świat**: Seyda Neen → Pelagiad → Balmora, 88 komórek (162 MB .3dsx).
+
+## 7. Po próbie OpenMW na Old 3DS: pamięć, NPC, dialogi (2026-11-17)
+
+Pełny opis próby: [OPENMW_O3DS_ODKRYCIA.md](OPENMW_O3DS_ODKRYCIA.md). OpenMW nie mieści się w Old 3DS nawet jako
+sam silnik (~36 MB z 38,5 MB sterty, zanim powstanie świat). Wiedza z pomiarów przydaje się tutaj.
+
+**Ile mamy wolnego** (play.log z konsoli, Seyda Neen, wersja z obiektami, skryptami i wnętrzami, .3dsx 64 MB):
+- wolne: najmniej 14,1 MB, typowo ~21 MB;
+- CPU ~5 ms na klatkę (6–9 ms w szczytach) z 33 ms;
+- **CIA w trybie 80 MB** (jak Gothic3DS) da kolejne +16 MB.
+
+**Odkrycie: NPC prawie nie kosztują pamięci.** Siatki postaci i ekwipunku (`chMesh` z `char.bin`) są wspólne, a NPC
+to wpis w `actors[64]` (~3,5 KB, głównie `pose`). W logu wolna pamięć nie zależy od liczby NPC (30 NPC: 31 MB
+wolne). Dawne „30 NPC i koniec pamięci” to był przepełniony bufor poleceń GPU (512 KB → 1,5 MB, naprawione).
+
+**Prawdziwy limit NPC to CPU przy rysowaniu:** ~1,3 ms na widoczną postać, z czego ~1 ms to ~40 draw calli (każda
+część ciała i stroju osobno, 0,025 ms na draw). Daje to ~15 widocznych NPC przy 30 fps.
+
+Pomysły (status: **do zrobienia**):
+1. **Sklejanie części NPC w jedną siatkę** przy pojawieniu się i przy zmianie stroju (pomysł użytkownika: NPC
+   rzadko zmieniają ekwipunek; gracz zostaje rysowany po kawałku). Paczki według tekstury i zestawu kości (paleta
+   ≤ ~20 kości). ~40 → ~5–8 draw calli, ~1,3 → ~0,3 ms na NPC. NPC w tym samym stroju dzielą jedną sklejoną siatkę.
+2. **Pozowanie tylko NPC w kadrze**, poza nim przesuwamy tylko czas animacji. Dziś pozowanie sprawdza wyłącznie
+   odległość (main.c, pętla przed `chAnimate`), więc NPC za kamerą kosztują po ~0,09 ms.
+3. **Krótszy zasięg rysowania NPC niż świata** (np. ~2000), dalej nic albo prosty kształt.
+4. **Dalekich NPC pozujemy co 2.–3. klatkę** (jak `farTickEvery` w Gothic3DS).
+5. **Limit rysowanych naraz** (np. 16 najbliższych) na tłumy w miastach.
+
+**Dialogi w naszym formacie:** wszystkie odpowiedzi Morrowinda zajmą ~1,5 MB RAM:
+- nagłówek filtra ~24 B × 23 693 (aktor, rasa, klasa, frakcja, komórka, płeć, ranga, dyspozycja),
+- warunki ~8 B każdy,
+- tabela tematów i słownik nazw,
+- teksty i skrypty wyników na karcie SD.
+
+Dla porównania OpenMW: 9 MB, a przez błąd z kopią listy 15 MB. Każda rozmowa filtruje odpowiedzi wszystkich
+tematów (OpenMW `updateActorKnownTopics`), więc nagłówki muszą być w RAM, zwarte i szybkie do przejrzenia.

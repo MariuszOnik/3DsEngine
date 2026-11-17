@@ -115,6 +115,7 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 
 	C3D_BindProgram(&prog);
 	C3D_SetAttrInfo(&attr);
+	for (int i = 1; i < 6; i++) C3D_TexEnvInit(C3D_GetTexEnv(i));   // citro2d's stages (the touch screen) off
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, &mvp);
 	// camera-relative positions, as in the game (everything here is relative to the cell's centre already)
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, -v->eye[0], -v->eye[1], -v->eye[2], 1.0f / 1024.0f);

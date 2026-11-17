@@ -9,8 +9,11 @@
 .constf consts(0.0, 1.0, 0.00392156862, 0.0)
 .alias one   consts.yyyy
 
+; The texture coordinate goes out as texcoord1: the 3D samples texture unit 1, so texture unit 0 is citro2d's alone
+; (the touch screen's text: citro2d keeps track of what it bound to unit 0, and the terrain bound there made its
+; glyphs solid blocks, 17.11).
 .out outpos position
-.out outtc0 texcoord0
+.out outtc1 texcoord1
 .out outclr color
 
 .alias inpos v0
@@ -30,6 +33,6 @@
 	mov outclr, r1
 
 	mul r2, origin.wwww, intc
-	mov outtc0, r2
+	mov outtc1, r2
 	end
 .end

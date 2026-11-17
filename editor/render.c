@@ -96,7 +96,7 @@ static void texEnv(bool textured)
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
 	C3D_TexEnvInit(env);
 	if (textured) {
-		C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
+		C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE1, GPU_PRIMARY_COLOR, 0);   // unit 1: unit 0 is citro2d's
 		C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
 		C3D_TexEnvSrc(env, C3D_Alpha, GPU_PRIMARY_COLOR, 0, 0);
 		C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
@@ -125,7 +125,7 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 	// the land
 	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
 	texEnv(true);
-	C3D_TexBind(0, (C3D_Tex*)&c->tex);
+	C3D_TexBind(1, (C3D_Tex*)&c->tex);
 	C3D_SetBufInfo((C3D_BufInfo*)&c->buf);
 	C3D_DrawElements(GPU_TRIANGLES, c->nidx, C3D_UNSIGNED_SHORT, c->idx);
 
@@ -144,5 +144,9 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 	C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
 	C3D_SetBufInfo(&ringBuf);
 	C3D_DrawElements(GPU_TRIANGLES, RING_INDICES, C3D_UNSIGNED_SHORT, ringIdx);
-	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+	// Leave the state citro2d expects (the touch screen is drawn after this): blending on, no depth test. With
+	// blending off its glyphs (quads with an alpha mask) came out as solid blocks, on the console and in Azahar.
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
+	               GPU_ONE_MINUS_SRC_ALPHA);
+	C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_ALL);
 }

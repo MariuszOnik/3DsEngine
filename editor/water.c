@@ -197,9 +197,11 @@ void waterDraw(const ECell* c, const C3D_Mtx* mvp, const float eye[3], float t)
 
 	C3D_TexBind(1, &ripple);
 	C3D_TexBind(2, &ripple);
-	// Transparent: the water adds nothing, it only lights and shades the bottom under it by the ripples.
-	// The two layers added signed (mid grey where calm), drawn towards mid grey by the alpha (strength x the shore's
-	// fade); the blend dst x src x 2 leaves mid grey as it is, brighter crests light the bottom, troughs shade it.
+	// Transparent, and it only lightens: the ripples' crests gather light on the bottom under them (dst x (1 + src),
+	// so a dark bottom gets little and nothing turns milky); the troughs leave it as it is. (Shading by the troughs
+	// as well, dst x src x 2, made dark, nearly black streaks over a deep bottom.)
+	// 0: the two layers added signed (mid grey where calm); 1: minus mid grey, clamped: the crests alone;
+	// 2: x the alpha (strength x the shore's fade) x 4
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE1, GPU_TEXTURE2, 0);
@@ -208,17 +210,25 @@ void waterDraw(const ECell* c, const C3D_Mtx* mvp, const float eye[3], float t)
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
 	env = C3D_GetTexEnv(1);
 	C3D_TexEnvInit(env);
-	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_CONSTANT, GPU_PRIMARY_COLOR);
-	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_ALPHA);
-	C3D_TexEnvFunc(env, C3D_RGB, GPU_INTERPOLATE);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_CONSTANT, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_SUBTRACT);
 	C3D_TexEnvColor(env, 0xFF808080);
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
-	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_DST_COLOR, GPU_SRC_COLOR, GPU_ZERO, GPU_ONE);
+	env = C3D_GetTexEnv(2);
+	C3D_TexEnvInit(env);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_PRIMARY_COLOR, 0);
+	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_ALPHA, 0);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
+	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_4);
+	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_DST_COLOR, GPU_ONE, GPU_ZERO, GPU_ONE);
 	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
 	C3D_SetBufInfo(&buf);
 	C3D_DrawElements(GPU_TRIANGLES, c->nidx, C3D_UNSIGNED_SHORT, c->idx);   // the land's own triangle list
 	C3D_SetBufInfo(&outerBuf);
 	C3D_DrawElements(GPU_TRIANGLES, 24, C3D_UNSIGNED_SHORT, outerIdx + 6);   // the sea round the cell
 	C3D_TexEnvInit(C3D_GetTexEnv(1));
+	C3D_TexEnvInit(C3D_GetTexEnv(2));
 }

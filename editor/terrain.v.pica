@@ -1,0 +1,35 @@
+; The editor's vertex shader: the game's world shader (source/world.v.pica) without fog, detail and torch.
+; Vertex: v0 = position (int16 x, y, z relative to the cell centre), v1 = texcoord (int16, * 1/1024),
+;         v2 = colour (u8 rgba: the light, and the alpha for the water).
+; origin = cell centre - eye (camera-relative, as in the game), w = the uv scale (1/1024).
+
+.fvec mvp[4]
+.fvec origin
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias one   consts.yyyy
+
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+.alias inpos v0
+.alias intc  v1
+.alias inclr v2
+
+.proc main
+	add r0.xyz, origin.xyz, inpos.xyz
+	mov r0.w,   one
+
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	mul r1, consts.zzzz, inclr
+	mov outclr, r1
+
+	mul r2, origin.wwww, intc
+	mov outtc0, r2
+	end
+.end

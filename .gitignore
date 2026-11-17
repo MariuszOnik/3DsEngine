@@ -13,3 +13,7 @@ shots/
 # the reference port is its own git repository
 referencja/
 __pycache__/
+build-edit/
+mwedit.3dsx
+mwedit.elf
+mwedit.smdh

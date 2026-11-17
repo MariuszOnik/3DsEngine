@@ -55,26 +55,30 @@ static void paintTest(void)
 	FILE* f = fopen("sdmc:/3ds/mwedit/painttest.txt", "rb");
 	if (!f) return;
 	fclose(f);
+	static float flat[CELL_GRID * CELL_GRID];   // above the sea, to see the land's colours
+	for (int i = 0; i < CELL_GRID * CELL_GRID; i++) flat[i] = 120;
+	cellSetHeights(&ed.cell, flat);
 	u64 t0 = svcGetSystemTick();
 	for (int s = 0; s < 3; s++) {
 		const LandTex* lt = ltGet(s % (ltCount() ? ltCount() : 1));
 		if (!lt) break;
-		for (int k = 0; k < 40; k++) {
-			float a = k / 40.0f * 3.0f + s * 2.1f;
-			cellPaint(&ed.cell, lt->rgb, s, cosf(a) * (900 + s * 700), sinf(a * 0.7f) * (900 + s * 500), 700, 0.35f);
+		for (int k = 0; k < 160; k++) {   // a dragged stroke: many weak dabs along a path (about 30 fps of dragging)
+			float a = k / 160.0f * 3.0f + s * 2.1f;
+			cellPaint(&ed.cell, lt->rgb, s, cosf(a) * (900 + s * 700), sinf(a * 0.7f) * (900 + s * 500), 700, 0.12f);
 		}
 	}
 	float paintMs = msSince(t0);
 	t0 = svcGetSystemTick();
 	int blocks = ed.cell.ndirty;
 	cellFlushPaint(&ed.cell, 0);
-	snprintf(ed.fileMsg, sizeof ed.fileMsg, "test: 120 pociągnięć %.0f ms, %d bloków ETC1 %.0f ms", paintMs, blocks,
+	snprintf(ed.fileMsg, sizeof ed.fileMsg, "test: 480 dotknięć %.0f ms, %d bloków ETC1 %.0f ms", paintMs, blocks,
 	         msSince(t0));
 	f = fopen("sdmc:/3ds/mwedit/painttest.log", "w");
 	if (f) { fprintf(f, "%s\n", ed.fileMsg); fclose(f); }
 	ed.tab = TAB_PAINT;
 	ed.view.tx = 0;
 	ed.view.ty = 0;
+	ed.view.dist *= 0.6f;
 }
 
 int main(void)
@@ -153,7 +157,8 @@ int main(void)
 			const LandTex* lt = ltGet(ed.paintTex);
 			if (lt) cellPaint(&ed.cell, lt->rgb, ed.paintTex, ed.view.tx, ed.view.ty, ed.brush.radius, ed.paintRate * PAINT_PER_SEC * dt);
 		}
-		cellFlushPaint(&ed.cell, 12.0f);   // the painted blocks into the GPU texture, a few each frame
+		// ETC1 after the stroke (while A paints, the uncompressed copy is drawn), a few blocks a frame
+		if (!(painting && (held & KEY_A)) || !ed.cell.preview.data) cellFlushPaint(&ed.cell, 20.0f);
 		renderSetBrush(&ed.cell, ed.view.tx, ed.view.ty, ed.brush.radius);
 
 		frames++;

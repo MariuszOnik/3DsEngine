@@ -48,6 +48,7 @@ void cellHeightsChanged(ECell* c, int x0, int y0, int x1, int y1)
 }
 
 static void smallUpdate(ECell* c, int x0, int y0, int x1, int y1);
+static void previewUpdate(ECell* c, int x0, int y0, int x1, int y1);
 
 // ---- a grass-like image (value noise in three octaves, tiling)
 
@@ -125,8 +126,13 @@ bool cellNew(ECell* c, int gx, int gy)
 	u8* work = linearAlloc((size_t)CELL_TEX * CELL_TEX * 3 / 4);
 	c->small = linearAlloc((size_t)CELL_SMALL * CELL_SMALL * 3);
 	if (!c->rgb || !c->small || !work || !C3D_TexInitMipmap(&c->tex, CELL_TEX, CELL_TEX, GPU_ETC1)) return false;
+	if (C3D_TexInit(&c->preview, CELL_TEX, CELL_TEX, GPU_RGB565)) {   // without it: ETC1 while painting (slower)
+		C3D_TexSetFilter(&c->preview, GPU_LINEAR, GPU_LINEAR);
+		C3D_TexSetWrap(&c->preview, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+	}
 	grassImage(c->rgb);
 	smallUpdate(c, 0, 0, CELL_SMALL, CELL_SMALL);
+	previewUpdate(c, 0, 0, CELL_TEX - 1, CELL_TEX - 1);
 	etc1EncodeMips(c->rgb, CELL_TEX, CELL_TEX, c->tex.data, work, 0);
 	linearFree(work);
 	C3D_TexFlush(&c->tex);
@@ -157,6 +163,57 @@ static void smallUpdate(ECell* c, int x0, int y0, int x1, int y1)
 		}
 }
 
+static u32 morton8(u32 x, u32 y)
+{
+	return (x & 1) | (y & 1) << 1 | (x & 2) << 1 | (y & 2) << 2 | (x & 4) << 2 | (y & 4) << 3;
+}
+
+// The uncompressed copy over image pixels [x0, x1] x [y0, y1] (GPU order: 8 x 8 tiles from the bottom row up).
+static void previewUpdate(ECell* c, int x0, int y0, int x1, int y1)
+{
+	if (!c->preview.data) return;
+	u16* d = c->preview.data;
+	const int S = CELL_TEX;
+	for (int y = y0; y <= y1; y++) {
+		int ty = S - 1 - y;
+		u16* tileRow = d + (size_t)(ty >> 3) * (S >> 3) * 64;
+		const u8* p = c->rgb + ((size_t)y * S + x0) * 3;
+		for (int x = x0; x <= x1; x++, p += 3)
+			tileRow[(x >> 3) * 64 + morton8(x & 7, ty & 7)] = (u16)((p[0] >> 3) << 11 | (p[1] >> 2) << 5 | (p[2] >> 3));
+	}
+	int tr0 = (S - 1 - y1) >> 3, tr1 = (S - 1 - y0) >> 3;   // the tile rows written
+	GSPGPU_FlushDataCache(d + (size_t)tr0 * (S >> 3) * 64, (size_t)(tr1 - tr0 + 1) * (S >> 3) * 64 * 2);
+}
+
+// A tiling noise for the brush's rim (fixed to the ground, so strokes meet without seams)
+#define NOISE 128
+static u8 rimNoise[NOISE * NOISE];
+
+static void makeRimNoise(void)
+{
+	static float grid[3][17 * 17];
+	const int cells[3] = { 4, 8, 16 };
+	const float amp[3] = { 0.5f, 0.3f, 0.2f };
+	u32 seed = 12345;
+	for (int o = 0; o < 3; o++)
+		for (int i = 0; i < 17 * 17; i++) { seed = seed * 1664525u + 1013904223u; grid[o][i] = (seed >> 8 & 0xFFFF) / 65535.0f; }
+	for (int y = 0; y < NOISE; y++)
+		for (int x = 0; x < NOISE; x++) {
+			float v = 0;
+			for (int o = 0; o < 3; o++) {
+				int n = cells[o];
+				float fx = x * n / (float)NOISE, fy = y * n / (float)NOISE;
+				int ix = (int)fx, iy = (int)fy;
+				fx -= ix; fy -= iy;
+				fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+				int x1 = (ix + 1) % n, y1 = (iy + 1) % n;
+				float a = grid[o][iy * 17 + ix], b = grid[o][iy * 17 + x1], cc = grid[o][y1 * 17 + ix], d = grid[o][y1 * 17 + x1];
+				v += amp[o] * ((a + (b - a) * fx) * (1 - fy) + (cc + (d - cc) * fx) * fy);
+			}
+			rimNoise[y * NOISE + x] = (u8)(v * 255);
+		}
+}
+
 static void markDirty(ECell* c, int px0, int py0, int px1, int py1)
 {
 	for (int by = py0 >> 4; by <= py1 >> 4; by++)
@@ -177,6 +234,7 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 	if (py1 > S - 1) py1 = S - 1;
 	if (px0 > px1 || py0 > py1 || amount <= 0) return;
 	if (amount > 1) amount = 1;
+	if (!rimNoise[0] && !rimNoise[1]) makeRimNoise();
 	float inv = 1.0f / (radius * radius);
 	for (int py = py0; py <= py1; py++) {
 		float wy = CELL_HALF - (py + 0.5f) * PX_UNITS - cy;
@@ -186,10 +244,17 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 			float wx = (px + 0.5f) * PX_UNITS - CELL_HALF - cx;
 			float d2 = (wx * wx + wy * wy) * inv;
 			if (d2 >= 1) continue;
-			float w = (1 - d2) * (1 - d2);   // soft rim, no square root
+			// a ragged rim: where the noise and the texture's own light parts are high the texture comes through
+			// first (stones before the soil between them), so the edge is a transition, not a circle
+			const u8* t = trow + (px & (64 - 1)) * 3;
+			float n = rimNoise[(py & (NOISE - 1)) * NOISE + (px & (NOISE - 1))] * (0.6f / 255) +
+			          (t[0] + 2 * t[1] + t[2]) * (0.4f / 1020);
+			float w = (1 - d2) * 1.6f - 0.35f - n * 0.7f;
+			if (w <= 0) continue;
+			if (w > 1) w = 1;
+			w = w * w * (3 - 2 * w);
 			int a = (int)(amount * w * 256 + 0.5f);
 			if (a <= 0) continue;
-			const u8* t = trow + (px & (64 - 1)) * 3;
 			for (int k = 0; k < 3; k++) {
 				int diff = t[k] - o[k];
 				int step = (diff * a + (diff > 0 ? 255 : -255)) / 256;   // rounded away from 0: it gets there
@@ -199,6 +264,8 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 		}
 	}
 	markDirty(c, px0, py0, px1, py1);
+	previewUpdate(c, px0, py0, px1, py1);
+	if (c->preview.data) c->previewOn = true;
 
 	// the .esm's table: the squares whose middle is well inside the brush
 	for (int sy = 0; sy < 16; sy++)
@@ -210,7 +277,7 @@ void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float 
 
 void cellFlushPaint(ECell* c, float budgetMs)
 {
-	if (!c->ndirty) return;
+	if (!c->ndirty) { c->previewOn = false; return; }
 	const int N = CELL_DIRTY * CELL_DIRTY;
 	u64 t0 = svcGetSystemTick();
 	bool any = false;
@@ -233,6 +300,7 @@ void cellFlushPaint(ECell* c, float budgetMs)
 		}
 	}
 	if (any) C3D_TexFlush(&c->tex);
+	if (!c->ndirty) c->previewOn = false;
 }
 
 size_t cellImageSize(void)
@@ -248,6 +316,8 @@ bool cellSetImage(ECell* c, const u8* etc1, size_t size)
 	C3D_TexFlush(&c->tex);
 	etc1Decode(etc1, CELL_TEX, CELL_TEX, c->rgb);
 	smallUpdate(c, 0, 0, CELL_SMALL, CELL_SMALL);
+	previewUpdate(c, 0, 0, CELL_TEX - 1, CELL_TEX - 1);
+	c->previewOn = false;
 	memset(c->dirty, 0, sizeof c->dirty);
 	c->ndirty = 0;
 	return true;
@@ -273,6 +343,8 @@ void cellImageFromVtex(ECell* c, const u8* (*getTex)(int i))
 	linearFree(work);
 	C3D_TexFlush(&c->tex);
 	smallUpdate(c, 0, 0, CELL_SMALL, CELL_SMALL);
+	previewUpdate(c, 0, 0, CELL_TEX - 1, CELL_TEX - 1);
+	c->previewOn = false;
 	memset(c->dirty, 0, sizeof c->dirty);
 	c->ndirty = 0;
 }

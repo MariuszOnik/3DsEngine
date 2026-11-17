@@ -29,6 +29,10 @@ typedef struct {
 	// frame, round robin from `nextDirty` so a held brush does not starve the rest)
 	u8 dirty[CELL_DIRTY * CELL_DIRTY];
 	u8* small;                          // the image at 1/8 (CELL_SMALL^2 RGB): mip levels 3.. are encoded from it
+	// While painting the land is drawn from this uncompressed copy (RGB565, no mip levels: a pixel is only a
+	// conversion away); ETC1 is encoded after the stroke, for the painted blocks, and then `tex` is drawn again.
+	C3D_Tex preview;
+	bool previewOn;
 	int ndirty, nextDirty;
 	u16 vtex[16 * 16];                  // the texture of each 512-unit square (land texture index + 1, 0 = none;
 	                                    // row 0 = south), kept for the .esm's VTEX
@@ -45,7 +49,8 @@ void cellSetHeights(ECell* c, const float* h);
 // (+ 1) in vtex. The GPU copy follows through cellFlushPaint.
 void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float radius, float amount);
 
-// Encodes waiting blocks into the GPU texture for up to `budgetMs` (all of them when budgetMs <= 0).
+// Encodes waiting blocks into the GPU texture for up to `budgetMs` (all of them when budgetMs <= 0); when none wait
+// any more, the land is drawn from `tex` again.
 void cellFlushPaint(ECell* c, float budgetMs);
 
 // The whole image again: from the GPU texture (ETC1, all levels as cellNew made it), or filled from vtex with the

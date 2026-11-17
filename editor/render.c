@@ -125,7 +125,7 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 	// the land
 	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
 	texEnv(true);
-	C3D_TexBind(1, (C3D_Tex*)&c->tex);
+	C3D_TexBind(1, (C3D_Tex*)(c->previewOn ? &c->preview : &c->tex));   // painting: the uncompressed copy
 	C3D_SetBufInfo((C3D_BufInfo*)&c->buf);
 	C3D_DrawElements(GPU_TRIANGLES, c->nidx, C3D_UNSIGNED_SHORT, c->idx);
 

@@ -21,7 +21,10 @@ static u16* outerIdx;     // 6 floor, then 24 surface (the frame round the cell)
 static C3D_BufInfo outerBuf;
 static C3D_BufInfo buf;
 
-#define RIPPLE_STRENGTH 200   // 0..255: how much of the ripples' light and shade shows (255: all of it)
+static int rippleStrength = 200;   // 0..255: how much of the ripples' light and shade shows (the "Widok" tab)
+#define RIPPLE_STRENGTH rippleStrength
+
+void waterSetRipples(float k) { rippleStrength = (int)(k < 0 ? 0 : k > 1 ? 255 : k * 255); }
 
 // ---- the ripple texture (as the game's makeRipples, without the glints' alpha): L8 256, tiling
 
@@ -171,6 +174,8 @@ void waterDraw(const ECell* c, const C3D_Mtx* mvp, const float eye[3], float t)
 		v->c[0] = v->c[1] = v->c[2] = 128;
 		v->c[3] = (u8)(d <= 0 ? 0 : d < 40 ? d / 40.0f * RIPPLE_STRENGTH : RIPPLE_STRENGTH);
 	}
+	for (int i = 4; i < 12; i++) outer[i].c[3] = (u8)RIPPLE_STRENGTH;
+	GSPGPU_FlushDataCache(outer, 12 * sizeof(Vtx));
 	GSPGPU_FlushDataCache(grid, CELL_GRID * CELL_GRID * sizeof(Vtx));
 
 	C3D_BindProgram(&prog);

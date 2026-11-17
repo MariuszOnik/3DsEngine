@@ -12,6 +12,9 @@
 static DVLB_s* dvlb;
 static shaderProgram_s prog;
 static int uMvp, uOrigin, uWater;
+static float waterDepth = 800;   // units down to the full depth colour (the "Widok" tab)
+
+void renderSetWaterDepth(float units) { waterDepth = units < 50 ? 50 : units; }
 static C3D_AttrInfo attr;
 
 static Vtx* water;
@@ -125,7 +128,7 @@ void renderScene(const ECell* c, const View* v, bool showWater, float iod)
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, &mvp);
 	// camera-relative positions, as in the game (everything here is relative to the cell's centre already)
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, -v->eye[0], -v->eye[1], -v->eye[2], 1.0f / 1024.0f);
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 0.16f, 0.60f, 0.70f, 1.0f / 800.0f);   // turquoise by 800 units down
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 0.16f, 0.60f, 0.70f, 1.0f / waterDepth);   // turquoise by waterDepth down
 	C3D_CullFace(GPU_CULL_NONE);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
 
@@ -143,7 +146,7 @@ void renderScene(const ECell* c, const View* v, bool showWater, float iod)
 		C3D_SetAttrInfo(&attr);
 		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, &mvp);
 		C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, -v->eye[0], -v->eye[1], -v->eye[2], 1.0f / 1024.0f);
-		C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 0.16f, 0.60f, 0.70f, 1.0f / 800.0f);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 0.16f, 0.60f, 0.70f, 1.0f / waterDepth);
 		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
 	}
 	texEnv(false);

@@ -30,7 +30,7 @@ static float msSince(u64 t0) { return (svcGetSystemTick() - t0) / (float)CPU_TIC
 // The bottom screen: tabs, the tab's widgets, the status bar.
 static void bottomScreen(u32 down, u32 held, bool redraw)
 {
-	static const char* const tabs[TAB_COUNT] = { "Teren", "Malowanie", "Obiekty", "", "Plik" };
+	static const char* const tabs[TAB_COUNT] = { "Teren", "Malowanie", "Obiekty", "Widok", "Plik" };
 	uiBegin(down, held, redraw);
 	Tab t = (Tab)uiTabs((UiRect){ 0, 0, UI_W, 26 }, tabs, TAB_COUNT, ed.tab);
 	if (t != ed.tab) { ed.tab = t; uiInvalidate(); }
@@ -38,6 +38,7 @@ static void bottomScreen(u32 down, u32 held, bool redraw)
 	case TAB_TERRAIN: tabTerrain(&ed); break;
 	case TAB_PAINT: tabPaint(&ed); break;
 	case TAB_OBJECTS: tabLater(&ed, "Obiekty: domy, drzewa, skały"); break;
+	case TAB_VIEW: tabView(&ed); break;
 	case TAB_FILE: tabFile(&ed); break;
 	default: break;
 	}
@@ -130,6 +131,7 @@ int main(void)
 	ed.aTool = TOOL_RAISE;
 	ed.tab = TAB_TERRAIN;
 	ed.paintRate = 0.5f;
+	settingsLoad(&ed);
 	paintTest();
 	u64 last = svcGetSystemTick();
 	int frames = 0;

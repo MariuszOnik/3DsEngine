@@ -10,6 +10,14 @@ void viewInit(View* v)
 	v->dist = 3500.0f;
 }
 
+void viewDrag(View* v, float dxPixels, float dyPixels)
+{
+	v->yaw += dxPixels * 0.012f;
+	v->pitch -= dyPixels * 0.008f;   // drag down: look more from above
+	if (v->pitch < VIEW_PITCH_MIN) v->pitch = VIEW_PITCH_MIN;
+	if (v->pitch > VIEW_PITCH_MAX) v->pitch = VIEW_PITCH_MAX;
+}
+
 void viewUpdate(View* v, const ECell* c, float padX, float padY, float turn, float zoom, float dt)
 {
 	v->yaw += turn * 1.6f * dt;

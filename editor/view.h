@@ -11,6 +11,11 @@ typedef struct {
 	float fwd[3];
 } View;
 
+#define VIEW_PITCH_MIN -1.48f   // almost straight down
+#define VIEW_PITCH_MAX -0.12f   // almost level
+
 void viewInit(View* v);
+// A drag on the touch screen (pixels): sideways turns, up / down tilts.
+void viewDrag(View* v, float dxPixels, float dyPixels);
 // Moves by the circle pad (screen-relative, faster when zoomed out), turns, zooms; keeps the eye over the ground.
 void viewUpdate(View* v, const ECell* c, float padX, float padY, float turn, float zoom, float dt);

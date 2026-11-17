@@ -5,6 +5,7 @@
 //
 // Controls:
 //   circle pad  move the view            L / R      turn it
+//   touch screen: drag up / down tilts the view, sideways turns it
 //   D-pad up/dn zoom                     D-pad l/r  brush smaller / bigger
 //   A raise   B lower   Y smooth   X flatten (to the height under the cross when X went down)
 //   SELECT      brush strength (gentle / strong)       START quit
@@ -45,7 +46,9 @@ static void bottomScreen(const View* v, const Brush* b, Tool tool, bool strong, 
 	printf(" Narzedzie: %-10s                \n", toolName(tool));
 	printf(" %4.1f fps   pedzel %4.1f ms        \n", fps, brushMs);
 	printf(" Przygotowanie komorki %.1f s     \n\n", prepMs / 1000.0f);
+	printf(" Kamera: kat %3.0f stopni         \n\n", -v->pitch * 57.2958f);
 	printf(" Galka    przesun     L/R  obrot\n");
+	printf(" Dotyk    przeciagnij: kat, obrot\n");
 	printf(" D-pad    gora/dol: zoom\n");
 	printf("          lewo/prawo: pedzel\n");
 	printf(" A podnies    B obniz\n");
@@ -100,6 +103,16 @@ int main(void)
 		float px = cp.dx / 156.0f, py = cp.dy / 156.0f;
 		if (fabsf(px) < 0.1f) px = 0;
 		if (fabsf(py) < 0.1f) py = 0;
+		// the touch screen: dragging turns and tilts the view
+		static int lastTx = -1, lastTy = -1;
+		if (held & KEY_TOUCH) {
+			touchPosition tp;
+			hidTouchRead(&tp);
+			if (lastTx >= 0 && !(down & KEY_TOUCH)) viewDrag(&view, tp.px - lastTx, tp.py - lastTy);
+			lastTx = tp.px;
+			lastTy = tp.py;
+		} else
+			lastTx = lastTy = -1;
 		float turn = (held & KEY_R ? 1.0f : 0) - (held & KEY_L ? 1.0f : 0);
 		float zoom = (held & KEY_DDOWN ? 1.0f : 0) - (held & KEY_DUP ? 1.0f : 0);
 		viewUpdate(&view, &cell, px, py, turn, zoom, dt);

@@ -1,0 +1,57 @@
+; The editor's water surface (from the game's source/water.v.pica, its "scattered light" pass): the same vertex as
+; terrain.v.pica (v0 position, v1 unused, v2 colour: rgb the light scattered back, a the shore's fade).
+; Two texture coordinates from the position: the ripple texture twice, scaled and scrolled differently, on texture
+; units 1 and 2 (unit 0 is citro2d's). At a glancing angle the surface mirrors `refl` (fresnel).
+
+.fvec mvp[4]
+.fvec origin        ; xyz = cell centre - eye
+.fvec uvA           ; texcoord 1 = position.xy * uvA.z + uvA.xy
+.fvec uvB           ; texcoord 2 = position.xy * uvB.z + uvB.xy
+.fvec refl          ; xyz: the sky mirrored at a glancing angle
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias zero  consts.xxxx
+.alias one   consts.yyyy
+
+.out outpos position
+.out outtc1 texcoord1
+.out outtc2 texcoord2
+.out outclr color
+
+.alias inpos v0
+.alias inclr v2
+
+.proc main
+	add r0.xyz, origin.xyz, inpos.xyz
+	mov r0.w,   one
+
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	mul r2, consts.zzzz, inclr
+
+	; fresnel, f = (1 - |cos|)^2, cos = the view's slope: looking down the bottom shows, at a glancing angle the
+	; water mirrors the sky
+	dp3 r5.x, r0.xyz, r0.xyz
+	rsq r5.x, r5.x
+	mul r5.x, r5.x, r0.z
+	max r5.x, r5.x, -r5.x
+	add r5.x, one, -r5.x
+	mul r5.x, r5.x, r5.x
+	mul r7.xyz, refl.xyz, r5.xxx
+	add r2.xyz, r2.xyz, r7.xyz
+	mov outclr, r2
+
+	; ripples from the cell-relative position
+	mul r3.xy, uvA.zz, inpos.xy
+	add r3.xy, uvA.xy, r3.xy
+	mov r3.zw, zero
+	mov outtc1, r3
+	mul r4.xy, uvB.zz, inpos.xy
+	add r4.xy, uvB.xy, r4.xy
+	mov r4.zw, zero
+	mov outtc2, r4
+	end
+.end

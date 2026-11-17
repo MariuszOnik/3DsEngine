@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "terrain_shbin.h"
+#include "water.h"
 
 #define RING_SEG 48
 #define RING_VERTS ((RING_SEG + 1) * 2 + 8)
@@ -10,7 +11,7 @@
 
 static DVLB_s* dvlb;
 static shaderProgram_s prog;
-static int uMvp, uOrigin;
+static int uMvp, uOrigin, uWater;
 static C3D_AttrInfo attr;
 
 static Vtx* water;
@@ -34,6 +35,7 @@ bool renderInit(void)
 	shaderProgramSetVsh(&prog, &dvlb->DVLE[0]);
 	uMvp = shaderInstanceGetUniformLocation(prog.vertexShader, "mvp");
 	uOrigin = shaderInstanceGetUniformLocation(prog.vertexShader, "origin");
+	uWater = shaderInstanceGetUniformLocation(prog.vertexShader, "water");
 	AttrInfo_Init(&attr);
 	AttrInfo_AddLoader(&attr, 0, GPU_SHORT, 4);
 	AttrInfo_AddLoader(&attr, 1, GPU_SHORT, 2);
@@ -43,14 +45,14 @@ bool renderInit(void)
 	waterIdx = linearAlloc(6 * sizeof(u16));
 	ring = linearAlloc(RING_VERTS * sizeof(Vtx));
 	ringIdx = linearAlloc(RING_INDICES * sizeof(u16));
-	if (!water || !waterIdx || !ring || !ringIdx) return false;
+	if (!water || !waterIdx || !ring || !ringIdx || !waterInit()) return false;
 
-	// the sea: one quad over the whole cell at 0
+	// the sea: one quad over the whole cell at 0, a light clear sheen (the depth colour is on the land under it)
 	const float h = CELL_HALF;
-	setVtx(&water[0], -h, -h, 0, 40, 92, 128, 150);
-	setVtx(&water[1], h, -h, 0, 40, 92, 128, 150);
-	setVtx(&water[2], h, h, 0, 40, 92, 128, 150);
-	setVtx(&water[3], -h, h, 0, 40, 92, 128, 150);
+	setVtx(&water[0], -h, -h, 0, 170, 225, 235, 56);
+	setVtx(&water[1], h, -h, 0, 170, 225, 235, 56);
+	setVtx(&water[2], h, h, 0, 170, 225, 235, 56);
+	setVtx(&water[3], -h, h, 0, 170, 225, 235, 56);
 	const u16 q[6] = { 0, 1, 2, 0, 2, 3 };
 	for (int i = 0; i < 6; i++) waterIdx[i] = q[i];
 	BufInfo_Init(&waterBuf);
@@ -119,6 +121,7 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, &mvp);
 	// camera-relative positions, as in the game (everything here is relative to the cell's centre already)
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, -v->eye[0], -v->eye[1], -v->eye[2], 1.0f / 1024.0f);
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 0.16f, 0.60f, 0.70f, 1.0f / 800.0f);   // turquoise by 800 units down
 	C3D_CullFace(GPU_CULL_NONE);
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
 
@@ -129,16 +132,17 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 	C3D_SetBufInfo((C3D_BufInfo*)&c->buf);
 	C3D_DrawElements(GPU_TRIANGLES, c->nidx, C3D_UNSIGNED_SHORT, c->idx);
 
-	// the sea (blended, not in the depth buffer)
-	texEnv(false);
+	// the sea: the bottom took its colour above (terrain.v.pica); the surface adds the game's gentle ripples
 	if (showWater) {
-		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
-		               GPU_ONE_MINUS_SRC_ALPHA);
-		C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
-		C3D_SetBufInfo(&waterBuf);
-		C3D_DrawElements(GPU_TRIANGLES, 6, C3D_UNSIGNED_SHORT, waterIdx);
+		waterDraw(c, &mvp, v->eye, svcGetSystemTick() / (float)SYSCLOCK_ARM11);
+		C3D_BindProgram(&prog);   // back to the land's program and its uniforms (the water's share the registers)
+		C3D_SetAttrInfo(&attr);
+		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uMvp, &mvp);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, -v->eye[0], -v->eye[1], -v->eye[2], 1.0f / 1024.0f);
+		C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 0.16f, 0.60f, 0.70f, 1.0f / 800.0f);
 		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
 	}
+	texEnv(false);
 
 	// the brush, always on top
 	C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);

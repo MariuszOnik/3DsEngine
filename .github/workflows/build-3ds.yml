@@ -26,6 +26,10 @@ jobs:
       - name: Line ends
         run: find . -type f \( -name 'Makefile*' -o -name '*.pica' -o -name '*.c' -o -name '*.h' \) -exec sed -i 's/\r$//' {} +
 
+      # the editor reads the land textures (PNG) with libpng
+      - name: Libraries
+        run: dkp-pacman -Sy --noconfirm --needed 3ds-libpng 3ds-zlib
+
       - name: Editor (mwedit.3dsx)
         run: make -f Makefile.edit
 

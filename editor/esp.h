@@ -7,14 +7,24 @@
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define ESP_GRID 65   // heights per cell side, every 128 units; row 0 = the south edge
 
-// Writes heights h[ESP_GRID * ESP_GRID] of the exterior cell (gx, gy). msg (may be NULL) gets a line for the user.
-bool espSaveLand(const char* path, int gx, int gy, const float* h, char* msg, size_t msgSize);
+// Land textures: the caller's own numbering (i = 0..). vtex[16 * 16] (row 0 = south) holds i + 1, 0 = none.
+// In the file they are LTEX records (texture file names) found by file name, new ones added, so other cells keep
+// theirs. texFile(i): the file name of texture i (NULL: none).
+typedef const char* (*EspTexFile)(int i);
+typedef int (*EspTexIndex)(const char* file);   // the other way; -1 if the caller has no such texture
 
-// Reads the heights of (gx, gy) into h: 1 found, 0 the file has no such LAND, -1 no file or not a TES3 file.
-int espLoadLand(const char* path, int gx, int gy, float* h);
+// Writes heights h[ESP_GRID * ESP_GRID] and (if vtex) the texture table of the exterior cell (gx, gy).
+// msg (may be NULL) gets a line for the user.
+bool espSaveLand(const char* path, int gx, int gy, const float* h, const uint16_t* vtex, EspTexFile texFile,
+                 char* msg, size_t msgSize);
+
+// Reads the heights of (gx, gy) into h and (if vtex) its texture table, in the caller's numbering (unknown files
+// and no table: 0). Returns 1 found, 0 the file has no such LAND, -1 no file or not a TES3 file.
+int espLoadLand(const char* path, int gx, int gy, float* h, uint16_t* vtex, EspTexIndex texIndex);
 
 // How many LAND records the file has (-1: no file / not TES3).
 int espCountLand(const char* path);

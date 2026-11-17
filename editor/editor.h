@@ -15,7 +15,12 @@ typedef struct {
 	Tab tab;
 	float fps, brushMs, prepMs;
 	char fileMsg[96];   // the last save / load result, shown on the "Plik" tab
+	int paintTex, paintPage;   // the land texture A paints with (landtex.h), the page of the palette
+	float paintRate;           // 0..1: how fast the texture covers the land under the brush's middle
+	int ntex, texFailed;       // land textures read at the start, files that could not be read
 } Editor;
+
+#define PAINT_PER_SEC 4.0f   // paintRate 1: full cover in a quarter of a second
 
 // The world being edited: the game's own master file (like Morrowind.esm), opened by OpenMW-CS and the Construction
 // Set as the game file (editor/esp.h). .esp plugins stay for mods built on it. world.esp: the first saves (17.11).
@@ -35,4 +40,5 @@ int fileLoad(Editor* e);
 // The tabs: their widgets in the area between the tab row and the status bar.
 void tabTerrain(Editor* e);
 void tabFile(Editor* e);
+void tabPaint(Editor* e);
 void tabLater(Editor* e, const char* what);   // a tab still to come

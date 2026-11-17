@@ -260,13 +260,19 @@ void etc1Decode(const uint8_t* src, int w, int h, uint8_t* rgb)
 
 void etc1UpdateRect(const uint8_t* rgb, int w, int h, int x0, int y0, int x1, int y1, uint8_t* dst, int quality)
 {
+	etc1UpdateRectLevels(rgb, w, h, x0, y0, x1, y1, dst, quality, 99);
+}
+
+void etc1UpdateRectLevels(const uint8_t* rgb, int w, int h, int x0, int y0, int x1, int y1, uint8_t* dst, int quality,
+                          int levels)
+{
 	if (x0 < 0) x0 = 0;
 	if (y0 < 0) y0 = 0;
 	if (x1 > w) x1 = w;
 	if (y1 > h) y1 = h;
 	if (x0 >= x1 || y0 >= y1) return;
 	int lw = w, lh = h;
-	for (int k = 0;; k++) {
+	for (int k = 0; k < levels; k++) {
 		const int f = 1 << k;   // level-0 pixels per level-k pixel (each way)
 		// the level's blocks covering the changed rectangle
 		int bx0 = (x0 / f) / 4, by0 = (y0 / f) / 4;

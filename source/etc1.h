@@ -24,5 +24,10 @@ void etc1EncodeMips(const uint8_t* rgb, int w, int h, uint8_t* dst, uint8_t* wor
 // quality 0 for the live preview, 1 for the bake.
 void etc1UpdateRect(const uint8_t* rgb, int w, int h, int x0, int y0, int x1, int y1, uint8_t* dst, int quality);
 
+// The same for the first `levels` levels only. The small levels are costly from level 0 (a block of level k averages
+// 4 * 2^k pixels each way): the editor keeps a smaller copy of the image and updates those levels from it instead.
+void etc1UpdateRectLevels(const uint8_t* rgb, int w, int h, int x0, int y0, int x1, int y1, uint8_t* dst, int quality,
+                          int levels);
+
 // One level back to rgb (w*h*3).
 void etc1Decode(const uint8_t* src, int w, int h, uint8_t* rgb);

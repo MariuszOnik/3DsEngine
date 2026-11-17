@@ -137,14 +137,84 @@ static void writeCell(Buf* b, int gx, int gy)
 
 static int8_t clampS8(float v) { return (int8_t)(v < -128 ? -128 : v > 127 ? 127 : lroundf(v)); }
 
-static void writeLand(Buf* b, int gx, int gy, const float* h)
+// ---- land textures (LTEX: NAME id, INTV index, DATA texture file; VTEX holds index + 1)
+
+#define LTEX_MAX 512
+typedef struct { int n, maxIndex; int index[LTEX_MAX]; char file[LTEX_MAX][64]; } LtexTable;
+
+static int strieq(const char* a, const char* b)
+{
+	for (; *a && *b; a++, b++) {
+		int x = *a >= 'A' && *a <= 'Z' ? *a + 32 : *a, y = *b >= 'A' && *b <= 'Z' ? *b + 32 : *b;
+		if (x != y) return 0;
+	}
+	return *a == *b;
+}
+
+static void ltexAdd(LtexTable* t, int index, const char* file, size_t len)
+{
+	if (t->n >= LTEX_MAX) return;
+	if (len > 63) len = 63;
+	memcpy(t->file[t->n], file, len);
+	t->file[t->n][len] = 0;
+	t->index[t->n++] = index;
+	if (index > t->maxIndex) t->maxIndex = index;
+}
+
+static void ltexRead(LtexTable* t, const uint8_t* r)
+{
+	uint32_t si, sd;
+	const uint8_t* intv = findSub(r, "INTV", &si);
+	const uint8_t* data = findSub(r, "DATA", &sd);
+	if (!intv || si < 4 || !data) return;
+	size_t len = strnlen((const char*)data, sd);
+	ltexAdd(t, (int)rd32(intv), (const char*)data, len);
+}
+
+static int ltexFind(const LtexTable* t, const char* file)
+{
+	for (int i = 0; i < t->n; i++)
+		if (strieq(t->file[i], file)) return t->index[i];
+	return -1;
+}
+
+static const char* ltexFile(const LtexTable* t, int index)
+{
+	for (int i = 0; i < t->n; i++)
+		if (t->index[i] == index) return t->file[i];
+	return NULL;
+}
+
+static void writeLtex(Buf* b, int index, const char* file)
+{
+	size_t at = recBegin(b, "LTEX");
+	size_t l = strlen(file);
+	const char* dot = strrchr(file, '.');
+	size_t idl = dot ? (size_t)(dot - file) : l;
+	uint8_t* p = sub(b, "NAME", idl + 1);
+	if (p) memcpy(p, file, idl);
+	p = sub(b, "INTV", 4);
+	if (p) wr32(p, (uint32_t)index);
+	p = sub(b, "DATA", l + 1);
+	if (p) memcpy(p, file, l);
+	recEnd(b, at);
+}
+
+// The file's VTEX order: 4 x 4 groups of 4 x 4 squares
+static int vtexAt(int i)
+{
+	int y1 = i >> 6, x1 = (i >> 4) & 3, y2 = (i >> 2) & 3, x2 = i & 3;
+	return (y1 * 4 + y2) * 16 + x1 * 4 + x2;
+}
+
+static void writeLand(Buf* b, int gx, int gy, const float* h, const uint16_t* vtexFile)
 {
 	const int G = ESP_GRID;
 	size_t at = recBegin(b, "LAND");
 	uint8_t* p = sub(b, "INTV", 8);
 	if (p) { wr32(p, (uint32_t)gx); wr32(p + 4, (uint32_t)gy); }
 	p = sub(b, "DATA", 4);
-	if (p) wr32(p, 1);   // has heights and normals (no vertex colours, no texture table yet)
+	if (p) wr32(p, vtexFile ? 1 | 4 : 1);   // heights and normals, textures (no vertex colours)
 
 	// normals, as the editor lights the land (central differences, 128 units apart)
 	p = sub(b, "VNML", G * G * 3);
@@ -186,22 +256,60 @@ static void writeLand(Buf* b, int gx, int gy, const float* h)
 	p = sub(b, "WNAM", 81);
 	for (int y = 0; p && y < 9; y++)
 		for (int x = 0; x < 9; x++) ((int8_t*)p)[y * 9 + x] = clampS8(h[(y * 8) * G + x * 8] / 128.0f);
+
+	if (vtexFile) {
+		p = sub(b, "VTEX", 512);
+		for (int i = 0; p && i < 256; i++) {
+			uint16_t v = vtexFile[vtexAt(i)];
+			p[i * 2] = (uint8_t)v;
+			p[i * 2 + 1] = (uint8_t)(v >> 8);
+		}
+	}
 	recEnd(b, at);
 }
 
+
 // ---- the calls
 
-bool espSaveLand(const char* path, int gx, int gy, const float* h, char* msg, size_t msgSize)
+static bool isRec(const uint8_t* r, const char* name) { return memcmp(r, name, 4) == 0; }
+
+bool espSaveLand(const char* path, int gx, int gy, const float* h, const uint16_t* vtex, EspTexFile texFile,
+                 char* msg, size_t msgSize)
 {
 	char dummy[8];
 	if (!msg) { msg = dummy; msgSize = sizeof dummy; }
 	size_t n = 0;
 	uint8_t* old = readFile(path, &n);
 	if (old && !isTes3(old, n)) {
-		snprintf(msg, msgSize, "To nie jest plik .esp");
+		snprintf(msg, msgSize, "To nie jest plik .esm / .esp");
 		free(old);
 		return false;
 	}
+
+	// the land textures the file has already (by file name), and the ones this cell needs added
+	static LtexTable lt;
+	memset(&lt, 0, sizeof lt);
+	lt.maxIndex = -1;
+	for (size_t at = 0; old && at + REC_HEAD <= n;) {
+		size_t len = REC_HEAD + rd32(old + at + 4);
+		if (at + len > n) break;
+		if (isRec(old + at, "LTEX")) ltexRead(&lt, old + at);
+		at += len;
+	}
+	static uint16_t vt[256];
+	int known = lt.n, added[256], nadded = 0;
+	for (int i = 0; vtex && i < 256; i++) {
+		const char* file = vtex[i] && texFile ? texFile(vtex[i] - 1) : NULL;
+		int li = file ? ltexFind(&lt, file) : -1;
+		if (file && li < 0) {
+			li = lt.maxIndex + 1;
+			ltexAdd(&lt, li, file, strlen(file));
+			added[nadded++] = lt.n - 1;
+		}
+		vt[i] = (uint16_t)(li >= 0 ? li + 1 : 0);
+	}
+	(void)known;
+	const uint16_t* vtexFile = vtex ? vt : NULL;
 
 	Buf b = { 0 };
 	int records = 0, lands = 0;
@@ -213,21 +321,25 @@ bool espSaveLand(const char* path, int gx, int gy, const float* h, char* msg, si
 			size_t len = REC_HEAD + rd32(r + 4);
 			if (at + len > n) break;   // a cut-off end: dropped
 			if (at == 0) bufPut(&b, r, len);   // the header as it was (masters, author); its count is set below
-			else if (memcmp(r, "LAND", 4) == 0 && landIs(r, gx, gy)) {
-				if (!landDone) { writeLand(&b, gx, gy, h); landDone = true; records++; lands++; }
+			else if (isRec(r, "LAND") && landIs(r, gx, gy)) {
+				if (!landDone) { writeLand(&b, gx, gy, h, vtexFile); landDone = true; records++; lands++; }
 			} else {
-				if (memcmp(r, "CELL", 4) == 0 && exteriorCellIs(r, gx, gy)) cellFound = true;
-				if (memcmp(r, "LAND", 4) == 0) lands++;
+				if (isRec(r, "CELL") && exteriorCellIs(r, gx, gy)) cellFound = true;
+				if (isRec(r, "LAND")) lands++;
 				bufPut(&b, r, len);
 				records++;
 			}
+			if (at == 0)   // new textures right after the header: before any LAND that uses them
+				for (int i = 0; i < nadded; i++) { writeLtex(&b, lt.index[added[i]], lt.file[added[i]]); records++; }
 			at += len;
 		}
 		free(old);
-	} else
+	} else {
 		writeHeader(&b);
+		for (int i = 0; i < nadded; i++) { writeLtex(&b, lt.index[added[i]], lt.file[added[i]]); records++; }
+	}
 	if (!cellFound) { writeCell(&b, gx, gy); records++; }
-	if (!landDone) { writeLand(&b, gx, gy, h); records++; lands++; }
+	if (!landDone) { writeLand(&b, gx, gy, h, vtexFile); records++; lands++; }
 
 	// the record count in HEDR; a .esm gets the master flag (a game file others build on), a .esp loses it
 	uint32_t hs;
@@ -261,68 +373,66 @@ bool espSaveLand(const char* path, int gx, int gy, const float* h, char* msg, si
 	return ok;
 }
 
-// Walks the records; for each LAND calls back. Returns -1 when the file is missing or not TES3.
-static int eachLand(const char* path, int (*cb)(const uint8_t* r, void* ctx), void* ctx)
+int espLoadLand(const char* path, int gx, int gy, float* h, uint16_t* vtex, EspTexIndex texIndex)
 {
 	size_t n;
 	uint8_t* d = readFile(path, &n);
 	if (!d) return -1;
 	if (!isTes3(d, n)) { free(d); return -1; }
-	int result = 0;
-	size_t at = 0;
-	while (at + REC_HEAD <= n) {
+	static LtexTable lt;
+	memset(&lt, 0, sizeof lt);
+	const uint8_t* land = NULL;
+	for (size_t at = 0; at + REC_HEAD <= n;) {
 		size_t len = REC_HEAD + rd32(d + at + 4);
 		if (at + len > n) break;
-		if (memcmp(d + at, "LAND", 4) == 0) {
-			result = cb(d + at, ctx);
-			if (result < 0) { result = -result; break; }   // a negative answer stops the walk
-		}
+		if (isRec(d + at, "LTEX")) ltexRead(&lt, d + at);
+		else if (!land && isRec(d + at, "LAND") && landIs(d + at, gx, gy)) land = d + at;
 		at += len;
 	}
-	free(d);
-	return result;
-}
-
-typedef struct { int gx, gy; float* h; int count; } LoadCtx;
-
-static int loadCb(const uint8_t* r, void* ctx)
-{
-	LoadCtx* c = ctx;
-	if (!landIs(r, c->gx, c->gy)) return 0;
 	uint32_t s;
-	const uint8_t* v = findSub(r, "VHGT", &s);
-	if (!v || s < 4 + ESP_GRID * ESP_GRID) return 0;
+	const uint8_t* v = land ? findSub(land, "VHGT", &s) : NULL;
+	if (!v || s < 4 + ESP_GRID * ESP_GRID) { free(d); return 0; }
+
 	const int G = ESP_GRID;
 	float rowStart;
 	memcpy(&rowStart, v, 4);
-	const int8_t* d = (const int8_t*)v + 4;
+	const int8_t* dh = (const int8_t*)v + 4;
 	for (int y = 0; y < G; y++) {
-		rowStart += d[y * G];
-		float h = rowStart;
-		c->h[y * G] = h * HEIGHT_SCALE;
+		rowStart += dh[y * G];
+		float hh = rowStart;
+		h[y * G] = hh * HEIGHT_SCALE;
 		for (int x = 1; x < G; x++) {
-			h += d[y * G + x];
-			c->h[y * G + x] = h * HEIGHT_SCALE;
+			hh += dh[y * G + x];
+			h[y * G + x] = hh * HEIGHT_SCALE;
 		}
 	}
-	return -1;   // found: stop
-}
 
-int espLoadLand(const char* path, int gx, int gy, float* h)
-{
-	LoadCtx c = { gx, gy, h, 0 };
-	return eachLand(path, loadCb, &c);
-}
-
-static int countCb(const uint8_t* r, void* ctx)
-{
-	(void)r;
-	(*(int*)ctx)++;
-	return 0;
+	if (vtex) {
+		memset(vtex, 0, 256 * sizeof *vtex);
+		const uint8_t* t = findSub(land, "VTEX", &s);
+		for (int i = 0; t && s >= 512 && i < 256; i++) {
+			int li = (t[i * 2] | t[i * 2 + 1] << 8) - 1;
+			const char* file = li >= 0 ? ltexFile(&lt, li) : NULL;
+			int k = file && texIndex ? texIndex(file) : -1;
+			vtex[vtexAt(i)] = (uint16_t)(k >= 0 ? k + 1 : 0);
+		}
+	}
+	free(d);
+	return 1;
 }
 
 int espCountLand(const char* path)
 {
-	int n = 0;
-	return eachLand(path, countCb, &n) < 0 ? -1 : n;
+	size_t n;
+	uint8_t* d = readFile(path, &n);
+	if (!d) return -1;
+	int count = isTes3(d, n) ? 0 : -1;
+	for (size_t at = 0; count >= 0 && at + REC_HEAD <= n;) {
+		size_t len = REC_HEAD + rd32(d + at + 4);
+		if (at + len > n) break;
+		if (isRec(d + at, "LAND")) count++;
+		at += len;
+	}
+	free(d);
+	return count;
 }

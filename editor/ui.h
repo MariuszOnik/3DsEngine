@@ -41,6 +41,8 @@ void uiPanel(UiRect r, u32 colour);
 int uiTabs(UiRect r, const char* const* labels, int n, int selected);
 // A button with an icon above its label; true when tapped.
 bool uiButton(UiRect r, UiIcon icon, const char* label, bool selected);
+// A picture with a name under it (a texture of the palette); true when tapped.
+bool uiImageButton(UiRect r, const C2D_Image* img, const char* label, bool selected);
 // A slider: dragging along it sets *value in [min, max]; true while it changes it.
 bool uiSlider(UiRect r, const char* label, const char* valueText, float* value, float min, float max);
 // An area to drag on: the movement this frame in pixels; true while dragged.

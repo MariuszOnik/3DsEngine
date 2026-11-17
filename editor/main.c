@@ -6,7 +6,7 @@
 // Buttons (the touch screen has the rest: tools, size, strength, camera angle):
 //   circle pad  move the view            L / R      turn it
 //   D-pad up/dn zoom                     D-pad l/r  brush smaller / bigger
-//   A the tool chosen on the touch screen (raise at first)   B lower   Y smooth   X flatten
+//   A the tool chosen on the touch screen (raise at first; on "Malowanie": paint)   B lower   Y smooth   X flatten
 //   SELECT      brush strength gentle / strong                START quit
 #include <3ds.h>
 #include <citro3d.h>
@@ -14,6 +14,7 @@
 #include <stdio.h>
 
 #include "editor.h"
+#include "landtex.h"
 #include "render.h"
 #include "ui.h"
 
@@ -35,7 +36,7 @@ static void bottomScreen(u32 down, u32 held, bool redraw)
 	if (t != ed.tab) { ed.tab = t; uiInvalidate(); }
 	switch (ed.tab) {
 	case TAB_TERRAIN: tabTerrain(&ed); break;
-	case TAB_PAINT: tabLater(&ed, "Malowanie tekstur terenu"); break;
+	case TAB_PAINT: tabPaint(&ed); break;
 	case TAB_OBJECTS: tabLater(&ed, "Obiekty: domy, drzewa, skały"); break;
 	case TAB_FILE: tabFile(&ed); break;
 	default: break;
@@ -44,6 +45,36 @@ static void bottomScreen(u32 down, u32 held, bool redraw)
 	uiText(6, 220, 0.45f, UI_TEXT, "Komórka %d,%d   wys. %.0f   kąt %.0f   %.0f fps", ed.cell.gx, ed.cell.gy,
 	       cellHeightAt(&ed.cell, ed.view.tx, ed.view.ty), -ed.view.pitch * 57.2958f, ed.fps);
 	uiEnd();
+}
+
+// A check without touching anything (Azahar): with sdmc:/3ds/mwedit/painttest.txt the editor paints a few strokes
+// with the first textures at the start and opens the "Malowanie" tab; the time of the strokes and of encoding them
+// shows on the "Plik" tab's message line.
+static void paintTest(void)
+{
+	FILE* f = fopen("sdmc:/3ds/mwedit/painttest.txt", "rb");
+	if (!f) return;
+	fclose(f);
+	u64 t0 = svcGetSystemTick();
+	for (int s = 0; s < 3; s++) {
+		const LandTex* lt = ltGet(s % (ltCount() ? ltCount() : 1));
+		if (!lt) break;
+		for (int k = 0; k < 40; k++) {
+			float a = k / 40.0f * 3.0f + s * 2.1f;
+			cellPaint(&ed.cell, lt->rgb, s, cosf(a) * (900 + s * 700), sinf(a * 0.7f) * (900 + s * 500), 700, 0.35f);
+		}
+	}
+	float paintMs = msSince(t0);
+	t0 = svcGetSystemTick();
+	int blocks = ed.cell.ndirty;
+	cellFlushPaint(&ed.cell, 0);
+	snprintf(ed.fileMsg, sizeof ed.fileMsg, "test: 120 pociągnięć %.0f ms, %d bloków ETC1 %.0f ms", paintMs, blocks,
+	         msSince(t0));
+	f = fopen("sdmc:/3ds/mwedit/painttest.log", "w");
+	if (f) { fprintf(f, "%s\n", ed.fileMsg); fclose(f); }
+	ed.tab = TAB_PAINT;
+	ed.view.tx = 0;
+	ed.view.ty = 0;
 }
 
 int main(void)
@@ -69,6 +100,7 @@ int main(void)
 		gfxExit();
 		return 0;
 	}
+	ed.ntex = ltLoadAll(&ed.texFailed);   // the land textures (before loading: the cell names them)
 	fileLoad(&ed);   // the cell as last saved, if the world file has it
 	uiInit();   // the touch screen is citro2d's from here on
 
@@ -76,6 +108,8 @@ int main(void)
 	ed.brush = (Brush){ 768.0f, 400.0f, 0.0f };
 	ed.aTool = TOOL_RAISE;
 	ed.tab = TAB_TERRAIN;
+	ed.paintRate = 0.5f;
+	paintTest();
 	u64 last = svcGetSystemTick();
 	int frames = 0;
 	float fpsAcc = 0;
@@ -104,7 +138,8 @@ int main(void)
 		float zoom = (held & KEY_DDOWN ? 1.0f : 0) - (held & KEY_DUP ? 1.0f : 0);
 		viewUpdate(&ed.view, &ed.cell, px, py, turn, zoom, dt);
 
-		ed.tool = (held & KEY_A) ? ed.aTool : (held & KEY_B) ? TOOL_LOWER : (held & KEY_Y) ? TOOL_SMOOTH
+		bool painting = ed.tab == TAB_PAINT;   // A paints there; B, Y, X still sculpt
+		ed.tool = (held & KEY_A) && !painting ? ed.aTool : (held & KEY_B) ? TOOL_LOWER : (held & KEY_Y) ? TOOL_SMOOTH
 		        : (held & KEY_X) ? TOOL_FLATTEN : TOOL_NONE;
 		if (ed.tool == TOOL_FLATTEN && lastTool != TOOL_FLATTEN) ed.brush.flatZ = cellHeightAt(&ed.cell, ed.view.tx, ed.view.ty);
 		if (ed.tool != lastTool) changed = true;
@@ -114,6 +149,11 @@ int main(void)
 			brushApply(&ed.cell, ed.tool, &ed.brush, ed.view.tx, ed.view.ty, dt);
 			ed.brushMs = msSince(b0);
 		}
+		if (painting && (held & KEY_A)) {
+			const LandTex* lt = ltGet(ed.paintTex);
+			if (lt) cellPaint(&ed.cell, lt->rgb, ed.paintTex, ed.view.tx, ed.view.ty, ed.brush.radius, ed.paintRate * PAINT_PER_SEC * dt);
+		}
+		cellFlushPaint(&ed.cell, 12.0f);   // the painted blocks into the GPU texture, a few each frame
 		renderSetBrush(&ed.cell, ed.view.tx, ed.view.ty, ed.brush.radius);
 
 		frames++;

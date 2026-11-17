@@ -47,6 +47,8 @@ void cellHeightsChanged(ECell* c, int x0, int y0, int x1, int y1)
 	GSPGPU_FlushDataCache(c->v, CELL_GRID * CELL_GRID * sizeof(Vtx));
 }
 
+static void smallUpdate(ECell* c, int x0, int y0, int x1, int y1);
+
 // ---- a grass-like image (value noise in three octaves, tiling)
 
 static u32 hash2(int x, int y)
@@ -121,8 +123,10 @@ bool cellNew(ECell* c, int gx, int gy)
 	// the terrain image, encoded on the console in the game's ETC1 layout
 	c->rgb = linearAlloc((size_t)CELL_TEX * CELL_TEX * 3);
 	u8* work = linearAlloc((size_t)CELL_TEX * CELL_TEX * 3 / 4);
-	if (!c->rgb || !work || !C3D_TexInitMipmap(&c->tex, CELL_TEX, CELL_TEX, GPU_ETC1)) return false;
+	c->small = linearAlloc((size_t)CELL_SMALL * CELL_SMALL * 3);
+	if (!c->rgb || !c->small || !work || !C3D_TexInitMipmap(&c->tex, CELL_TEX, CELL_TEX, GPU_ETC1)) return false;
 	grassImage(c->rgb);
+	smallUpdate(c, 0, 0, CELL_SMALL, CELL_SMALL);
 	etc1EncodeMips(c->rgb, CELL_TEX, CELL_TEX, c->tex.data, work, 0);
 	linearFree(work);
 	C3D_TexFlush(&c->tex);
@@ -130,6 +134,147 @@ bool cellNew(ECell* c, int gx, int gy)
 	C3D_TexSetFilterMipmap(&c->tex, GPU_LINEAR);
 	C3D_TexSetWrap(&c->tex, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
 	return true;
+}
+
+// ---- painting
+
+#define PX_UNITS (2 * CELL_HALF / CELL_TEX)   // 8 units a pixel
+#define SMALL_LEVEL 3                          // CELL_SMALL = CELL_TEX >> SMALL_LEVEL
+#define SMALL_OFFSET ((CELL_TEX * CELL_TEX + CELL_TEX * CELL_TEX / 4 + CELL_TEX * CELL_TEX / 16) / 2)   // its ETC1 bytes
+
+// The 1/8 copy over small pixels [x0, x1) x [y0, y1): each the average of 8 x 8 image pixels.
+static void smallUpdate(ECell* c, int x0, int y0, int x1, int y1)
+{
+	for (int y = y0; y < y1; y++)
+		for (int x = x0; x < x1; x++) {
+			int sum[3] = { 0, 0, 0 };
+			for (int yy = 0; yy < 8; yy++) {
+				const u8* p = c->rgb + ((size_t)(y * 8 + yy) * CELL_TEX + x * 8) * 3;
+				for (int xx = 0; xx < 8; xx++, p += 3) { sum[0] += p[0]; sum[1] += p[1]; sum[2] += p[2]; }
+			}
+			u8* o = c->small + ((size_t)y * CELL_SMALL + x) * 3;
+			for (int ch = 0; ch < 3; ch++) o[ch] = (u8)((sum[ch] + 32) >> 6);
+		}
+}
+
+static void markDirty(ECell* c, int px0, int py0, int px1, int py1)
+{
+	for (int by = py0 >> 4; by <= py1 >> 4; by++)
+		for (int bx = px0 >> 4; bx <= px1 >> 4; bx++) {
+			u8* d = &c->dirty[by * CELL_DIRTY + bx];
+			if (!*d) { *d = 1; c->ndirty++; }
+		}
+}
+
+void cellPaint(ECell* c, const u8* tex, int texIndex, float cx, float cy, float radius, float amount)
+{
+	const int S = CELL_TEX;
+	int px0 = (int)floorf((cx - radius + CELL_HALF) / PX_UNITS), px1 = (int)ceilf((cx + radius + CELL_HALF) / PX_UNITS);
+	int py0 = (int)floorf((CELL_HALF - cy - radius) / PX_UNITS), py1 = (int)ceilf((CELL_HALF - cy + radius) / PX_UNITS);
+	if (px0 < 0) px0 = 0;
+	if (py0 < 0) py0 = 0;
+	if (px1 > S - 1) px1 = S - 1;
+	if (py1 > S - 1) py1 = S - 1;
+	if (px0 > px1 || py0 > py1 || amount <= 0) return;
+	if (amount > 1) amount = 1;
+	float inv = 1.0f / (radius * radius);
+	for (int py = py0; py <= py1; py++) {
+		float wy = CELL_HALF - (py + 0.5f) * PX_UNITS - cy;
+		const u8* trow = tex + (py & (64 - 1)) * 64 * 3;
+		u8* o = c->rgb + ((size_t)py * S + px0) * 3;
+		for (int px = px0; px <= px1; px++, o += 3) {
+			float wx = (px + 0.5f) * PX_UNITS - CELL_HALF - cx;
+			float d2 = (wx * wx + wy * wy) * inv;
+			if (d2 >= 1) continue;
+			float w = (1 - d2) * (1 - d2);   // soft rim, no square root
+			int a = (int)(amount * w * 256 + 0.5f);
+			if (a <= 0) continue;
+			const u8* t = trow + (px & (64 - 1)) * 3;
+			for (int k = 0; k < 3; k++) {
+				int diff = t[k] - o[k];
+				int step = (diff * a + (diff > 0 ? 255 : -255)) / 256;   // rounded away from 0: it gets there
+				if ((diff > 0 && step > diff) || (diff < 0 && step < diff)) step = diff;
+				o[k] = (u8)(o[k] + step);
+			}
+		}
+	}
+	markDirty(c, px0, py0, px1, py1);
+
+	// the .esm's table: the squares whose middle is well inside the brush
+	for (int sy = 0; sy < 16; sy++)
+		for (int sx = 0; sx < 16; sx++) {
+			float mx = (sx + 0.5f) * 512 - CELL_HALF - cx, my = (sy + 0.5f) * 512 - CELL_HALF - cy;
+			if ((mx * mx + my * my) * inv < 0.36f) c->vtex[sy * 16 + sx] = (u16)(texIndex + 1);
+		}
+}
+
+void cellFlushPaint(ECell* c, float budgetMs)
+{
+	if (!c->ndirty) return;
+	const int N = CELL_DIRTY * CELL_DIRTY;
+	u64 t0 = svcGetSystemTick();
+	bool any = false;
+	for (int k = 0; k < N && c->ndirty; k++) {
+		int i = (c->nextDirty + k) % N;
+		if (!c->dirty[i]) continue;
+		c->dirty[i] = 0;
+		c->ndirty--;
+		int bx = i % CELL_DIRTY, by = i / CELL_DIRTY;
+		// levels 0-2 from the image, the smaller ones from the 1/8 copy (from the image they cost ~100x more)
+		etc1UpdateRectLevels(c->rgb, CELL_TEX, CELL_TEX, bx * 16, by * 16, bx * 16 + 16, by * 16 + 16, c->tex.data, 0,
+		                     SMALL_LEVEL);
+		smallUpdate(c, bx * 2, by * 2, bx * 2 + 2, by * 2 + 2);
+		etc1UpdateRect(c->small, CELL_SMALL, CELL_SMALL, bx * 2, by * 2, bx * 2 + 2, by * 2 + 2,
+		               (u8*)c->tex.data + SMALL_OFFSET, 0);
+		any = true;
+		if (budgetMs > 0 && (svcGetSystemTick() - t0) / (float)CPU_TICKS_PER_MSEC > budgetMs) {
+			c->nextDirty = (i + 1) % N;
+			break;
+		}
+	}
+	if (any) C3D_TexFlush(&c->tex);
+}
+
+size_t cellImageSize(void)
+{
+	int levels;
+	return etc1Size(CELL_TEX, CELL_TEX, &levels);
+}
+
+bool cellSetImage(ECell* c, const u8* etc1, size_t size)
+{
+	if (size != cellImageSize()) return false;
+	memcpy(c->tex.data, etc1, size);
+	C3D_TexFlush(&c->tex);
+	etc1Decode(etc1, CELL_TEX, CELL_TEX, c->rgb);
+	smallUpdate(c, 0, 0, CELL_SMALL, CELL_SMALL);
+	memset(c->dirty, 0, sizeof c->dirty);
+	c->ndirty = 0;
+	return true;
+}
+
+void cellImageFromVtex(ECell* c, const u8* (*getTex)(int i))
+{
+	const int S = CELL_TEX;
+	bool any = false;
+	for (int sy = 0; sy < 16; sy++)
+		for (int sx = 0; sx < 16; sx++) {
+			int v = c->vtex[sy * 16 + sx];
+			const u8* t = v ? getTex(v - 1) : NULL;
+			if (!t) continue;
+			any = true;
+			int py0 = (15 - sy) * 64;   // the image's row 0 is north; vtex row 0 south
+			for (int y = 0; y < 64; y++) memcpy(c->rgb + ((size_t)(py0 + y) * S + sx * 64) * 3, t + y * 64 * 3, 64 * 3);
+		}
+	if (!any) return;
+	u8* work = linearAlloc((size_t)S * S * 3 / 4);
+	if (!work) return;
+	etc1EncodeMips(c->rgb, S, S, c->tex.data, work, 0);
+	linearFree(work);
+	C3D_TexFlush(&c->tex);
+	smallUpdate(c, 0, 0, CELL_SMALL, CELL_SMALL);
+	memset(c->dirty, 0, sizeof c->dirty);
+	c->ndirty = 0;
 }
 
 void cellSetHeights(ECell* c, const float* h)

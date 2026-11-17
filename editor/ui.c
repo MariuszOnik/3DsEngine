@@ -181,6 +181,29 @@ bool uiButton(UiRect r, UiIcon icon, const char* label, bool selected)
 	return tapped;
 }
 
+bool uiImageButton(UiRect r, const C2D_Image* img, const char* label, bool selected)
+{
+	bool tapped = pressedOn(r);
+	if (drawing) {
+		bool down = activeOn(r);
+		uiPanel(r, down ? UI_ACCENT : selected ? UI_PANEL_HI : UI_PANEL);
+		float side = r.h - 18 < r.w - 8 ? r.h - 18 : r.w - 8;
+		if (img && img->tex) {
+			float k = side / img->subtex->width;
+			C2D_DrawImageAt(*img, r.x + (r.w - side) / 2, r.y + 4, 0, NULL, k, k);
+		}
+		if (selected) {
+			C2D_DrawRectSolid(r.x, r.y, 0, r.w, 2, UI_ACCENT);
+			C2D_DrawRectSolid(r.x, r.y + r.h - 2, 0, r.w, 2, UI_ACCENT);
+			C2D_DrawRectSolid(r.x, r.y, 0, 2, r.h, UI_ACCENT);
+			C2D_DrawRectSolid(r.x + r.w - 2, r.y, 0, 2, r.h, UI_ACCENT);
+		}
+		UiRect lr = { r.x, r.y + r.h - 15, r.w, 13 };
+		uiTextCentred(lr, 0.36f, selected ? UI_TEXT : UI_TEXT_DIM, label);
+	}
+	return tapped;
+}
+
 bool uiSlider(UiRect r, const char* label, const char* valueText, float* value, float min, float max)
 {
 	UiRect bar = { r.x + 70, r.y, r.w - 70 - 56, r.h };

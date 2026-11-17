@@ -37,16 +37,6 @@ void tabTerrain(Editor* e)
 	}
 }
 
-void tabFile(Editor* e)
-{
-	(void)e;
-	uiButton((UiRect){ 8, 36, 148, 40 }, ICON_NONE, "Zapisz .esp", false);
-	uiButton((UiRect){ 164, 36, 148, 40 }, ICON_NONE, "Wczytaj", false);
-	uiButton((UiRect){ 8, 84, 148, 40 }, ICON_NONE, "Nowa komórka", false);
-	uiText(10, 140, 0.45f, UI_TEXT_DIM, "Zapis i wczytywanie: następny krok");
-	uiText(10, 158, 0.45f, UI_TEXT_DIM, "(plik .esp zgodny z OpenMW-CS)");
-}
-
 void tabLater(Editor* e, const char* what)
 {
 	(void)e;

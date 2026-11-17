@@ -14,7 +14,16 @@ typedef struct {
 	Tool tool;         // in use this frame
 	Tab tab;
 	float fps, brushMs, prepMs;
+	char fileMsg[96];   // the last save / load result, shown on the "Plik" tab
 } Editor;
+
+// The world being edited: one plugin file the Construction Set and OpenMW-CS can open (editor/esp.h).
+#define WORLD_DIR "sdmc:/3ds/mwedit/world"
+#define WORLD_ESP WORLD_DIR "/world.esp"
+
+// The "Plik" tab's actions (tab_file.c); fileLoad is also run at the start.
+bool fileSave(Editor* e);
+int fileLoad(Editor* e);
 
 #define BRUSH_MIN 128.0f
 #define BRUSH_MAX 4096.0f

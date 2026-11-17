@@ -1,7 +1,7 @@
 // mwedit: the world editor, a program of its own (docs/POMYSLY.md 8, docs/SILNIK.md). Stage 1: terrain.
 //
 // Modules: cell (the edited cell in the game's formats), brush (the tools), view (the camera), render (the 3D on the
-// top screen), ui (touch-screen widgets), tab_* (the bottom screen's tabs). This file: the loop and the buttons.
+// top screen), ui (touch-screen widgets), esp (the world saved as an .esp plugin), tab_* (the bottom screen's tabs). This file: the loop and the buttons.
 //
 // Buttons (the touch screen has the rest: tools, size, strength, camera angle):
 //   circle pad  move the view            L / R      turn it
@@ -69,6 +69,7 @@ int main(void)
 		gfxExit();
 		return 0;
 	}
+	fileLoad(&ed);   // the cell as last saved, if the world file has it
 	uiInit();   // the touch screen is citro2d's from here on
 
 	viewInit(&ed.view);

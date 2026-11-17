@@ -132,6 +132,12 @@ bool cellNew(ECell* c, int gx, int gy)
 	return true;
 }
 
+void cellSetHeights(ECell* c, const float* h)
+{
+	memcpy(c->h, h, sizeof c->h);
+	cellHeightsChanged(c, 0, 0, CELL_GRID - 1, CELL_GRID - 1);
+}
+
 float cellHeightAt(const ECell* c, float x, float y)
 {
 	const int G = CELL_GRID;

@@ -28,6 +28,9 @@ typedef struct {
 // A new empty cell at (gx, gy): flat at NEW_LAND_Z, a grass-like image (until painting brings the land textures).
 bool cellNew(ECell* c, int gx, int gy);
 
+// New heights for the whole cell (CELL_GRID^2, e.g. read from an .esp); vertices and light follow.
+void cellSetHeights(ECell* c, const float* h);
+
 // Height at a cell-relative point (bilinear; outside the cell: its nearest edge).
 float cellHeightAt(const ECell* c, float x, float y);
 

@@ -60,17 +60,33 @@ static inline int clamp255(int v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
 // One sub-block: base colour c[3] against its 8 pixels; the best table, its error and the pixel indices.
 typedef struct { int table; int err; uint8_t idx[8]; } SubFit;
 
-static SubFit fitSub(const int c[3], const uint8_t* const px[8])
+static SubFit fitSub(const int c[3], const uint8_t* const px[8], int quality)
 {
 	// err(m) = S + 2 m D + 3 m^2 per pixel (the modifier adds the same to the three channels; clamping ignored)
 	int D[8], S[8];
+	int spread = 0;
 	for (int i = 0; i < 8; i++) {
 		int d0 = c[0] - px[i][0], d1 = c[1] - px[i][1], d2 = c[2] - px[i][2];
 		D[i] = d0 + d1 + d2;
 		S[i] = d0 * d0 + d1 * d1 + d2 * d2;
+		int a = D[i] < 0 ? -D[i] : D[i];
+		if (a > spread) spread = a;
+	}
+	// quality 0: only the tables round the one whose large step fits the brightest / darkest pixel best
+	int t0 = 0, t1 = 7;
+	if (quality == 0) {
+		spread /= 3;   // per channel
+		int bt = 0, bd = 1 << 30;
+		for (int t = 0; t < 8; t++) {
+			int d = kMods[t][1] - spread;
+			if (d < 0) d = -d;
+			if (d < bd) { bd = d; bt = t; }
+		}
+		t0 = bt > 0 ? bt - 1 : 0;
+		t1 = bt < 7 ? bt + 1 : 7;
 	}
 	SubFit best = { 0, 0x7FFFFFFF, { 0 } };
-	for (int t = 0; t < 8; t++) {
+	for (int t = t0; t <= t1; t++) {
 		const int a = kMods[t][0], b = kMods[t][1];
 		const int m[4] = { a, b, -a, -b };
 		int err = 0;
@@ -94,7 +110,27 @@ static uint64_t encodeBlock(const uint8_t* const p[4][4], int quality)
 {
 	uint64_t bestBits = 0;
 	int bestErr = 0x7FFFFFFF;
-	for (int flip = 0; flip < 2; flip++) {
+	// quality 0: one split only, the one whose halves are more uniform (smaller variance about their means)
+	int flipFrom = 0, flipTo = 1;
+	if (quality == 0) {
+		int64_t var[2];
+		for (int flip = 0; flip < 2; flip++) {
+			int64_t s1[2][3] = { { 0 } }, s2[2] = { 0, 0 };
+			for (int x = 0; x < 4; x++)
+				for (int y = 0; y < 4; y++) {
+					int s = flip ? (y >= 2) : (x >= 2);
+					for (int ch = 0; ch < 3; ch++) { s1[s][ch] += p[x][y][ch]; s2[s] += p[x][y][ch] * p[x][y][ch]; }
+				}
+			var[flip] = 0;
+			for (int s = 0; s < 2; s++) {
+				int64_t m2 = 0;
+				for (int ch = 0; ch < 3; ch++) m2 += s1[s][ch] * s1[s][ch];
+				var[flip] += s2[s] - m2 / 8;
+			}
+		}
+		flipFrom = flipTo = var[1] < var[0] ? 1 : 0;
+	}
+	for (int flip = flipFrom; flip <= flipTo; flip++) {
 		// sub-block s: its 8 pixels and their (x, y)
 		const uint8_t* sp[2][8];
 		int sxy[2][8][2];
@@ -134,8 +170,8 @@ static uint64_t encodeBlock(const uint8_t* const p[4][4], int quality)
 					if (d < -4 || d > 3) ok = false;
 				}
 			if (!ok) continue;
-			SubFit f0 = fitSub(c[0], sp[0]);
-			SubFit f1 = fitSub(c[1], sp[1]);
+			SubFit f0 = fitSub(c[0], sp[0], quality);
+			SubFit f1 = fitSub(c[1], sp[1], quality);
 			int err = f0.err + f1.err;
 			if (err < bestErr) {
 				bestErr = err;
@@ -220,6 +256,44 @@ void etc1Decode(const uint8_t* src, int w, int h, uint8_t* rgb)
 					for (int ch = 0; ch < 3; ch++) o[ch] = (uint8_t)clamp255(c[s][ch] + m);
 				}
 		}
+}
+
+void etc1UpdateRect(const uint8_t* rgb, int w, int h, int x0, int y0, int x1, int y1, uint8_t* dst, int quality)
+{
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 > w) x1 = w;
+	if (y1 > h) y1 = h;
+	if (x0 >= x1 || y0 >= y1) return;
+	int lw = w, lh = h;
+	for (int k = 0;; k++) {
+		const int f = 1 << k;   // level-0 pixels per level-k pixel (each way)
+		// the level's blocks covering the changed rectangle
+		int bx0 = (x0 / f) / 4, by0 = (y0 / f) / 4;
+		int bx1 = ((x1 - 1) / f) / 4, by1 = ((y1 - 1) / f) / 4;
+		for (int by = by0; by <= by1; by++)
+			for (int bx = bx0; bx <= bx1; bx++) {
+				uint8_t tile[4][4][3];
+				const uint8_t* p[4][4];
+				for (int y = 0; y < 4; y++)
+					for (int x = 0; x < 4; x++) {
+						int ly = rowInImage(by, y), lx = bx * 4 + x;   // in level k
+						if (k == 0) { p[x][y] = rgb + ((size_t)ly * w + lx) * 3; continue; }
+						int sum[3] = { 0, 0, 0 };
+						for (int yy = 0; yy < f; yy++) {
+							const uint8_t* s = rgb + ((size_t)(ly * f + yy) * w + lx * f) * 3;
+							for (int xx = 0; xx < f; xx++, s += 3) { sum[0] += s[0]; sum[1] += s[1]; sum[2] += s[2]; }
+						}
+						const int n = f * f;
+						for (int ch = 0; ch < 3; ch++) tile[x][y][ch] = (uint8_t)((sum[ch] + n / 2) / n);
+						p[x][y] = tile[x][y];
+					}
+				putBlock(dst + blockIndex(bx, by, lw, lh) * 8, encodeBlock(p, quality));
+			}
+		if (lw <= 8 || lh <= 8) break;
+		dst += (size_t)lw * lh / 2;
+		lw /= 2; lh /= 2;
+	}
 }
 
 // Box filter to half size (dst may be src: it is read ahead of where it is written).

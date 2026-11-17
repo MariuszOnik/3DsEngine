@@ -71,6 +71,30 @@ static int ppmMode(const char* path)
 		printf("quality %d: %.0f ms, PSNR %.2f dB, mean abs diff %.2f (against the source)\n", q, (t1 - t0) * 1000,
 			psnr(img, img2, px), mad / px);
 	}
+	// a brush stroke: a red 64 x 64 square, only its blocks encoded again, against encoding everything again
+	for (int y = 300; y < 364; y++)
+		for (int x = 500; x < 564; x++) { uint8_t* o = img + ((size_t)y * w + x) * 3; o[0] = 200; o[1] = 40; o[2] = 30; }
+	double t0 = now();
+	const int reps = 100;
+	for (int r = 0; r < reps; r++) etc1UpdateRect(img, w, h, 500, 300, 564, 364, enc, 0);
+	double t1 = now();
+	uint8_t* full = malloc(total);
+	etc1EncodeMips(img, w, h, full, work, 0);
+	int lw = w, lh = h;
+	const uint8_t* a = enc; const uint8_t* b = full;
+	for (int k = 0; lw >= 8 && k < levels; k++) {
+		etc1Decode(a, lw, lh, img2);
+		uint8_t* img3 = malloc((size_t)lw * lh * 3);
+		etc1Decode(b, lw, lh, img3);
+		printf("  stroke, level %d (%dx%d): PSNR %.2f dB rect-update vs full re-encode, pixel (532,332)>>%d = %d,%d,%d\n", k,
+			lw, lh, psnr(img2, img3, (size_t)lw * lh * 3), k, img2[((332 >> k) * lw + (532 >> k)) * 3],
+			img2[((332 >> k) * lw + (532 >> k)) * 3 + 1], img2[((332 >> k) * lw + (532 >> k)) * 3 + 2]);
+		free(img3);
+		a += (size_t)lw * lh / 2; b += (size_t)lw * lh / 2;
+		lw /= 2; lh /= 2;
+	}
+	printf("stroke 64x64, all levels: %.2f ms on this PC (x~85 on an Old 3DS: %.0f ms)\n", (t1 - t0) * 1000 / reps,
+		(t1 - t0) * 1000 / reps * 85);
 	return 0;
 }
 

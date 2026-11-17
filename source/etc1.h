@@ -18,5 +18,11 @@ void etc1Encode(const uint8_t* rgb, int w, int h, uint8_t* dst, int quality);
 // All levels, box-filtered like tex3ds -m box. work: w*h*3/4 bytes of scratch for the smaller levels.
 void etc1EncodeMips(const uint8_t* rgb, int w, int h, uint8_t* dst, uint8_t* work, int quality);
 
+// Painting: only what a brush touched. rgb is the whole level-0 image (already painted), [x0, x1) x [y0, y1) the
+// changed pixels; the blocks covering them are encoded again in every level of dst (the whole mip chain, as
+// etc1EncodeMips writes it). Smaller levels average 2^k x 2^k pixels of level 0 (close to the box chain).
+// quality 0 for the live preview, 1 for the bake.
+void etc1UpdateRect(const uint8_t* rgb, int w, int h, int x0, int y0, int x1, int y1, uint8_t* dst, int quality);
+
 // One level back to rgb (w*h*3).
 void etc1Decode(const uint8_t* src, int w, int h, uint8_t* rgb);

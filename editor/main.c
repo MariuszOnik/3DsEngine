@@ -101,8 +101,11 @@ int main(void)
 	consoleInit(GFX_BOTTOM, NULL);   // only while the cell is prepared (then the touch screen's widgets)
 	printf("\n 3dsOpenworld - edytor\n\n Przygotowuje pusta komorke...\n");
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+	gfxSet3D(true);   // the 3D slider: both eyes drawn when it is up
 	C3D_RenderTarget* top = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	C3D_RenderTargetSetOutput(top, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
+	C3D_RenderTarget* topR = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	if (topR) C3D_RenderTargetSetOutput(topR, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
 
 	u64 t0 = svcGetSystemTick();
 	bool ok = renderInit() && cellNew(&ed.cell, 0, 0);
@@ -185,9 +188,15 @@ int main(void)
 		}
 
 		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-		C3D_RenderTargetClear(top, C3D_CLEAR_ALL, 0x8CA8C4FF, 0);
-		C3D_FrameDrawOn(top);
-		renderScene(&ed.cell, &ed.view, true);
+		float slider = osGet3DSliderState();
+		bool stereo = slider > 0.02f && topR;
+		float iod = slider * ed.view.dist / 10.0f;   // as the game: the eyes apart by a tenth of the focal distance
+		for (int e = 0; e < (stereo ? 2 : 1); e++) {
+			C3D_RenderTarget* t = e == 0 ? top : topR;
+			C3D_RenderTargetClear(t, C3D_CLEAR_ALL, 0x8CA8C4FF, 0);
+			C3D_FrameDrawOn(t);
+			renderScene(&ed.cell, &ed.view, true, stereo ? (e == 0 ? -iod : iod) : 0);
+		}
 		bottomScreen(down, held, changed || uiTouching());
 		C3D_FrameEnd(0);
 	}

@@ -7,4 +7,5 @@
 bool renderInit(void);   // after C3D_Init
 // The brush's rim (a band on the ground) and a cross at its centre, for this frame.
 void renderSetBrush(const ECell* c, float cx, float cy, float radius);
-void renderScene(const ECell* c, const View* v, bool water);
+// iod: the stereo eye offset (0: no 3D; -/+ for the left / right eye), the screen's plane at the view's point.
+void renderScene(const ECell* c, const View* v, bool water, float iod);

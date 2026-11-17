@@ -108,11 +108,15 @@ static void texEnv(bool textured)
 	}
 }
 
-void renderScene(const ECell* c, const View* v, bool showWater)
+void renderScene(const ECell* c, const View* v, bool showWater, float iod)
 {
 	C3D_Mtx view, proj, mvp;
 	Mtx_LookAt(&view, FVec3_New(0, 0, 0), FVec3_New(v->fwd[0], v->fwd[1], v->fwd[2]), FVec3_New(0, 0, 1), false);
-	Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, v->dist * 3.0f + 12000.0f, false);
+	if (iod != 0)   // the stereo 3D (as the game): the brush's point on the screen's plane
+		Mtx_PerspStereoTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, v->dist * 3.0f + 12000.0f, iod,
+		                    v->dist, false);
+	else
+		Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 8.0f, v->dist * 3.0f + 12000.0f, false);
 	Mtx_Multiply(&mvp, &proj, &view);
 
 	C3D_BindProgram(&prog);
@@ -144,7 +148,8 @@ void renderScene(const ECell* c, const View* v, bool showWater)
 	}
 	texEnv(false);
 
-	// the brush, always on top
+	// the brush, always on top (no depth colour on it)
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uWater, 1, 1, 1, 0);
 	C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
 	C3D_SetBufInfo(&ringBuf);
 	C3D_DrawElements(GPU_TRIANGLES, RING_INDICES, C3D_UNSIGNED_SHORT, ringIdx);

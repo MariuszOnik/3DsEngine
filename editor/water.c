@@ -12,7 +12,16 @@ static C3D_AttrInfo attr;
 static C3D_Tex ripple;
 static bool rippleOk;
 static Vtx* grid;
+// Round the cell (the editor has one): deep sea. A floor far down and the surface over it, so the water at the cell's
+// edge does not show the sky through it.
+#define AROUND 12288.0f
+#define FLOOR_Z -1500
+static Vtx* outer;        // 4 floor corners, then 8 surface points (the cell's square, the outer square)
+static u16* outerIdx;     // 6 floor, then 24 surface (the frame round the cell)
+static C3D_BufInfo outerBuf;
 static C3D_BufInfo buf;
+
+#define RIPPLE_STRENGTH 200   // 0..255: how much of the ripples' light and shade shows (255: all of it)
 
 // ---- the ripple texture (as the game's makeRipples, without the glints' alpha): L8 256, tiling
 
@@ -120,6 +129,33 @@ bool waterInit(void)
 		}
 	BufInfo_Init(&buf);
 	BufInfo_Add(&buf, grid, sizeof(Vtx), 3, 0x210);
+
+	outer = linearAlloc(12 * sizeof(Vtx));
+	outerIdx = linearAlloc(30 * sizeof(u16));
+	if (!outer || !outerIdx) return false;
+	const float sq[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
+	for (int i = 0; i < 12; i++) {
+		Vtx* v = &outer[i];
+		float k = i < 4 ? AROUND : i < 8 ? CELL_HALF : AROUND;
+		v->p[0] = (s16)(sq[i & 3][0] * k);
+		v->p[1] = (s16)(sq[i & 3][1] * k);
+		v->p[2] = i < 4 ? FLOOR_Z : 0;
+		v->p[3] = 0;
+		v->t[0] = v->t[1] = 0;
+		if (i < 4) { v->c[0] = 18; v->c[1] = 62; v->c[2] = 72; v->c[3] = 255; }   // the deep colour, as terrain.v.pica's
+		else { v->c[0] = v->c[1] = v->c[2] = 128; v->c[3] = RIPPLE_STRENGTH; }
+	}
+	const u16 q[6] = { 0, 1, 2, 0, 2, 3 };
+	for (int i = 0; i < 6; i++) outerIdx[i] = q[i];
+	for (int e = 0; e < 4; e++) {   // a frame quad per side: inner e, inner e+1, outer e+1, outer e
+		u16 a = 4 + e, b = 4 + (e + 1) % 4, c = 8 + (e + 1) % 4, d = 8 + e;
+		u16* o = &outerIdx[6 + e * 6];
+		o[0] = a; o[1] = b; o[2] = c; o[3] = a; o[4] = c; o[5] = d;
+	}
+	GSPGPU_FlushDataCache(outer, 12 * sizeof(Vtx));
+	GSPGPU_FlushDataCache(outerIdx, 30 * sizeof(u16));
+	BufInfo_Init(&outerBuf);
+	BufInfo_Add(&outerBuf, outer, sizeof(Vtx), 3, 0x210);
 	makeRipples();
 	return true;
 }
@@ -127,13 +163,13 @@ bool waterInit(void)
 void waterDraw(const ECell* c, const C3D_Mtx* mvp, const float eye[3], float t)
 {
 	if (!grid || !rippleOk) return;
-	// the light scattered back (a faint cool grey, the game's "colourless" water) and the shore's fade: the surface
-	// is drawn where the land is under the sea, fading out in the last 40 units (no hard edge, as in the game)
+	// the alpha: how strongly the ripples play over the bottom, faded out in the last 40 units at the shore (no hard
+	// edge, as in the game)
 	for (int i = 0; i < CELL_GRID * CELL_GRID; i++) {
 		float d = -c->h[i];
 		Vtx* v = &grid[i];
-		v->c[0] = 6; v->c[1] = 8; v->c[2] = 9;
-		v->c[3] = (u8)(d <= 0 ? 0 : d < 40 ? d / 40.0f * 255 : 255);
+		v->c[0] = v->c[1] = v->c[2] = 128;
+		v->c[3] = (u8)(d <= 0 ? 0 : d < 40 ? d / 40.0f * RIPPLE_STRENGTH : RIPPLE_STRENGTH);
 	}
 	GSPGPU_FlushDataCache(grid, CELL_GRID * CELL_GRID * sizeof(Vtx));
 
@@ -143,10 +179,22 @@ void waterDraw(const ECell* c, const C3D_Mtx* mvp, const float eye[3], float t)
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uOrigin, -eye[0], -eye[1], -eye[2], 0);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uUvA, fmodf(t * 0.031f, 1.0f), fmodf(t * 0.019f, 1.0f), 14.0f / 8192.0f, 0);
 	C3D_FVUnifSet(GPU_VERTEX_SHADER, uUvB, fmodf(-t * 0.023f, 1.0f), fmodf(t * 0.034f, 1.0f), 11.0f / 8192.0f, 0);
-	C3D_FVUnifSet(GPU_VERTEX_SHADER, uRefl, 0.16f, 0.20f, 0.24f, 0);   // the editor's sky, toned down
+	C3D_FVUnifSet(GPU_VERTEX_SHADER, uRefl, 0, 0, 0, 0);   // no sky mirrored: added light made the water milky
+	// the deep floor round the cell (plain colour, in the depth buffer)
+	C3D_TexEnv* fl = C3D_GetTexEnv(0);
+	C3D_TexEnvInit(fl);
+	C3D_TexEnvSrc(fl, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvFunc(fl, C3D_Both, GPU_REPLACE);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+	C3D_SetBufInfo(&outerBuf);
+	C3D_DrawElements(GPU_TRIANGLES, 6, C3D_UNSIGNED_SHORT, outerIdx);
+
 	C3D_TexBind(1, &ripple);
 	C3D_TexBind(2, &ripple);
-	// the two layers added signed (mid grey: nothing), x the colour x 4, added to the picture x the shore's fade
+	// Transparent: the water adds nothing, it only lights and shades the bottom under it by the ripples.
+	// The two layers added signed (mid grey where calm), drawn towards mid grey by the alpha (strength x the shore's
+	// fade); the blend dst x src x 2 leaves mid grey as it is, brighter crests light the bottom, troughs shade it.
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
 	C3D_TexEnvInit(env);
 	C3D_TexEnvSrc(env, C3D_RGB, GPU_TEXTURE1, GPU_TEXTURE2, 0);
@@ -155,14 +203,17 @@ void waterDraw(const ECell* c, const C3D_Mtx* mvp, const float eye[3], float t)
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
 	env = C3D_GetTexEnv(1);
 	C3D_TexEnvInit(env);
-	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_PRIMARY_COLOR, 0);
-	C3D_TexEnvFunc(env, C3D_RGB, GPU_MODULATE);
-	C3D_TexEnvScale(env, C3D_RGB, GPU_TEVSCALE_4);
+	C3D_TexEnvSrc(env, C3D_RGB, GPU_PREVIOUS, GPU_CONSTANT, GPU_PRIMARY_COLOR);
+	C3D_TexEnvOpRgb(env, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_COLOR, GPU_TEVOP_RGB_SRC_ALPHA);
+	C3D_TexEnvFunc(env, C3D_RGB, GPU_INTERPOLATE);
+	C3D_TexEnvColor(env, 0xFF808080);
 	C3D_TexEnvSrc(env, C3D_Alpha, GPU_PREVIOUS, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
-	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE, GPU_ZERO, GPU_ONE);
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_DST_COLOR, GPU_SRC_COLOR, GPU_ZERO, GPU_ONE);
 	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
 	C3D_SetBufInfo(&buf);
 	C3D_DrawElements(GPU_TRIANGLES, c->nidx, C3D_UNSIGNED_SHORT, c->idx);   // the land's own triangle list
+	C3D_SetBufInfo(&outerBuf);
+	C3D_DrawElements(GPU_TRIANGLES, 24, C3D_UNSIGNED_SHORT, outerIdx + 6);   // the sea round the cell
 	C3D_TexEnvInit(C3D_GetTexEnv(1));
 }

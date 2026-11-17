@@ -14,6 +14,10 @@ static int active = -1;    // the widget the stylus went down on (by its positio
 
 void uiInit(void)
 {
+	// The text console (shown while the cell is prepared) left the bottom screen in RGB565 without double
+	// buffering; citro2d's screen target sends RGB8: the picture came out scrambled (Azahar, 17.11).
+	gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+	gfxSetDoubleBuffering(GFX_BOTTOM, true);
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
 	target = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);

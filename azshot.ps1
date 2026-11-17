@@ -12,10 +12,13 @@ public class W {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(int f, int x, int y, int d, int e);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, int flags);
   public struct RECT { public int L, T, R, B; }
 }
 "@
-$az = "D:\Programowanie\azahar-windows-mxe-2127.0-alpha3\azahar-windows-mxe-2127.0-alpha3\azahar.exe"
+[W]::SetProcessDPIAware() | Out-Null   # real pixels: with display scaling the window rect was off (caught VS Code)
+$az ="D:\Programowanie\azahar-windows-mxe-2127.0-alpha3\azahar-windows-mxe-2127.0-alpha3\azahar.exe"
 $p = Start-Process $az -ArgumentList "`"$rom`"" -PassThru
 Start-Sleep $wait
 $p.Refresh()
@@ -32,7 +35,8 @@ if ($cx -ge 0) {   # a tap: click at (cx, cy) in the window
 }
 $bmp = New-Object System.Drawing.Bitmap $w, $hh
 $g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+# only Azahar's own window (PrintWindow, full content), never whatever is on the screen there
+$dc = $g.GetHdc(); [W]::PrintWindow($h, $dc, 2) | Out-Null; $g.ReleaseHdc($dc)
 $bmp.Save($png)
 Stop-Process $p.Id
 "saved $png ($w x $hh)"

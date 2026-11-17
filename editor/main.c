@@ -36,12 +36,12 @@ static void bottomScreen(u32 down, u32 held, bool redraw)
 	switch (ed.tab) {
 	case TAB_TERRAIN: tabTerrain(&ed); break;
 	case TAB_PAINT: tabLater(&ed, "Malowanie tekstur terenu"); break;
-	case TAB_OBJECTS: tabLater(&ed, "Obiekty: domy, drzewa, skaly"); break;
+	case TAB_OBJECTS: tabLater(&ed, "Obiekty: domy, drzewa, skały"); break;
 	case TAB_FILE: tabFile(&ed); break;
 	default: break;
 	}
 	uiPanel((UiRect){ 0, 216, UI_W, 24 }, UI_PANEL);
-	uiText(6, 220, 0.45f, UI_TEXT, "Komorka %d,%d   wys. %.0f   kat %.0f   %.0f fps", ed.cell.gx, ed.cell.gy,
+	uiText(6, 220, 0.45f, UI_TEXT, "Komórka %d,%d   wys. %.0f   kąt %.0f   %.0f fps", ed.cell.gx, ed.cell.gy,
 	       cellHeightAt(&ed.cell, ed.view.tx, ed.view.ty), -ed.view.pitch * 57.2958f, ed.fps);
 	uiEnd();
 }

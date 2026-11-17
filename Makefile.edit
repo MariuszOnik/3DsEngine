@@ -128,14 +128,18 @@ endif
 
 export OFILES_SOURCES 	:=	$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
-export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES)) \
+# fonts (editor/font/*.ttf -> .bcfnt by mkbcfnt, linked in; editor/font/README.md)
+FONTFILES	:=	$(notdir $(wildcard editor/font/*.ttf))
+export VPATH	+=	$(CURDIR)/editor/font
+
+export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES)) $(FONTFILES:.ttf=.bcfnt.o) \
 			$(PICAFILES:.v.pica=.shbin.o) $(SHLISTFILES:.shlist=.shbin.o) \
 			$(addsuffix .o,$(T3XFILES))
 
 export OFILES := $(OFILES_BIN) $(OFILES_SOURCES)
 
 export HFILES	:=	$(PICAFILES:.v.pica=_shbin.h) $(SHLISTFILES:.shlist=_shbin.h) \
-			$(addsuffix .h,$(subst .,_,$(BINFILES))) \
+			$(addsuffix .h,$(subst .,_,$(BINFILES))) $(FONTFILES:.ttf=_bcfnt.h) \
 			$(GFXFILES:.t3s=.h)
 
 export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) $(foreach dir,$(MS2DIRS),-I$(dir)) \
@@ -218,7 +222,20 @@ $(OUTPUT).elf	:	$(OFILES)
 	@$(bin2o)
 
 #---------------------------------------------------------------------------------
-.PRECIOUS	:	%.t3x %.shbin
+.PRECIOUS	:	%.t3x %.shbin %.bcfnt
+#---------------------------------------------------------------------------------
+%.bcfnt	:	%.ttf
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	@mkbcfnt -s 13 -o $@ $<
+
+#---------------------------------------------------------------------------------
+%.bcfnt.o	%_bcfnt.h :	%.bcfnt
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	@$(bin2o)
+
+#---------------------------------------------------------------------------------
 #---------------------------------------------------------------------------------
 %.t3x.o	%_t3x.h :	%.t3x
 #---------------------------------------------------------------------------------

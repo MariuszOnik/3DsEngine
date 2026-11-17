@@ -4,8 +4,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "uifont_bcfnt.h"   // editor/font/uifont.ttf (Noto Sans with Polish letters), built by Makefile.edit
+
 static C3D_RenderTarget* target;
 static C2D_TextBuf textBuf;
+// Own font: Azahar has no system font without dumped console files, and the system one is fine but this one
+// carries Polish letters for sure. Sizes in the UI are given in system-font terms (cell height 30), fontK maps them.
+static C2D_Font font;
+static float fontK = 1;
 static bool drawing, wantRedraw = true;
 static u32 kDown, kHeld;
 static touchPosition touch, lastTouch;
@@ -22,10 +28,17 @@ void uiInit(void)
 	C2D_Prepare();
 	target = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 	textBuf = C2D_TextBufNew(4096);
+	font = C2D_FontLoadFromMem(uifont_bcfnt, uifont_bcfnt_size);
+	if (font) {
+		C2D_FontSetFilter(font, GPU_LINEAR, GPU_LINEAR);
+		FINF_s* fi = C2D_FontGetInfo(font);
+		if (fi && fi->lineFeed) fontK = 30.0f / fi->lineFeed;
+	}
 }
 
 void uiExit(void)
 {
+	if (font) C2D_FontFree(font);
 	C2D_TextBufDelete(textBuf);
 	C2D_Fini();
 }
@@ -92,8 +105,9 @@ void uiText(float x, float y, float size, u32 colour, const char* fmt, ...)
 	vsnprintf(s, sizeof s, fmt, ap);
 	va_end(ap);
 	C2D_Text t;
-	C2D_TextParse(&t, textBuf, s);
+	C2D_TextFontParse(&t, font, textBuf, s);
 	C2D_TextOptimize(&t);
+	size *= fontK;
 	C2D_DrawText(&t, C2D_WithColor, x, y, 0, size, size, colour);
 }
 
@@ -101,8 +115,9 @@ void uiTextCentred(UiRect r, float size, u32 colour, const char* text)
 {
 	if (!drawing) return;
 	C2D_Text t;
-	C2D_TextParse(&t, textBuf, text);
+	C2D_TextFontParse(&t, font, textBuf, text);
 	C2D_TextOptimize(&t);
+	size *= fontK;
 	float w, h;
 	C2D_TextGetDimensions(&t, size, size, &w, &h);
 	C2D_DrawText(&t, C2D_WithColor, r.x + (r.w - w) / 2, r.y + (r.h - h) / 2, 0, size, size, colour);

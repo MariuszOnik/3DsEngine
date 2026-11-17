@@ -8,10 +8,10 @@
 void tabTerrain(Editor* e)
 {
 	static const struct { Tool tool; UiIcon icon; const char* label; } tools[] = {
-		{ TOOL_RAISE, ICON_UP, "podnies (A)" },
-		{ TOOL_LOWER, ICON_DOWN, "obniz (B)" },
-		{ TOOL_SMOOTH, ICON_SMOOTH, "wygladz (Y)" },
-		{ TOOL_FLATTEN, ICON_FLAT, "wyrownaj (X)" },
+		{ TOOL_RAISE, ICON_UP, "podnieś (A)" },
+		{ TOOL_LOWER, ICON_DOWN, "obniż (B)" },
+		{ TOOL_SMOOTH, ICON_SMOOTH, "wygładź (Y)" },
+		{ TOOL_FLATTEN, ICON_FLAT, "wyrównaj (X)" },
 	};
 	// the tools: tapping one gives it to A (B, Y, X keep their own); the one in use lights up
 	for (int i = 0; i < 4; i++) {
@@ -27,11 +27,11 @@ void tabTerrain(Editor* e)
 	if (uiSlider((UiRect){ 8, 88, 304, 26 }, "Rozmiar", txt, &t, 0, 1))
 		e->brush.radius = BRUSH_MIN * expf(t * logf(BRUSH_MAX / BRUSH_MIN));
 	snprintf(txt, sizeof txt, "%.0f/s", e->brush.rate);
-	uiSlider((UiRect){ 8, 118, 304, 26 }, "Sila", txt, &e->brush.rate, RATE_MIN, RATE_MAX);
+	uiSlider((UiRect){ 8, 118, 304, 26 }, "Siła", txt, &e->brush.rate, RATE_MIN, RATE_MAX);
 
 	// the camera
 	float dx, dy;
-	if (uiDragArea((UiRect){ 8, 152, 304, 58 }, "kamera: przeciagnij (kat, obrot)", &dx, &dy)) {
+	if (uiDragArea((UiRect){ 8, 152, 304, 58 }, "kamera: przeciągnij (kąt, obrót)", &dx, &dy)) {
 		viewDrag(&e->view, dx, dy);
 		uiInvalidate();   // the angle in the status bar
 	}
@@ -42,8 +42,8 @@ void tabFile(Editor* e)
 	(void)e;
 	uiButton((UiRect){ 8, 36, 148, 40 }, ICON_NONE, "Zapisz .esp", false);
 	uiButton((UiRect){ 164, 36, 148, 40 }, ICON_NONE, "Wczytaj", false);
-	uiButton((UiRect){ 8, 84, 148, 40 }, ICON_NONE, "Nowa komorka", false);
-	uiText(10, 140, 0.45f, UI_TEXT_DIM, "Zapis i wczytywanie: nastepny krok");
+	uiButton((UiRect){ 8, 84, 148, 40 }, ICON_NONE, "Nowa komórka", false);
+	uiText(10, 140, 0.45f, UI_TEXT_DIM, "Zapis i wczytywanie: następny krok");
 	uiText(10, 158, 0.45f, UI_TEXT_DIM, "(plik .esp zgodny z OpenMW-CS)");
 }
 
@@ -51,5 +51,5 @@ void tabLater(Editor* e, const char* what)
 {
 	(void)e;
 	uiText(10, 60, 0.55f, UI_TEXT, "%s", what);
-	uiText(10, 84, 0.45f, UI_TEXT_DIM, "wkrotce");
+	uiText(10, 84, 0.45f, UI_TEXT_DIM, "wkrótce");
 }

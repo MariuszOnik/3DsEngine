@@ -17,9 +17,11 @@ typedef struct {
 	char fileMsg[96];   // the last save / load result, shown on the "Plik" tab
 } Editor;
 
-// The world being edited: one plugin file the Construction Set and OpenMW-CS can open (editor/esp.h).
+// The world being edited: the game's own master file (like Morrowind.esm), opened by OpenMW-CS and the Construction
+// Set as the game file (editor/esp.h). .esp plugins stay for mods built on it. world.esp: the first saves (17.11).
 #define WORLD_DIR "sdmc:/3ds/mwedit/world"
-#define WORLD_ESP WORLD_DIR "/world.esp"
+#define WORLD_ESP WORLD_DIR "/world.esm"
+#define WORLD_OLD WORLD_DIR "/world.esp"
 
 // The "Plik" tab's actions (tab_file.c); fileLoad is also run at the start.
 bool fileSave(Editor* e);

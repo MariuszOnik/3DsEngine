@@ -229,10 +229,15 @@ bool espSaveLand(const char* path, int gx, int gy, const float* h, char* msg, si
 	if (!cellFound) { writeCell(&b, gx, gy); records++; }
 	if (!landDone) { writeLand(&b, gx, gy, h); records++; lands++; }
 
-	// the record count in HEDR
+	// the record count in HEDR; a .esm gets the master flag (a game file others build on), a .esp loses it
 	uint32_t hs;
 	uint8_t* hedr = b.bad ? NULL : (uint8_t*)findSub(b.d, "HEDR", &hs);
-	if (hedr && hs >= 300) wr32(hedr + 296, (uint32_t)records);
+	if (hedr && hs >= 300) {
+		size_t pl = strlen(path);
+		bool master = pl >= 4 && (strcmp(path + pl - 4, ".esm") == 0 || strcmp(path + pl - 4, ".ESM") == 0);
+		wr32(hedr + 4, master ? (rd32(hedr + 4) | 1) : (rd32(hedr + 4) & ~1u));
+		wr32(hedr + 296, (uint32_t)records);
+	}
 
 	bool ok = !b.bad;
 	if (ok) {   // into a new file first: a failed write must not eat the old one

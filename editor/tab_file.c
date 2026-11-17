@@ -8,10 +8,19 @@
 
 static float heights[CELL_GRID * CELL_GRID];   // big for the stack; one save / load at a time
 
+// The first saves went to world.esp: it becomes world.esm (the next save sets its master flag).
+static void renameOld(void)
+{
+	FILE* f = fopen(WORLD_ESP, "rb");
+	if (f) { fclose(f); return; }
+	rename(WORLD_OLD, WORLD_ESP);
+}
+
 bool fileSave(Editor* e)
 {
 	mkdir("sdmc:/3ds/mwedit", 0777);
 	mkdir(WORLD_DIR, 0777);
+	renameOld();
 	bool ok = espSaveLand(WORLD_ESP, e->cell.gx, e->cell.gy, e->cell.h, e->fileMsg, sizeof e->fileMsg);
 	// back from the file: the .esp keeps heights in steps of 8 and cuts slopes steeper than 127 steps per 128 units,
 	// so the land on the screen is the one in the file
@@ -21,6 +30,7 @@ bool fileSave(Editor* e)
 
 int fileLoad(Editor* e)
 {
+	renameOld();
 	int r = espLoadLand(WORLD_ESP, e->cell.gx, e->cell.gy, heights);
 	if (r == 1) {
 		cellSetHeights(&e->cell, heights);
@@ -34,7 +44,7 @@ int fileLoad(Editor* e)
 
 void tabFile(Editor* e)
 {
-	if (uiButton((UiRect){ 8, 36, 148, 40 }, ICON_NONE, "Zapisz .esp", false)) fileSave(e);
+	if (uiButton((UiRect){ 8, 36, 148, 40 }, ICON_NONE, "Zapisz", false)) fileSave(e);
 	if (uiButton((UiRect){ 164, 36, 148, 40 }, ICON_NONE, "Wczytaj", false)) fileLoad(e);
 	if (uiButton((UiRect){ 8, 84, 148, 40 }, ICON_NONE, "Wyczyść komórkę", false)) {
 		for (int i = 0; i < CELL_GRID * CELL_GRID; i++) heights[i] = NEW_LAND_Z;
@@ -42,6 +52,6 @@ void tabFile(Editor* e)
 		snprintf(e->fileMsg, sizeof e->fileMsg, "Płaski teren (zapisz, żeby został)");
 	}
 	uiText(10, 136, 0.5f, UI_TEXT, "%s", e->fileMsg[0] ? e->fileMsg : " ");
-	uiText(10, 166, 0.42f, UI_TEXT_DIM, "Plik: 3ds/mwedit/world/world.esp");
-	uiText(10, 184, 0.42f, UI_TEXT_DIM, "Otworzysz go w OpenMW-CS i Construction Secie.");
+	uiText(10, 166, 0.42f, UI_TEXT_DIM, "Plik gry: 3ds/mwedit/world/world.esm");
+	uiText(10, 184, 0.42f, UI_TEXT_DIM, "W OpenMW-CS otwórz go jako plik gry (Game file).");
 }

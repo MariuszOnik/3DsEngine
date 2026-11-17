@@ -3,7 +3,7 @@
 //
 // Saving puts one exterior cell's LAND (VNML, VHGT, WNAM) into the file: it replaces that cell's LAND if the file has
 // one, adds an empty CELL if it has none, and keeps every other record as it is (references, records made in
-// OpenMW-CS). The file is created when it does not exist yet.
+// OpenMW-CS). The file is created when it does not exist yet. A path ending in .esm makes it a master (game) file.
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
